@@ -105,7 +105,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 # Storage文件 (用于存储生成的图片、视频等)
 STORAGE_URL = 'storage/'
-STORAGE_ROOT = BASE_DIR.parent / 'backend' / 'storage'  # 项目根目录的storage文件夹
+STORAGE_ROOT = BASE_DIR.parent  / 'storage'  # 项目根目录的storage文件夹
 
 # 默认主键字段
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
