@@ -199,6 +199,6 @@ export default {
    *   }
    */
   generateJianyingDraft(projectId, options = {}) {
-    return apiClient.post(`/projects/projects/${projectId}/generate-jianying-draft/`, options);
+    return apiClient.post(`/projects/projects/${projectId}/generate_jianying_draft/`, options);
   },
 };

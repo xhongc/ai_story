@@ -663,7 +663,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
     def generate_jianying_draft(self, request, pk=None):
         """
         生成剪映草稿
-        POST /api/v1/projects/{id}/generate-jianying-draft/
+        POST /api/v1/projects/{id}/generate_jianying_draft/
         Body: {
             "background_music": "/path/to/music.mp3",  // 可选
             "draft_folder_path": "/path/to/drafts",    // 可选
