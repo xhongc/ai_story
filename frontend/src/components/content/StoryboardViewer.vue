@@ -47,7 +47,7 @@
 
     <!-- 卡片视图 -->
     <div v-if="viewMode === 'cards'" class="cards-container">
-      <div v-if="scenes && scenes.length > 0" class="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4">
+      <div v-if="scenes && scenes.length > 0" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <div
           v-for="(scene, index) in scenes"
           :key="scene.scene_number"

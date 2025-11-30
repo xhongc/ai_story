@@ -1,7 +1,8 @@
 # 导入模块
 import os
 import pyJianYingDraft as draft
-from pyJianYingDraft import IntroType, trange, tim
+from pyJianYingDraft import IntroType, TransitionType, trange, tim
+from pathlib import Path
 
 # 设置草稿文件夹
 draft_folder = draft.DraftFolder(r"D:\JianyingPro Drafts")
@@ -18,7 +19,7 @@ SUPPORTED_SUBTITLE_FORMATS = ('.txt', '.srt')
 # ---------------------- 函数：获取视频对应的字幕内容 ----------------------
 def get_video_subtitle(video_file, subtitle_dir=None):
     """
-    获取视频对应的字幕内容
+    获取视频对应的字幕内容 
     优先级：1. 同目录下与视频同名的字幕文件 2. 字幕目录下与视频同名的字幕文件 3. 默认字幕
     """
     video_name = os.path.splitext(os.path.basename(video_file))[0]
@@ -111,8 +112,8 @@ for i, video_file in enumerate(video_files):
 script.save()
 
 # 打印结果
-print("成功创建多视频拼接+对应字幕草稿！")
-print("拼接的视频文件及对应字幕：")
+print(f"成功创建多视频拼接+对应字幕草稿！")
+print(f"拼接的视频文件及对应字幕：")
 for i, file in enumerate(video_files, 1):
     subtitle = get_video_subtitle(file, subtitle_path)
     print(f"  {i}. 视频：{os.path.basename(file)} -> 字幕：{subtitle}")
