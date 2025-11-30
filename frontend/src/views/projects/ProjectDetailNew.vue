@@ -232,6 +232,25 @@
               </svg>
               保存为模板
             </button>
+
+            <!-- 剪映草稿生成按钮 -->
+            <jianying-draft-button
+              v-if="project"
+              :project-id="project.id"
+              :project="project"
+              @generated="handleDraftGenerated"
+            />
+          </div>
+
+          <!-- 剪映草稿路径显示 -->
+          <div v-if="project?.jianying_draft_path" class="alert alert-info mt-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+              <div class="font-bold">剪映草稿已生成</div>
+              <div class="text-sm">路径: {{ project.jianying_draft_path }}</div>
+            </div>
           </div>
         </div>
       </div>
@@ -249,9 +268,13 @@
 
 <script>
 import { mapState, mapGetters, mapActions } from 'vuex';
+import JianyingDraftButton from '@/components/projects/JianyingDraftButton.vue';
 
 export default {
   name: 'ProjectDetail',
+  components: {
+    JianyingDraftButton,
+  },
   data() {
     return {
       loading: true,
@@ -397,6 +420,16 @@ export default {
       if (templateName) {
         alert(`模板"${templateName}"保存功能开发中...`);
       }
+    },
+
+    handleDraftGenerated(data) {
+      console.log('剪映草稿生成成功:', data);
+
+      // 显示成功提示
+      alert(`✓ 剪映草稿生成成功！\n路径: ${data.draftPath}\n视频数量: ${data.videoCount}`);
+
+      // 刷新项目数据以更新 jianying_draft_path 字段
+      this.loadProject();
     },
 
     getStageBadgeClass(status) {
