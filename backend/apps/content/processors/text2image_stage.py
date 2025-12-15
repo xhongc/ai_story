@@ -407,10 +407,43 @@ class Text2ImageStageProcessor(StageProcessor):
 
         return template
 
+    async def _get_global_variables(self, project: Project) -> Dict[str, Any]:
+        """
+        获取全局变量
+        包括用户级和系统级变量
+        """
+        from apps.prompts.models import GlobalVariable
+
+        # 获取项目创建者的全局变量
+        user = await project.created_by
+        variables = await GlobalVariable.get_variables_for_user(
+            user=user,
+            include_system=True
+        )
+
+        return variables
+
+    def _get_global_variables_sync(self, project: Project) -> Dict[str, Any]:
+        """
+        同步获取全局变量（用于非异步上下文）
+        """
+        import asyncio
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # 如果事件循环正在运行，创建新任务
+                return asyncio.create_task(self._get_global_variables(project))
+            else:
+                return loop.run_until_complete(self._get_global_variables(project))
+        except RuntimeError:
+            # 没有事件循环，创建新的
+            return asyncio.run(self._get_global_variables(project))
+
     def _build_prompt(self, project: Project, storyboard: dict) -> str:
         """
         构建提示词
         从PromptTemplate获取模板并使用Jinja2渲染
+        支持全局变量注入
         """
         template = self._get_prompt_template(project)
 
@@ -418,15 +451,19 @@ class Text2ImageStageProcessor(StageProcessor):
             raise ValueError(f"未找到 {self.stage_type} 阶段的提示词模板")
 
         try:
-            # 准备模板变量
+            # 获取全局变量（同步方式）
+            global_vars = self._get_global_variables_sync(project)
+
+            # 准备模板变量（优先级：storyboard > project > global_vars）
             template_vars = {
+                **global_vars,  # 全局变量（最低优先级）
                 "random_seed": random.randint(1, 1000000),
                 'project': {
                     'name': project.name,
                     'description': project.description,
                     'original_topic': project.original_topic,
                 },
-                **storyboard  # 合并输入数据作为变量
+                **storyboard  # 合并输入数据作为变量（最高优先级）
             }
 
             # 渲染Jinja2模板

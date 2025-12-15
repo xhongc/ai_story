@@ -14,7 +14,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import PromptTemplate, PromptTemplateSet
+from .models import PromptTemplate, PromptTemplateSet, GlobalVariable
 from .serializers import (
     PromptTemplateEvaluationSerializer,
     PromptTemplateListSerializer,
@@ -23,6 +23,9 @@ from .serializers import (
     PromptTemplateSetListSerializer,
     PromptTemplateSetSerializer,
     PromptTemplateValidateSerializer,
+    GlobalVariableSerializer,
+    GlobalVariableListSerializer,
+    GlobalVariableBatchSerializer,
 )
 from .services import PromptEvaluationService
 
@@ -344,3 +347,220 @@ class PromptTemplateViewSet(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+class GlobalVariableViewSet(viewsets.ModelViewSet):
+    """
+    全局变量ViewSet
+    职责: 全局变量的CRUD和特殊操作
+    """
+
+    queryset = GlobalVariable.objects.all()
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['scope', 'group', 'variable_type', 'is_active', 'created_by']
+    search_fields = ['key', 'description', 'group']
+    ordering_fields = ['created_at', 'updated_at', 'key', 'group']
+    ordering = ['group', 'key']
+
+    def get_serializer_class(self):
+        """根据操作类型选择序列化器"""
+        if self.action == 'list':
+            return GlobalVariableListSerializer
+        elif self.action == 'batch_create':
+            return GlobalVariableBatchSerializer
+        return GlobalVariableSerializer
+
+    def get_queryset(self):
+        """
+        过滤查询集
+        用户可以看到:
+        1. 自己创建的用户级变量
+        2. 所有系统级变量
+        """
+        queryset = super().get_queryset()
+        user = self.request.user
+
+        # 用户可以看到自己的用户级变量 + 所有系统级变量
+        queryset = queryset.filter(
+            Q(created_by=user, scope='user') |
+            Q(scope='system')
+        )
+
+        return queryset.select_related('created_by')
+
+    def perform_destroy(self, instance):
+        """
+        删除变量时的权限检查
+        系统级变量只能由管理员删除
+        """
+        if instance.scope == 'system' and not self.request.user.is_staff:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('只有管理员可以删除系统级变量')
+
+        super().perform_destroy(instance)
+
+    @action(detail=False, methods=['get'])
+    def groups(self, request):
+        """
+        获取所有变量分组
+        GET /api/v1/prompts/variables/groups/
+        """
+        queryset = self.get_queryset()
+        groups = queryset.values_list('group', flat=True).distinct()
+        groups = [g for g in groups if g]  # 过滤空字符串
+
+        return Response({
+            'groups': sorted(groups)
+        })
+
+    @action(detail=False, methods=['get'])
+    async def for_template(self, request):
+        """
+        获取可用于模板渲染的变量字典
+        GET /api/v1/prompts/variables/for_template/
+        Query params:
+            - include_system: 是否包含系统级变量 (默认: true)
+
+        返回格式: {key: typed_value}
+        """
+        include_system = request.query_params.get('include_system', 'true').lower() == 'true'
+
+        variables = await GlobalVariable.get_variables_for_user(
+            user=request.user,
+            include_system=include_system
+        )
+
+        return Response({
+            'variables': variables,
+            'count': len(variables)
+        })
+
+    @action(detail=False, methods=['post'])
+    def batch_create(self, request):
+        """
+        批量创建/更新变量
+        POST /api/v1/prompts/variables/batch_create/
+        Body: {
+            "variables": [
+                {
+                    "key": "brand_name",
+                    "value": "我的品牌",
+                    "variable_type": "string",
+                    "scope": "user",
+                    "group": "品牌信息",
+                    "description": "品牌名称"
+                },
+                ...
+            ]
+        }
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        variables_data = serializer.validated_data['variables']
+        created = []
+        updated = []
+        errors = []
+
+        for var_data in variables_data:
+            key = var_data.get('key')
+            scope = var_data.get('scope', 'user')
+
+            # 检查是否已存在
+            existing = GlobalVariable.objects.filter(
+                key=key,
+                created_by=request.user,
+                scope=scope
+            ).first()
+
+            try:
+                if existing:
+                    # 更新现有变量
+                    var_serializer = GlobalVariableSerializer(
+                        existing,
+                        data=var_data,
+                        context={'request': request},
+                        partial=True
+                    )
+                    var_serializer.is_valid(raise_exception=True)
+                    var_serializer.save()
+                    updated.append(var_serializer.data)
+                else:
+                    # 创建新变量
+                    var_serializer = GlobalVariableSerializer(
+                        data=var_data,
+                        context={'request': request}
+                    )
+                    var_serializer.is_valid(raise_exception=True)
+                    var_serializer.save()
+                    created.append(var_serializer.data)
+            except Exception as e:
+                errors.append({
+                    'key': key,
+                    'error': str(e)
+                })
+
+        return Response({
+            'created': created,
+            'updated': updated,
+            'errors': errors,
+            'summary': {
+                'created_count': len(created),
+                'updated_count': len(updated),
+                'error_count': len(errors)
+            }
+        }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'])
+    def validate_key(self, request):
+        """
+        验证变量键是否可用
+        POST /api/v1/prompts/variables/validate_key/
+        Body: {
+            "key": "my_variable",
+            "scope": "user"
+        }
+        """
+        key = request.data.get('key')
+        scope = request.data.get('scope', 'user')
+
+        if not key:
+            return Response(
+                {'error': '请提供变量键'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 检查格式
+        import re
+        import keyword
+
+        if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', key):
+            return Response({
+                'valid': False,
+                'message': '变量键只能包含字母、数字、下划线，且必须以字母或下划线开头'
+            })
+
+        if keyword.iskeyword(key):
+            return Response({
+                'valid': False,
+                'message': f'"{key}" 是Python保留字，不能作为变量键'
+            })
+
+        # 检查是否已存在
+        exists = GlobalVariable.objects.filter(
+            key=key,
+            created_by=request.user,
+            scope=scope
+        ).exists()
+
+        if exists:
+            return Response({
+                'valid': False,
+                'message': f'变量键 "{key}" 在当前作用域下已存在'
+            })
+
+        return Response({
+            'valid': True,
+            'message': '变量键可用'
+        })

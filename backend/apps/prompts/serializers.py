@@ -5,8 +5,9 @@
 
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import PromptTemplateSet, PromptTemplate
+from .models import PromptTemplateSet, PromptTemplate, GlobalVariable
 import re
+import json
 from jinja2 import Template, TemplateSyntaxError, Environment, meta
 
 User = get_user_model()
@@ -296,3 +297,157 @@ class PromptTemplateEvaluationSerializer(serializers.Serializer):
         child=serializers.CharField(),
         help_text='缺点列表'
     )
+
+
+class GlobalVariableSerializer(serializers.ModelSerializer):
+    """
+    全局变量序列化器
+    职责: 全局变量的序列化和验证
+    """
+
+    created_by = UserSerializer(read_only=True)
+    variable_type_display = serializers.CharField(source='get_variable_type_display', read_only=True)
+    scope_display = serializers.CharField(source='get_scope_display', read_only=True)
+    typed_value = serializers.SerializerMethodField()
+
+    class Meta:
+        model = GlobalVariable
+        fields = [
+            'id', 'key', 'value', 'typed_value',
+            'variable_type', 'variable_type_display',
+            'scope', 'scope_display',
+            'group', 'description', 'is_active',
+            'created_by', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_by', 'created_at', 'updated_at']
+
+    def get_typed_value(self, obj):
+        """获取类型转换后的值"""
+        return obj.get_typed_value()
+
+    def validate_key(self, value):
+        """
+        验证变量键
+        1. 只能包含字母、数字、下划线
+        2. 必须以字母或下划线开头
+        3. 不能是Python保留字
+        """
+        import keyword
+
+        if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', value):
+            raise serializers.ValidationError(
+                '变量键只能包含字母、数字、下划线，且必须以字母或下划线开头'
+            )
+
+        if keyword.iskeyword(value):
+            raise serializers.ValidationError(f'"{value}" 是Python保留字，不能作为变量键')
+
+        return value
+
+    def validate_value(self, value):
+        """
+        验证变量值
+        根据变量类型验证值的格式
+        """
+        variable_type = self.initial_data.get('variable_type', 'string')
+
+        if variable_type == 'number':
+            try:
+                float(value)
+            except ValueError:
+                raise serializers.ValidationError('数字类型的值必须是有效的数字')
+        elif variable_type == 'boolean':
+            if value.lower() not in ('true', 'false', '1', '0', 'yes', 'no', 'on', 'off'):
+                raise serializers.ValidationError(
+                    '布尔类型的值必须是: true/false, 1/0, yes/no, on/off'
+                )
+        elif variable_type == 'json':
+            try:
+                json.loads(value)
+            except json.JSONDecodeError as e:
+                raise serializers.ValidationError(f'JSON格式错误: {str(e)}')
+
+        return value
+
+    def validate(self, attrs):
+        """
+        交叉验证
+        1. 确保 key + created_by + scope 唯一性
+        2. 系统级变量只能由管理员创建
+        """
+        key = attrs.get('key')
+        scope = attrs.get('scope', 'user')
+        request = self.context.get('request')
+
+        # 验证系统级变量权限
+        if scope == 'system' and request and not request.user.is_staff:
+            raise serializers.ValidationError({
+                'scope': '只有管理员可以创建系统级变量'
+            })
+
+        # 验证唯一性
+        if key and request:
+            queryset = GlobalVariable.objects.filter(
+                key=key,
+                created_by=request.user,
+                scope=scope
+            )
+            # 如果是更新操作，排除当前实例
+            if self.instance:
+                queryset = queryset.exclude(pk=self.instance.pk)
+
+            if queryset.exists():
+                raise serializers.ValidationError({
+                    'key': f'变量键 "{key}" 在当前作用域下已存在'
+                })
+
+        return attrs
+
+    def create(self, validated_data):
+        """创建全局变量时自动设置创建者"""
+        validated_data['created_by'] = self.context['request'].user
+        return super().create(validated_data)
+
+
+class GlobalVariableListSerializer(serializers.ModelSerializer):
+    """全局变量列表序列化器 - 简化版本"""
+
+    variable_type_display = serializers.CharField(source='get_variable_type_display', read_only=True)
+    scope_display = serializers.CharField(source='get_scope_display', read_only=True)
+    typed_value = serializers.SerializerMethodField()
+
+    class Meta:
+        model = GlobalVariable
+        fields = [
+            'id', 'key', 'value', 'typed_value',
+            'variable_type', 'variable_type_display',
+            'scope', 'scope_display',
+            'group', 'is_active', 'updated_at'
+        ]
+
+    def get_typed_value(self, obj):
+        """获取类型转换后的值"""
+        return obj.get_typed_value()
+
+
+class GlobalVariableBatchSerializer(serializers.Serializer):
+    """
+    批量操作全局变量序列化器
+    用于批量创建/更新变量
+    """
+
+    variables = serializers.ListField(
+        child=serializers.DictField(),
+        help_text='变量列表，每个元素包含: key, value, variable_type, scope, group, description'
+    )
+
+    def validate_variables(self, value):
+        """验证变量列表"""
+        if not value:
+            raise serializers.ValidationError('变量列表不能为空')
+
+        for var in value:
+            if 'key' not in var or 'value' not in var:
+                raise serializers.ValidationError('每个变量必须包含 key 和 value 字段')
+
+        return value

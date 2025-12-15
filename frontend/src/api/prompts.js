@@ -297,3 +297,155 @@ export const VARIABLE_TYPES = [
   { value: 'list', label: '列表' },
   { value: 'dict', label: '字典' },
 ];
+
+/**
+ * 全局变量API
+ */
+export const globalVariableAPI = {
+  /**
+   * 获取全局变量列表
+   * @param {Object} params - 查询参数 {scope, group, variable_type, is_active, search, page, page_size}
+   * @returns {Promise}
+   */
+  getList(params = {}) {
+    return apiClient({
+      url: '/prompts/variables/',
+      method: 'get',
+      params,
+    });
+  },
+
+  /**
+   * 获取全局变量详情
+   * @param {String} id - 变量ID
+   * @returns {Promise}
+   */
+  getDetail(id) {
+    return apiClient({
+      url: `/prompts/variables/${id}/`,
+      method: 'get',
+    });
+  },
+
+  /**
+   * 创建全局变量
+   * @param {Object} data - {key, value, variable_type, scope, group, description, is_active}
+   * @returns {Promise}
+   */
+  create(data) {
+    return apiClient({
+      url: '/prompts/variables/',
+      method: 'post',
+      data,
+    });
+  },
+
+  /**
+   * 更新全局变量
+   * @param {String} id - 变量ID
+   * @param {Object} data - 更新数据
+   * @returns {Promise}
+   */
+  update(id, data) {
+    return apiClient({
+      url: `/prompts/variables/${id}/`,
+      method: 'put',
+      data,
+    });
+  },
+
+  /**
+   * 部分更新全局变量
+   * @param {String} id - 变量ID
+   * @param {Object} data - 更新数据
+   * @returns {Promise}
+   */
+  partialUpdate(id, data) {
+    return apiClient({
+      url: `/prompts/variables/${id}/`,
+      method: 'patch',
+      data,
+    });
+  },
+
+  /**
+   * 删除全局变量
+   * @param {String} id - 变量ID
+   * @returns {Promise}
+   */
+  delete(id) {
+    return apiClient({
+      url: `/prompts/variables/${id}/`,
+      method: 'delete',
+    });
+  },
+
+  /**
+   * 获取所有变量分组
+   * @returns {Promise}
+   */
+  getGroups() {
+    return apiClient({
+      url: '/prompts/variables/groups/',
+      method: 'get',
+    });
+  },
+
+  /**
+   * 获取可用于模板渲染的变量字典
+   * @param {Boolean} includeSystem - 是否包含系统级变量
+   * @returns {Promise}
+   */
+  getForTemplate(includeSystem = true) {
+    return apiClient({
+      url: '/prompts/variables/for_template/',
+      method: 'get',
+      params: { include_system: includeSystem },
+    });
+  },
+
+  /**
+   * 批量创建/更新变量
+   * @param {Array} variables - 变量列表 [{key, value, variable_type, scope, group, description}, ...]
+   * @returns {Promise}
+   */
+  batchCreate(variables) {
+    return apiClient({
+      url: '/prompts/variables/batch_create/',
+      method: 'post',
+      data: { variables },
+    });
+  },
+
+  /**
+   * 验证变量键是否可用
+   * @param {String} key - 变量键
+   * @param {String} scope - 作用域 (user/system)
+   * @returns {Promise}
+   */
+  validateKey(key, scope = 'user') {
+    return apiClient({
+      url: '/prompts/variables/validate_key/',
+      method: 'post',
+      data: { key, scope },
+    });
+  },
+};
+
+/**
+ * 全局变量类型配置
+ */
+export const GLOBAL_VARIABLE_TYPES = [
+  { value: 'string', label: '字符串' },
+  { value: 'number', label: '数字' },
+  { value: 'boolean', label: '布尔值' },
+  { value: 'json', label: 'JSON对象' },
+];
+
+/**
+ * 全局变量作用域配置
+ */
+export const GLOBAL_VARIABLE_SCOPES = [
+  { value: 'user', label: '用户级' },
+  { value: 'system', label: '系统级' },
+];

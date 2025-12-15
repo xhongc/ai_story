@@ -102,6 +102,12 @@ const routes = [
         component: () => import('@/views/prompts/PromptTemplateEditor.vue'),
         meta: { title: '编辑提示词模板' },
       },
+      {
+        path: 'variables',
+        name: 'GlobalVariableList',
+        component: () => import('@/views/prompts/GlobalVariableList.vue'),
+        meta: { title: '全局变量管理' },
+      },
     ],
   },
   // 模型管理路由
