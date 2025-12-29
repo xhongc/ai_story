@@ -119,7 +119,7 @@ npm run dev
 # 业务功能流程
 ![1](b9799fffc60dc0c08fa17cbf79a60d56.png)
 ![1](5c86a6d24297b76c71d905d543502702.png)
-![1](930e74fb45a4ab52eefdfc9f8fcb8270.png)
+![1](image.png)
 ![1](52ad03b84c6f74801448dca2cc40c193.png)
 ![1](5b2dc4d4a7983401fe39c760dd7bedd6.png)
 
