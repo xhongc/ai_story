@@ -22,16 +22,19 @@ class ModelProvider(models.Model):
     # 执行器选项定义
     LLM_EXECUTORS = [
         ('core.ai_client.openai_client.OpenAIClient', 'OpenAI兼容客户端'),
+        ('core.ai_client.mock_llm_client.MockLLMClient', 'Mock LLM客户端（测试用）'),
     ]
 
     TEXT2IMAGE_EXECUTORS = [
         ('core.ai_client.text2image_client.Text2ImageClient', '文生图客户端'),
         ('core.ai_client.comfyui_client.ComfyUIClient', 'ComfyUI客户端'),
+        ('core.ai_client.mock_text2image_client.MockText2ImageClient', 'Mock 文生图客户端（测试用）'),
     ]
 
     IMAGE2VIDEO_EXECUTORS = [
         ('core.ai_client.image2video_client.Image2VideoClient', '图生视频客户端'),
         ('core.ai_client.comfyui_client.ComfyUIClient', 'ComfyUI客户端'),
+        ('core.ai_client.mock_image2video_client.MockImage2VideoClient', 'Mock 图生视频客户端（测试用）'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
