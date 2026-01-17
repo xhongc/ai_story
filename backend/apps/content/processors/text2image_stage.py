@@ -136,20 +136,16 @@ class Text2ImageStageProcessor(StageProcessor):
                 }
             }
 
-            # 获取分镜列表
-            try:
-                if storyboard_ids:
-                    storyboards = stage.output_data.get("human_text", {}).get("scenes", [])
-                    storyboards = [i for i in storyboards if i["scene_number"] in storyboard_ids]
-                else:
-                    storyboards = stage.output_data.get("human_text", {}).get("scenes", [])
-            except Exception as e:
-                logger.error(f"获取分镜数据失败: {str(e)}", exc_info=True)
-                yield {
-                    'type': 'error',
-                    'error': f'获取分镜数据失败: {str(e)}'
-                }
-                raise e
+            # 从 Storyboard 模型获取分镜列表
+            from apps.content.models import Storyboard as StoryboardModel
+
+            storyboards_query = StoryboardModel.objects.filter(project=project).order_by('sequence_number')
+
+            # 如果指定了分镜ID,则只处理这些分镜
+            if storyboard_ids:
+                storyboards_query = storyboards_query.filter(sequence_number__in=storyboard_ids)
+
+            storyboards = list(storyboards_query)
 
             if not storyboards:
                 yield {
@@ -168,50 +164,57 @@ class Text2ImageStageProcessor(StageProcessor):
             provider = self._get_text2image_provider(project)
 
             # 批量生成图片
-            generated_images = []
+            generated_count = 0
             failed_count = 0
 
-            for index, storyboard in enumerate(storyboards, 1):
+            for index, storyboard_obj in enumerate(storyboards, 1):
                 try:
+                    # 构建分镜数据字典(兼容原有接口)
+                    storyboard_dict = {
+                        'scene_number': storyboard_obj.sequence_number,
+                        'narration': storyboard_obj.narration_text,
+                        'visual_prompt': storyboard_obj.image_prompt,
+                        'shot_type': storyboard_obj.scene_description
+                    }
+
                     # 进度更新
                     yield {
                         'type': 'progress',
                         'current': index,
                         'total': total,
                         'message': f'正在生成第 {index}/{total} 张图片...',
-                        'storyboard': storyboard
+                        'storyboard': storyboard_dict
                     }
 
                     # 生成图片
                     result = self._generate_single_image(
                         project=project,
-                        storyboard=storyboard,
+                        storyboard=storyboard_dict,
                         provider=provider
                     )
-                    # todo mock
-                    # result = [{"url": "https://picsum.photos/200/300"}]
-                    if result:
-                        generated_images.append(result)
 
-                        # 保存结果到当前阶段和video_generation阶段
+                    if result:
+                        generated_count += 1
+
+                        # 保存结果到 GeneratedImage 模型
                         self._save_result(
                             project=project,
                             stage=stage,
-                            storyboard=storyboard,
+                            storyboard=storyboard_dict,
                             result=result
                         )
 
                         # 图片生成成功
                         yield {
                             'type': 'image_generated',
-                            'storyboard_id': storyboard["scene_number"],
-                            'sequence_number': storyboard["scene_number"],
+                            'storyboard_id': storyboard_obj.sequence_number,
+                            'sequence_number': storyboard_obj.sequence_number,
                         }
                     else:
                         failed_count += 1
                         yield {
                             'type': 'warning',
-                            'message': f'分镜 {storyboard["scene_number"]} 图片生成失败'
+                            'message': f'分镜 {storyboard_obj.sequence_number} 图片生成失败'
                         }
 
                 except Exception as e:
@@ -220,27 +223,30 @@ class Text2ImageStageProcessor(StageProcessor):
                     yield {
                         'type': 'error',
                         'error': f'分镜 {index} 生成失败: {str(e)}',
-                        'storyboard_id': str(storyboard["scene_number"])
+                        'storyboard_id': str(storyboard_obj.sequence_number)
                     }
 
-            # 保存最终结果
-            success_count = len(generated_images)
+            # 保存最终结果到阶段
             output_data = {
                 'total_storyboards': total,
-                'success_count': success_count,
-                'failed_count': failed_count,
-                'generated_image_ids': generated_images
+                'success_count': generated_count,
+                'failed_count': failed_count
             }
+
+            stage.output_data = output_data
+            stage.status = 'completed' if failed_count == 0 else 'completed'
+            stage.completed_at = timezone.now()
+            stage.save()
 
             yield {
                 'type': 'done',
-                'message': f'图片生成完成: 成功 {success_count}/{total}',
+                'message': f'图片生成完成: 成功 {generated_count}/{total}',
                 'data': output_data,
                 'stage': {
                     'id': str(stage.id),
                     'status': stage.status,
                     'output_data': output_data,
-                    'completed_at': ''
+                    'completed_at': stage.completed_at.isoformat() if stage.completed_at else ''
                 }
             }
 
@@ -288,78 +294,50 @@ class Text2ImageStageProcessor(StageProcessor):
         result: List[Dict[str, Any]]
     ) -> None:
         """
-        保存图片生成结果到当前阶段和video_generation阶段
+        保存图片生成结果到 GeneratedImage 模型
 
         Args:
             project: 项目对象
             stage: 当前阶段对象(image_generation)
-            storyboard: 分镜数据
-            result: 生成的图片URL列表
+            storyboard: 分镜数据字典
+            result: 生成的图片URL列表 [{"url": "...", "width": 1920, "height": 1080}]
         """
-        # 保存到当前阶段(image_generation)
-        # 使用深拷贝避免引用问题
-        scenes = copy.deepcopy(stage.output_data.get("human_text", {}).get("scenes", []))
-        for each in scenes:
-            if each["scene_number"] == storyboard["scene_number"]:
-                each["urls"] = result
+        from apps.content.models import Storyboard as StoryboardModel, GeneratedImage
 
-        output_data = {
-            "human_text": {
-                "scenes": scenes
-            }
-        }
-
-        # 使用 update() 方法确保数据库更新
-        ProjectStage.objects.filter(id=stage.id).update(
-            output_data=output_data
-        )
-        # 刷新本地对象
-        stage.refresh_from_db()
-
-        # 同步保存到图生视频阶段(video_generation)
-        # 先读取现有数据，然后合并新的urls，避免覆盖其他字段
-        video_stage = ProjectStage.objects.filter(
+        # 获取对应的 Storyboard 模型实例
+        scene_number = storyboard.get('scene_number')
+        storyboard_obj = StoryboardModel.objects.filter(
             project=project,
-            stage_type="video_generation"
+            sequence_number=scene_number
         ).first()
 
-        if video_stage:
-            # 深拷贝现有数据
-            updated_input = copy.deepcopy(video_stage.input_data or {})
-            updated_output = copy.deepcopy(video_stage.output_data or {})
+        if not storyboard_obj:
+            logger.error(f"未找到序号为 {scene_number} 的分镜对象")
+            return
 
-            # 确保数据结构存在
-            if "human_text" not in updated_input or not updated_input.get("human_text"):
-                updated_input["human_text"] = {}
-            if "scenes" not in updated_input["human_text"]:
-                updated_input["human_text"]["scenes"] = []
+        # 获取模型提供商
+        provider = self._get_text2image_provider(project)
 
-            if "human_text" not in updated_output or not updated_output.get("human_text"):
-                updated_output["human_text"] = {}
-            if "scenes" not in updated_output["human_text"]:
-                updated_output["human_text"]["scenes"] = []
+        # 保存每张生成的图片
+        for image_data in result:
+            image_url = image_data.get('url', '')
+            width = image_data.get('width', 0)
+            height = image_data.get('height', 0)
 
-            # 更新或添加场景的urls字段
-            for data_dict in [updated_input, updated_output]:
-                scenes_list = data_dict["human_text"]["scenes"]
-                scene_found = False
-
-                for scene in scenes_list:
-                    if scene.get("scene_number") == storyboard["scene_number"]:
-                        scene["urls"] = result
-                        scene_found = True
-                        break
-
-                # 如果场景不存在，添加新场景
-                if not scene_found:
-                    new_scene = copy.deepcopy(storyboard)
-                    new_scene["urls"] = result
-                    scenes_list.append(new_scene)
-
-            # 保存更新后的数据
-            ProjectStage.objects.filter(id=video_stage.id).update(
-                input_data=updated_input,
-                output_data=updated_output
+            GeneratedImage.objects.create(
+                storyboard=storyboard_obj,
+                image_url=image_url,
+                thumbnail_url='',
+                generation_params={
+                    'prompt': storyboard.get('visual_prompt', ''),
+                    'model': provider.model_name if provider else '',
+                    'original_data': image_data
+                },
+                model_provider=provider,
+                status='completed',
+                width=width,
+                height=height,
+                file_size=0  # 如果API返回了文件大小,可以在这里设置
             )
 
     def _get_text2image_provider(self, project: Project) -> Optional[ModelProvider]:

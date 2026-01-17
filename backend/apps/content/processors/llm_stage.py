@@ -239,43 +239,50 @@ class LLMStageProcessor(StageProcessor):
     def _get_input_data(self, project: Project, stage: ProjectStage) -> Dict[str, Any]:
         """
         获取输入数据
-        优先从stage.input_data读取,如果为空则从前置阶段或项目获取
+        从领域模型读取数据,而不是从 ProjectStage
         """
-        # 如果阶段已有输入数据,直接使用
-        if stage.input_data:
-            return stage.input_data
+        from apps.content.models import ContentRewrite, Storyboard
 
-        # 根据阶段类型获取默认输入
+        # 根据阶段类型获取输入数据
         if self.stage_type == 'rewrite':
             # 文案改写: 从项目的original_topic获取
             return {
                 'raw_text': project.original_topic,
                 'human_text': ''
             }
+
         elif self.stage_type == 'storyboard':
-            # 分镜生成: 从rewrite阶段的输出获取
-            rewrite_stage = ProjectStage.objects.filter(
-                project=project,
-                stage_type='rewrite',
-                status='completed'
-            ).first()
-            if rewrite_stage and rewrite_stage.output_data:
+            # 分镜生成: 从 ContentRewrite 模型获取改写后的文本
+            try:
+                content_rewrite = ContentRewrite.objects.get(project=project)
                 return {
-                    'raw_text': rewrite_stage.output_data.get('raw_text', ''),
+                    'raw_text': content_rewrite.rewritten_text,
                     'human_text': ''
                 }
-            raise ValueError("前置阶段(文案改写)未完成或无输出数据")
+            except ContentRewrite.DoesNotExist:
+                raise ValueError("前置阶段(文案改写)未完成或无输出数据")
+
         elif self.stage_type == 'camera_movement':
-            # 运镜生成: 从storyboard阶段获取
-            camera_movement_stage = ProjectStage.objects.filter(
-                project=project,
-                stage_type='camera_movement',
-            ).first()
-            if camera_movement_stage and camera_movement_stage.input_data:
-                return {
-                    'human_text': camera_movement_stage.input_data.get('human_text', {}).get("scenes", [])
-                }
-            raise ValueError("前置阶段(分镜生成)未完成或无输出数据")
+            # 运镜生成: 从 Storyboard 模型获取分镜数据
+            storyboards = Storyboard.objects.filter(project=project).order_by('sequence_number')
+
+            if not storyboards.exists():
+                raise ValueError("前置阶段(分镜生成)未完成或无输出数据")
+
+            # 构建场景列表
+            scenes = []
+            for sb in storyboards:
+                scenes.append({
+                    'scene_number': sb.sequence_number,
+                    'narration': sb.narration_text,
+                    'visual_prompt': sb.image_prompt,
+                    'shot_type': sb.scene_description
+                })
+
+            return {
+                'human_text': {'scenes': scenes}
+            }
+
         else:
             return {}
 
@@ -430,92 +437,123 @@ class LLMStageProcessor(StageProcessor):
         metadata: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
-        保存生成结果到对应的模型
+        保存生成结果到对应的领域模型
         不同阶段保存到不同的模型表
         """
+        from apps.content.models import ContentRewrite, Storyboard, CameraMovement
+
         if self.stage_type == 'rewrite':
-            output_data = {
-                'raw_text': generated_text,
-                "human_text": ""
+            # 保存到 ContentRewrite 模型
+            ai_client = self._get_ai_client(project)
+            provider = ai_client.provider if hasattr(ai_client, 'provider') else None
+
+            ContentRewrite.objects.update_or_create(
+                project=project,
+                defaults={
+                    'original_text': project.original_topic,
+                    'rewritten_text': generated_text,
+                    'prompt_used': prompt_used,
+                    'model_provider': provider,
+                    'generation_metadata': metadata
+                }
+            )
+
+            # 返回简化的输出数据(用于阶段追踪)
+            return {
+                'status': 'completed',
+                'text_length': len(generated_text)
             }
-            ProjectStage.objects.filter(
-                project=project, stage_type="storyboard"
-            ).update(input_data=output_data)
-            return output_data
 
         elif self.stage_type == 'storyboard':
-            # 分镜生成: 需要解析生成的JSON/结构化文本
-            human_text = parse_storyboard_json(generated_text)
-            output_data = {
-                "human_text": human_text,
-                "raw_text": ""
-            }
-            ProjectStage.objects.filter(
-                project=project,
-                stage_type__in=["image_generation","camera_movement", "video_generation"]
-            ).update(
-                input_data=output_data,
-                output_data=output_data
-            )
+            # 分镜生成: 解析JSON并保存到 Storyboard 模型
+            storyboard_data = parse_storyboard_json(generated_text)
+            scenes = storyboard_data.get('scenes', [])
+
+            ai_client = self._get_ai_client(project)
+            provider = ai_client.provider if hasattr(ai_client, 'provider') else None
+
+            # 批量创建或更新分镜
+            created_ids = []
+            for scene in scenes:
+                storyboard, created = Storyboard.objects.update_or_create(
+                    project=project,
+                    sequence_number=scene['scene_number'],
+                    defaults={
+                        'scene_description': scene.get('shot_type', ''),
+                        'narration_text': scene.get('narration', ''),
+                        'image_prompt': scene.get('visual_prompt', ''),
+                        'duration_seconds': scene.get('duration', 3.0),
+                        'model_provider': provider,
+                        'prompt_used': prompt_used,
+                        'generation_metadata': {
+                            'shot_type': scene.get('shot_type', ''),
+                            'raw_scene_data': scene
+                        }
+                    }
+                )
+                created_ids.append(str(storyboard.id))
+
+            # 返回简化的输出数据
             return {
-                'human_text': human_text,
-                'raw_text': generated_text
+                'status': 'completed',
+                'storyboard_count': len(created_ids),
+                'storyboard_ids': created_ids
             }
 
         elif self.stage_type == 'camera_movement':
-            # 运镜生成: 返回运镜参数
-            index = metadata["index"]
-            # 保存
-            scenes = stage.output_data.get("human_text", {}).get("scenes", [])
-            for each in scenes:
-                if each["scene_number"] == index:
-                    each["camera_movement"] = generated_text
+            # 运镜生成: 保存到 CameraMovement 模型
+            scene_number = metadata.get("index")
 
-            video_stage = ProjectStage.objects.filter(
+            # 获取对应的分镜
+            storyboard = Storyboard.objects.filter(
                 project=project,
-                stage_type="video_generation"
+                sequence_number=scene_number
             ).first()
-            if video_stage:
-                # 深拷贝现有数据
-                updated_input = copy.deepcopy(video_stage.input_data or {})
-                updated_output = copy.deepcopy(video_stage.output_data or {})
 
-                # 确保数据结构存在
-                if "human_text" not in updated_input:
-                    updated_input["human_text"] = {}
-                if "scenes" not in updated_input["human_text"]:
-                    updated_input["human_text"]["scenes"] = []
+            if not storyboard:
+                logger.error(f"未找到序号为 {scene_number} 的分镜")
+                return {
+                    'status': 'failed',
+                    'error': f'未找到序号为 {scene_number} 的分镜'
+                }
 
-                if "human_text" not in updated_output:
-                    updated_output["human_text"] = {}
-                if "scenes" not in updated_output["human_text"]:
-                    updated_output["human_text"]["scenes"] = []
+            ai_client = self._get_ai_client(project)
+            provider = ai_client.provider if hasattr(ai_client, 'provider') else None
 
-                # 更新或添加场景的urls字段
-                for data_dict in [updated_input, updated_output]:
-                    scenes_list = data_dict["human_text"]["scenes"]
+            # 解析运镜文本(假设返回的是JSON格式)
+            try:
+                from apps.projects.utils import parse_json
+                camera_data = parse_json(generated_text)
+                movement_type = camera_data.get('movement_type', '')
+                movement_params = camera_data.get('params', {})
+            except:
+                # 如果解析失败,将整个文本作为参数存储
+                movement_type = ''
+                movement_params = {'raw_text': generated_text}
 
-                    for scene in scenes_list:
-                        if scene.get("scene_number") == index:
-                            scene["camera_movement"] = generated_text
-                            break
-                # 保存更新后的数据
-                ProjectStage.objects.filter(id=video_stage.id).update(
-                    input_data=updated_input,
-                    output_data=updated_output
-                )
+            # 保存运镜数据
+            CameraMovement.objects.update_or_create(
+                storyboard=storyboard,
+                defaults={
+                    'movement_type': movement_type,
+                    'movement_params': movement_params,
+                    'model_provider': provider,
+                    'prompt_used': prompt_used,
+                    'generation_metadata': metadata
+                }
+            )
+
             return {
-                "human_text": {
-                    "scenes": scenes
-                },
-                'raw_text': generated_text,
+                'status': 'completed',
+                'storyboard_id': str(storyboard.id),
+                'scene_number': scene_number
             }
 
         else:
             # 默认返回
             return {
-                'raw_text': generated_text,
-                'human_text': generated_text,
+                'status': 'completed',
+                'raw_text': generated_text
             }
     
     def _get_max_tokens(self) -> int:

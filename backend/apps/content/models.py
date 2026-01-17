@@ -33,12 +33,13 @@ class ContentRewrite(models.Model):
         verbose_name='使用的模型'
     )
 
-    prompt_used = models.TextField('使用的提示词')
+    prompt_used = models.TextField('使用的提示词', blank=True, default='')
 
     # 元数据
-    generation_metadata = models.JSONField('生成元数据', default=dict)
+    generation_metadata = models.JSONField('生成元数据', default=dict, blank=True)
 
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
 
     class Meta:
         db_table = 'content_rewrites'
@@ -70,6 +71,17 @@ class Storyboard(models.Model):
     image_prompt = models.TextField('文生图提示词')
 
     duration_seconds = models.FloatField('时长(秒)', default=3.0)
+
+    # 新增: 生成元数据
+    model_provider = models.ForeignKey(
+        ModelProvider,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name='使用的模型'
+    )
+    prompt_used = models.TextField('使用的提示词', blank=True, default='')
+    generation_metadata = models.JSONField('生成元数据', default=dict, blank=True)
 
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
     updated_at = models.DateTimeField('更新时间', auto_now=True)
@@ -172,19 +184,22 @@ class CameraMovement(models.Model):
         verbose_name='分镜'
     )
 
-    movement_type = models.CharField('运镜类型', max_length=50, choices=MOVEMENT_TYPES)
-    movement_params = models.JSONField('运镜参数', default=dict)
+    movement_type = models.CharField('运镜类型', max_length=50, choices=MOVEMENT_TYPES, blank=True, default='')
+    movement_params = models.JSONField('运镜参数', default=dict, blank=True)
 
     model_provider = models.ForeignKey(
         ModelProvider,
         on_delete=models.SET_NULL,
         null=True,
+        blank=True,
         verbose_name='使用的模型'
     )
 
-    prompt_used = models.TextField('使用的提示词')
+    prompt_used = models.TextField('使用的提示词', blank=True, default='')
+    generation_metadata = models.JSONField('生成元数据', default=dict, blank=True)
 
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
 
     class Meta:
         db_table = 'camera_movements'
@@ -192,7 +207,7 @@ class CameraMovement(models.Model):
         verbose_name_plural = '运镜'
 
     def __str__(self):
-        return f'{self.storyboard} - {self.get_movement_type_display()}'
+        return f'{self.storyboard} - {self.get_movement_type_display() if self.movement_type else "未设置"}'
 
 
 class GeneratedVideo(models.Model):
