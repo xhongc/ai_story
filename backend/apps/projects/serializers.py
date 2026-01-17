@@ -11,10 +11,13 @@ from .models import Project, ProjectStage, ProjectModelConfig
 
 
 class ProjectStageSerializer(serializers.ModelSerializer):
-    """项目阶段序列化器"""
+    """项目阶段序列化器 - 返回真实的领域模型数据"""
 
     stage_type_display = serializers.CharField(source='get_stage_type_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    # 添加领域模型数据字段
+    domain_data = serializers.SerializerMethodField()
 
     class Meta:
         model = ProjectStage
@@ -22,15 +25,175 @@ class ProjectStageSerializer(serializers.ModelSerializer):
             'id', 'project', 'stage_type', 'stage_type_display',
             'status', 'status_display', 'input_data', 'output_data',
             'retry_count', 'max_retries', 'error_message',
-            'started_at', 'completed_at', 'created_at'
+            'started_at', 'completed_at', 'created_at',
+            'domain_data'  # 新增字段
         ]
         read_only_fields = ['id', 'created_at', 'started_at', 'completed_at']
+
+    def get_domain_data(self, instance):
+        """
+        根据阶段类型返回对应的领域模型数据
+
+        Returns:
+            dict: 包含领域模型数据的字典
+        """
+        from apps.content.models import ContentRewrite, Storyboard, GeneratedImage, CameraMovement
+
+        stage_type = instance.stage_type
+        project = instance.project
+
+        try:
+            if stage_type == 'rewrite':
+                # 返回文案改写数据
+                try:
+                    rewrite = ContentRewrite.objects.select_related('model_provider').get(project=project)
+                    return {
+                        'id': str(rewrite.id),
+                        'original_text': rewrite.original_text,
+                        'rewritten_text': rewrite.rewritten_text,
+                        'model_provider': {
+                            'id': str(rewrite.model_provider.id) if rewrite.model_provider else None,
+                            'name': rewrite.model_provider.name if rewrite.model_provider else None,
+                            'model_name': rewrite.model_provider.model_name if rewrite.model_provider else None,
+                        } if rewrite.model_provider else None,
+                        'prompt_used': rewrite.prompt_used,
+                        'generation_metadata': rewrite.generation_metadata,
+                        'created_at': rewrite.created_at.isoformat() if rewrite.created_at else None,
+                        'updated_at': rewrite.updated_at.isoformat() if rewrite.updated_at else None,
+                    }
+                except ContentRewrite.DoesNotExist:
+                    return None
+
+            elif stage_type == 'storyboard':
+                # 返回分镜列表数据
+                storyboards = Storyboard.objects.filter(
+                    project=project
+                ).select_related('model_provider').order_by('sequence_number')
+
+                return {
+                    'count': storyboards.count(),
+                    'storyboards': [
+                        {
+                            'id': str(sb.id),
+                            'sequence_number': sb.sequence_number,
+                            'scene_description': sb.scene_description,
+                            'narration_text': sb.narration_text,
+                            'image_prompt': sb.image_prompt,
+                            'duration_seconds': sb.duration_seconds,
+                            'model_provider': {
+                                'id': str(sb.model_provider.id) if sb.model_provider else None,
+                                'name': sb.model_provider.name if sb.model_provider else None,
+                                'model_name': sb.model_provider.model_name if sb.model_provider else None,
+                            } if sb.model_provider else None,
+                            'prompt_used': sb.prompt_used,
+                            'generation_metadata': sb.generation_metadata,
+                            'created_at': sb.created_at.isoformat() if sb.created_at else None,
+                            'updated_at': sb.updated_at.isoformat() if sb.updated_at else None,
+                        }
+                        for sb in storyboards
+                    ]
+                }
+
+            elif stage_type == 'image_generation':
+                # 返回生成的图片数据
+                storyboards = Storyboard.objects.filter(project=project).order_by('sequence_number')
+
+                result = []
+                for sb in storyboards:
+                    images = GeneratedImage.objects.filter(
+                        storyboard=sb
+                    ).select_related('model_provider').order_by('-created_at')
+
+                    result.append({
+                        'storyboard_id': str(sb.id),
+                        'sequence_number': sb.sequence_number,
+                        'images': [
+                            {
+                                'id': str(img.id),
+                                'image_url': img.image_url,
+                                'thumbnail_url': img.thumbnail_url,
+                                'width': img.width,
+                                'height': img.height,
+                                'file_size': img.file_size,
+                                'status': img.status,
+                                'status_display': img.get_status_display(),
+                                'model_provider': {
+                                    'id': str(img.model_provider.id) if img.model_provider else None,
+                                    'name': img.model_provider.name if img.model_provider else None,
+                                    'model_name': img.model_provider.model_name if img.model_provider else None,
+                                } if img.model_provider else None,
+                                'generation_params': img.generation_params,
+                                'retry_count': img.retry_count,
+                                'created_at': img.created_at.isoformat() if img.created_at else None,
+                            }
+                            for img in images
+                        ]
+                    })
+
+                return {
+                    'count': len(result),
+                    'storyboards': result
+                }
+
+            elif stage_type == 'camera_movement':
+                # 返回运镜数据
+                storyboards = Storyboard.objects.filter(project=project).order_by('sequence_number')
+
+                result = []
+                for sb in storyboards:
+                    try:
+                        camera = CameraMovement.objects.select_related('model_provider').get(storyboard=sb)
+                        result.append({
+                            'storyboard_id': str(sb.id),
+                            'sequence_number': sb.sequence_number,
+                            'camera_movement': {
+                                'id': str(camera.id),
+                                'movement_type': camera.movement_type,
+                                'movement_type_display': camera.get_movement_type_display() if camera.movement_type else None,
+                                'movement_params': camera.movement_params,
+                                'model_provider': {
+                                    'id': str(camera.model_provider.id) if camera.model_provider else None,
+                                    'name': camera.model_provider.name if camera.model_provider else None,
+                                    'model_name': camera.model_provider.model_name if camera.model_provider else None,
+                                } if camera.model_provider else None,
+                                'prompt_used': camera.prompt_used,
+                                'generation_metadata': camera.generation_metadata,
+                                'created_at': camera.created_at.isoformat() if camera.created_at else None,
+                                'updated_at': camera.updated_at.isoformat() if camera.updated_at else None,
+                            }
+                        })
+                    except CameraMovement.DoesNotExist:
+                        result.append({
+                            'storyboard_id': str(sb.id),
+                            'sequence_number': sb.sequence_number,
+                            'camera_movement': None
+                        })
+
+                return {
+                    'count': len(result),
+                    'storyboards': result
+                }
+
+            elif stage_type == 'video_generation':
+                # 返回生成的视频数据
+                # TODO: 实现视频数据序列化
+                return None
+
+            else:
+                return None
+
+        except Exception as e:
+            # 记录错误但不中断序列化
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"获取阶段 {stage_type} 的领域数据失败: {str(e)}", exc_info=True)
+            return None
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
         stage_type = data.get("stage_type")
         if stage_type == "storyboard":
-            try:    
+            try:
                 data["output_data"]["human_text"] = parse_storyboard_json(data["output_data"].get("storyboard_text", ""))
             except Exception:
                 pass
