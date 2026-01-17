@@ -125,6 +125,15 @@
       </div>
     </div>
 
+    <!-- 领域数据展示区域 -->
+    <div v-if="stage && stage.domain_data" class="mt-6">
+      <div class="divider">领域数据</div>
+      <DomainDataViewer
+        :stage-type="stageType"
+        :domain-data="stage.domain_data"
+      />
+    </div>
+
     <!-- 分镜可视化展示区域 -->
     <div v-if="['storyboard', 'image_generation','camera_movement', 'video_generation'].indexOf(stageType) !==-1 && localOutputData" class="mt-6">
       <div class="divider">分镜可视化</div>
@@ -144,11 +153,13 @@
 import { formatDate } from '@/utils/helpers';
 import { createProjectStageSSE, SSE_EVENT_TYPES } from '@/services/sseService';
 import StoryboardViewer from '@/components/content/StoryboardViewer.vue';
+import DomainDataViewer from './DomainDataViewer.vue';
 
 export default {
   name: 'StageContent',
   components: {
     StoryboardViewer,
+    DomainDataViewer,
   },
   props: {
     stageType: {
