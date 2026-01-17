@@ -156,6 +156,46 @@ response = await video_client.generate(
 )
 ```
 
+### 方式四：通过 HTTP 接口直接调用
+
+Mock API 也在 Django 服务中提供了真实的 HTTP 端点（默认根地址为 `http://localhost:8000/api/mock/`），用于和其他语言或应用集成：
+
+| Endpoint | Method | 说明 |
+| --- | --- | --- |
+| `/api/mock/` | `GET` | 查看可用的 Mock 服务以及各端点地址 |
+| `/api/mock/llm/` | `POST` | 文案改写/分镜/运镜等文本生成 |
+| `/api/mock/text2image/` | `POST` | 文生图模拟输出，返回图片 URL 列表 |
+| `/api/mock/image2video/` | `POST` | 图生视频模拟输出，返回示例视频信息 |
+
+示例请求：
+
+```bash
+# 调用 LLM Mock 接口
+curl -X POST http://localhost:8000/api/mock/llm/ \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "请改写下面的故事"}'
+
+# 生成占位图片
+curl -X POST http://localhost:8000/api/mock/text2image/ \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "A beautiful sunset", "sample_count": 2}'
+
+# 生成占位视频
+curl -X POST http://localhost:8000/api/mock/image2video/ \
+  -H "Content-Type: application/json" \
+  -d '{"image_url": "https://picsum.photos/1024/1024"}'
+
+# LLM 流式（OpenAI SSE 兼容）
+curl -N http://localhost:8000/api/mock/llm/ \
+  -H "Content-Type: application/json" \
+  -H "Accept: text/event-stream" \
+  -d '{"prompt": "请改写下面的故事", "stream": true}'
+```
+
+接口返回格式与 `core/ai_client` 中的 Mock 客户端保持一致，可直接替换真实 API 的调用逻辑。
+
+> ℹ️ `stream=true` 时，`/api/mock/llm/` 会输出 `text/event-stream`，其内容结构和 OpenAI `chat.completions` 的流式返回兼容，可直接用于需要 SSE 的客户端。
+
 ## Mock 响应说明
 
 ### LLM 响应类型

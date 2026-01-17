@@ -26,7 +26,7 @@ async def test_mock_llm_client():
     print("=" * 60)
 
     client = MockLLMClient(
-        api_url="http://localhost:8000/api/mock",
+        api_url="http://localhost:8010/api/mock",
         api_key="mock-key",
         model_name="mock-llm-v1"
     )
@@ -88,7 +88,7 @@ def test_mock_text2image_client():
     print("=" * 60)
 
     client = MockText2ImageClient(
-        api_url="http://localhost:8000/api/mock",
+        api_url="http://localhost:8010/api/mock",
         api_key="mock-key",
         model_name="mock-text2image-v1"
     )
@@ -128,7 +128,7 @@ async def test_mock_image2video_client():
     print("=" * 60)
 
     client = MockImage2VideoClient(
-        api_url="http://localhost:8000/api/mock",
+        api_url="http://localhost:8010/api/mock",
         api_key="mock-key",
         model_name="mock-image2video-v1"
     )

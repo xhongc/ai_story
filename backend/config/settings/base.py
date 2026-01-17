@@ -12,7 +12,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 # 安全配置
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-dev-key-change-in-production')
-DEBUG = False
+DEBUG = True
 ALLOWED_HOSTS = []
 
 # 应用定义
@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'apps.models',
     'apps.content',
     'apps.users',
+    'apps.mock_api',
 ]
 
 MIDDLEWARE = [
