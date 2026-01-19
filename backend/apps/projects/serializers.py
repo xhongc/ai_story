@@ -350,37 +350,15 @@ class ProjectCreateSerializer(serializers.ModelSerializer):
         # 创建项目
         project = Project.objects.create(**validated_data)
 
-        # 初始化5个阶段
-        for stage_type in ["rewrite", "storyboard"]:
-            ProjectStage.objects.create(
-                    project=project,
-                    stage_type=stage_type,
-                    status='pending',
-                    input_data={
-                        "raw_text": project.original_topic,
-                        "human_text": ""
-                    },
-                    output_data = {
-                        "raw_text": "",
-                        "human_text": ""
-                    }
-            )
-        stage_types = ['image_generation', 'camera_movement', 'video_generation']
+        # 初始化5个阶段(只创建阶段记录,不初始化 input_data/output_data)
+        stage_types = ['rewrite', 'storyboard', 'image_generation', 'camera_movement', 'video_generation']
         for stage_type in stage_types:
             ProjectStage.objects.create(
                 project=project,
                 stage_type=stage_type,
-                status='pending',
-                input_data={
-                        "raw_text": "",
-                        "human_text": ""
-                    },
-                    output_data = {
-                        "raw_text": "",
-                        "human_text": ""
-                    }
+                status='pending'
             )
-        
+
         # 创建默认模型配置
         ProjectModelConfig.objects.create(project=project)
 

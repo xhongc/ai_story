@@ -102,7 +102,7 @@ class LLMStageProcessor(StageProcessor):
                 stage_type=self.stage_type
             )
 
-            # 获取输入数据(优先使用传入的input_data)
+            # 获取输入数据(从领域模型读取)
             if not input_data:
                 input_data = self._get_input_data(project, stage)
 
@@ -133,18 +133,9 @@ class LLMStageProcessor(StageProcessor):
                 'message': f'开始生成{self._get_stage_display_name()}...',
                 'prompt_length': len(prompt)
             }
-            stage_input_data = stage.input_data
-            human_text = stage_input_data.get("human_text", "")
-            storyboard_ids = input_data.get("storyboard_ids", []) or []
-            if human_text:
-                # 运镜的时候走这里
-                scenes = human_text.get("scenes", [])
-                if len(storyboard_ids) == 0:
-                    tasks = [{"user_prompt": f'剧本:{i["narration"]}\n 画面: {i["visual_prompt"]}', "scene_number": i["scene_number"]} for i in scenes]
-                else:
-                    tasks = [{"user_prompt": f'剧本:{i["narration"]}\n 画面: {i["visual_prompt"]}', "scene_number": i["scene_number"]} for i in scenes if i["scene_number"] in storyboard_ids]
-            else:
-                tasks = [{"user_prompt": input_data.get("raw_text", input_data)}]
+
+            # 根据阶段类型构建任务列表
+            tasks = self._build_tasks(project, input_data)
 
             for index, task in enumerate(tasks, 1):
                 # 流式生成
@@ -165,14 +156,13 @@ class LLMStageProcessor(StageProcessor):
                         }
 
                     elif chunk['type'] == 'done':
-                        # 保存结果
-                        output_data = self._save_result(
+                        # 保存结果到领域模型
+                        self._save_result(
                             project, stage, full_text, prompt, {"index": task.get("scene_number", "")}
                         )
 
-                        # 保存最终结果到阶段
+                        # 更新阶段状态
                         ProjectStage.objects.filter(id=stage.id).update(
-                            output_data=output_data,
                             completed_at=timezone.now(),
                             status='completed'
                         )
@@ -216,6 +206,51 @@ class LLMStageProcessor(StageProcessor):
                 'type': 'error',
                 'error': str(e)
             }
+
+    def _build_tasks(self, project: Project, input_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        根据阶段类型和输入数据构建任务列表
+
+        Args:
+            project: 项目对象
+            input_data: 输入数据
+
+        Returns:
+            任务列表
+        """
+        from apps.content.models import Storyboard
+
+        if self.stage_type == 'rewrite':
+            # 文案改写: 单个任务
+            return [{"user_prompt": input_data.get("raw_text", "")}]
+
+        elif self.stage_type == 'storyboard':
+            # 分镜生成: 单个任务
+            return [{"user_prompt": input_data.get("raw_text", "")}]
+
+        elif self.stage_type == 'camera_movement':
+            # 运镜生成: 为每个分镜生成运镜
+            storyboard_ids = input_data.get("storyboard_ids", [])
+
+            # 从 Storyboard 模型获取分镜列表
+            storyboards_query = Storyboard.objects.filter(project=project).order_by('sequence_number')
+
+            if storyboard_ids:
+                storyboards_query = storyboards_query.filter(sequence_number__in=storyboard_ids)
+
+            storyboards = list(storyboards_query)
+
+            tasks = []
+            for sb in storyboards:
+                tasks.append({
+                    "user_prompt": f'剧本:{sb.narration_text}\n 画面: {sb.image_prompt}',
+                    "scene_number": sb.sequence_number
+                })
+
+            return tasks
+
+        else:
+            return [{"user_prompt": str(input_data)}]
 
     def on_failure(self, context: PipelineContext, error: Exception):
         """失败处理"""
@@ -435,7 +470,7 @@ class LLMStageProcessor(StageProcessor):
         generated_text: str,
         prompt_used: str,
         metadata: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    ) -> None:
         """
         保存生成结果到对应的领域模型
         不同阶段保存到不同的模型表
@@ -444,8 +479,7 @@ class LLMStageProcessor(StageProcessor):
 
         if self.stage_type == 'rewrite':
             # 保存到 ContentRewrite 模型
-            ai_client = self._get_ai_client(project)
-            provider = ai_client.provider if hasattr(ai_client, 'provider') else None
+            provider = self._get_current_provider(project)
 
             ContentRewrite.objects.update_or_create(
                 project=project,
@@ -458,26 +492,16 @@ class LLMStageProcessor(StageProcessor):
                 }
             )
 
-            # 返回简化的输出数据(用于阶段追踪)
-            return {
-                'status': 'completed',
-                'text_length': len(generated_text),
-                'raw_text': generated_text,
-                'human_text': ''
-            }
-
         elif self.stage_type == 'storyboard':
             # 分镜生成: 解析JSON并保存到 Storyboard 模型
             storyboard_data = parse_storyboard_json(generated_text)
             scenes = storyboard_data.get('scenes', [])
 
-            ai_client = self._get_ai_client(project)
-            provider = ai_client.provider if hasattr(ai_client, 'provider') else None
+            provider = self._get_current_provider(project)
 
             # 批量创建或更新分镜
-            created_ids = []
             for scene in scenes:
-                storyboard, created = Storyboard.objects.update_or_create(
+                Storyboard.objects.update_or_create(
                     project=project,
                     sequence_number=scene['scene_number'],
                     defaults={
@@ -493,14 +517,6 @@ class LLMStageProcessor(StageProcessor):
                         }
                     }
                 )
-                created_ids.append(str(storyboard.id))
-
-            # 返回简化的输出数据
-            return {
-                'status': 'completed',
-                'storyboard_count': len(created_ids),
-                'storyboard_ids': created_ids
-            }
 
         elif self.stage_type == 'camera_movement':
             # 运镜生成: 保存到 CameraMovement 模型
@@ -514,22 +530,27 @@ class LLMStageProcessor(StageProcessor):
 
             if not storyboard:
                 logger.error(f"未找到序号为 {scene_number} 的分镜")
-                return {
-                    'status': 'failed',
-                    'error': f'未找到序号为 {scene_number} 的分镜'
-                }
+                return
 
-            ai_client = self._get_ai_client(project)
-            provider = ai_client.provider if hasattr(ai_client, 'provider') else None
+            provider = self._get_current_provider(project)
 
             # 解析运镜文本(假设返回的是JSON格式)
             try:
                 from apps.projects.utils import parse_json
                 camera_data = parse_json(generated_text)
+
+                if not camera_data or not isinstance(camera_data, dict):
+                    raise ValueError("解析结果为空或格式错误")
+
                 movement_type = camera_data.get('movement_type', '')
                 movement_params = camera_data.get('params', {})
-            except:
-                # 如果解析失败,将整个文本作为参数存储
+
+            except (ValueError, KeyError, TypeError) as e:
+                # 记录解析失败的原因
+                logger.warning(
+                    f"运镜数据解析失败: {str(e)}, "
+                    f"将原始文本存储到 movement_params"
+                )
                 movement_type = ''
                 movement_params = {'raw_text': generated_text}
 
@@ -545,18 +566,38 @@ class LLMStageProcessor(StageProcessor):
                 }
             )
 
-            return {
-                'status': 'completed',
-                'storyboard_id': str(storyboard.id),
-                'scene_number': scene_number
+    def _get_current_provider(self, project: Project) -> Optional[ModelProvider]:
+        """
+        获取当前阶段使用的模型提供商
+
+        优先级:
+        1. 项目模型配置
+        2. 提示词模板配置
+        3. 系统默认提供商
+        """
+        # 1. 从项目模型配置获取
+        config = getattr(project, 'model_config', None)
+
+        if config:
+            provider_field_map = {
+                'rewrite': 'rewrite_providers',
+                'storyboard': 'storyboard_providers',
+                'camera_movement': 'camera_providers',
             }
 
-        else:
-            # 默认返回
-            return {
-                'status': 'completed',
-                'raw_text': generated_text
-            }
+            field_name = provider_field_map.get(self.stage_type)
+            if field_name:
+                providers = list(getattr(config, field_name).all())
+                if providers:
+                    return providers[0]
+
+        # 2. 从提示词模板获取
+        template = self._get_prompt_template(project)
+        if template and template.model_provider:
+            return template.model_provider
+
+        # 3. 获取系统默认提供商
+        return self._get_default_provider()
     
     def _get_max_tokens(self) -> int:
         """获取最大token数(根据阶段类型)"""
