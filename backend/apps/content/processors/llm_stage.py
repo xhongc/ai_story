@@ -461,7 +461,9 @@ class LLMStageProcessor(StageProcessor):
             # 返回简化的输出数据(用于阶段追踪)
             return {
                 'status': 'completed',
-                'text_length': len(generated_text)
+                'text_length': len(generated_text),
+                'raw_text': generated_text,
+                'human_text': ''
             }
 
         elif self.stage_type == 'storyboard':
