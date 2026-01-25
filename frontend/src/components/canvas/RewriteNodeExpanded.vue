@@ -1,0 +1,467 @@
+<template>
+  <div
+    class="rewrite-node-expanded"
+    :class="`status-${status}`"
+    :style="nodeStyle"
+  >
+    <!-- 节点头部 -->
+    <div class="node-header">
+      <div class="header-left">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+        </svg>
+        <h3 class="node-title">文案改写</h3>
+      </div>
+      <div class="header-right">
+        <!-- 操作图标按钮 -->
+        <div class="action-icons">
+          <!-- 运行改写图标 -->
+          <button
+            class="icon-btn"
+            :class="{ 'icon-btn-disabled': status === 'processing' || isExecuting }"
+            :disabled="status === 'processing' || isExecuting"
+            @click.stop="handleQuickExecute"
+            title="运行改写"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </button>
+
+          <!-- 生成分镜图标 -->
+          <button
+            class="icon-btn"
+            :class="{ 'icon-btn-disabled': status !== 'completed' || isGeneratingStoryboard }"
+            :disabled="status !== 'completed' || isGeneratingStoryboard"
+            @click.stop="handleGenerateStoryboard"
+            title="生成分镜"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- <div class="status-badge">
+          <span v-if="status === 'processing'" class="loading loading-spinner loading-xs"></span>
+          <svg v-else-if="status === 'completed'" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <svg v-else-if="status === 'failed'" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+          <span class="status-text">{{ statusText }}</span>
+        </div> -->
+      </div>
+    </div>
+
+    <!-- 原始文案 -->
+    <div class="node-section">
+      <label class="section-label">原始文案</label>
+      <div
+        class="original-text"
+        @wheel.stop
+        @mousedown.stop
+      >{{ data.original_text || '暂无原始文案' }}</div>
+    </div>
+
+    <!-- 改写后文案 -->
+    <div class="node-section">
+      <label class="section-label">改写后文案</label>
+      <textarea
+        v-model="data.rewritten_text"
+        class="textarea textarea-bordered w-full"
+        rows="8"
+        placeholder="改写后的文案将显示在这里..."
+        :disabled="status === 'processing'"
+        @wheel.stop
+        @mousedown.stop
+      ></textarea>
+    </div>
+
+    <!-- 操作按钮 -->
+    <div class="node-actions">
+      <button
+        v-if="status === 'pending' || status === 'failed'"
+        class="btn btn-primary btn-sm"
+        :disabled="isExecuting"
+        @click="handleExecute"
+      >
+        <span v-if="isExecuting" class="loading loading-spinner loading-xs"></span>
+        {{ isExecuting ? '执行中...' : '执行改写' }}
+      </button>
+
+      <button
+        v-if="status === 'completed'"
+        class="btn btn-success btn-sm"
+        :disabled="isSaving"
+        @click="handleSave"
+      >
+        <span v-if="isSaving" class="loading loading-spinner loading-xs"></span>
+        {{ isSaving ? '保存中...' : '保存修改' }}
+      </button>
+
+      <button
+        v-if="status === 'failed'"
+        class="btn btn-warning btn-sm"
+        :disabled="isExecuting"
+        @click="handleRetry"
+      >
+        重试
+      </button>
+
+      <button
+        v-if="status === 'completed'"
+        class="btn btn-ghost btn-sm"
+        @click="handleReset"
+      >
+        重新生成
+      </button>
+    </div>
+
+    <!-- 元数据信息 -->
+    <div v-if="data && data.model_provider" class="node-metadata">
+      <div class="metadata-item">
+        <span class="metadata-label">使用模型:</span>
+        <span class="metadata-value">{{ data.model_provider.model_name || 'N/A' }}</span>
+      </div>
+      <div class="metadata-item">
+        <span class="metadata-label">生成时间:</span>
+        <span class="metadata-value">{{ formatDate(data.updated_at) }}</span>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+export default {
+  name: 'RewriteNodeExpanded',
+  props: {
+    status: {
+      type: String,
+      default: 'pending'
+    },
+    position: {
+      type: Object,
+      default: () => ({ x: 0, y: 0 })
+    },
+    data: {
+      type: Object,
+      default: null
+    },
+    originalTopic: {
+      type: String,
+      default: ''
+    },
+    projectId: {
+      type: [String, Number],
+      required: true
+    }
+  },
+  data() {
+    return {
+      rewrittenContent: '',
+      isExecuting: false,
+      isSaving: false,
+      isGeneratingStoryboard: false
+    };
+  },
+  computed: {
+    nodeStyle() {
+      return {
+        position: 'absolute',
+        left: `${this.position.x}px`,
+        top: `${this.position.y}px`,
+      };
+    },
+    statusText() {
+      const statusMap = {
+        pending: '待执行',
+        processing: '执行中',
+        completed: '已完成',
+        failed: '失败'
+      };
+      return statusMap[this.status] || '未知';
+    }
+  },
+  watch: {
+    data: {
+      immediate: true,
+      handler(newData) {
+        if (newData && newData.rewritten_content) {
+          this.rewrittenContent = newData.rewritten_content;
+        }
+      }
+    }
+  },
+  methods: {
+    async handleQuickExecute() {
+      if (this.status === 'processing' || this.isExecuting) {
+        return;
+      }
+      await this.handleExecute();
+    },
+
+    async handleGenerateStoryboard() {
+      if (this.status !== 'completed' || this.isGeneratingStoryboard) {
+        return;
+      }
+
+      this.isGeneratingStoryboard = true;
+      try {
+        await this.$emit('generate-storyboard', {
+          projectId: this.projectId,
+          rewrittenText: this.data.rewritten_text
+        });
+        this.$message?.success('开始生成分镜');
+      } catch (error) {
+        console.error('生成分镜失败:', error);
+        this.$message?.error('生成分镜失败');
+      } finally {
+        this.isGeneratingStoryboard = false;
+      }
+    },
+
+    async handleExecute() {
+      this.isExecuting = true;
+      try {
+        await this.$emit('execute', {
+          stageType: 'rewrite',
+          inputData: { original_topic: this.originalTopic }
+        });
+      } finally {
+        this.isExecuting = false;
+      }
+    },
+
+    async handleSave() {
+      this.isSaving = true;
+      try {
+        await this.$emit('save', {
+          stageType: 'rewrite',
+          outputData: { rewritten_content: this.rewrittenContent }
+        });
+        this.$message?.success('保存成功');
+      } catch (error) {
+        this.$message?.error('保存失败');
+      } finally {
+        this.isSaving = false;
+      }
+    },
+
+    async handleRetry() {
+      await this.handleExecute();
+    },
+
+    async handleReset() {
+      if (confirm('确定要重新生成吗？这将覆盖当前内容。')) {
+        await this.handleExecute();
+      }
+    },
+
+    formatDate(dateStr) {
+      if (!dateStr) return 'N/A';
+      return new Date(dateStr).toLocaleString('zh-CN');
+    }
+  }
+};
+</script>
+
+<style scoped>
+.rewrite-node-expanded {
+  width: 480px;
+  background: #fafafa;
+  border: 2px solid hsl(var(--bc) / 0.2);
+  border-radius: 1rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  z-index: 2;
+  transition: all 0.3s ease;
+}
+
+.rewrite-node-expanded:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+/* 状态样式 */
+.status-pending {
+  border-color: hsl(var(--bc) / 0.3);
+}
+
+.status-processing {
+  border-color: hsl(var(--in));
+  background: #f0f8ff;
+}
+
+.status-completed {
+  border-color: hsl(var(--su));
+  background: #f0fdf4;
+}
+
+.status-failed {
+  border-color: hsl(var(--er));
+  background: #fef2f2;
+}
+
+/* 节点头部 */
+.node-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid hsl(var(--bc) / 0.1);
+  background: hsl(var(--b2) / 0.5);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.node-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+  color: hsl(var(--bc));
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* 操作图标按钮 */
+.action-icons {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: none;
+  border-radius: 0.5rem;
+  background: hsl(var(--b2));
+  color: hsl(var(--bc));
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.icon-btn:hover:not(.icon-btn-disabled) {
+  background: hsl(var(--p));
+  color: hsl(var(--pc));
+  transform: scale(1.05);
+}
+
+.icon-btn:active:not(.icon-btn-disabled) {
+  transform: scale(0.95);
+}
+
+.icon-btn-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.status-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.status-processing .status-badge {
+  background: hsl(var(--in) / 0.1);
+  color: hsl(var(--in));
+}
+
+.status-completed .status-badge {
+  background: hsl(var(--su) / 0.1);
+  color: hsl(var(--su));
+}
+
+.status-failed .status-badge {
+  background: hsl(var(--er) / 0.1);
+  color: hsl(var(--er));
+}
+
+.status-pending .status-badge {
+  background: hsl(var(--bc) / 0.05);
+  color: hsl(var(--bc) / 0.6);
+}
+
+/* 节点内容区 */
+.node-section {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid hsl(var(--bc) / 0.05);
+}
+
+.section-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: hsl(var(--bc) / 0.7);
+  margin-bottom: 0.5rem;
+}
+
+.original-text {
+  padding: 0.75rem;
+  background: hsl(var(--b2));
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: hsl(var(--bc) / 0.8);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.original-text::-webkit-scrollbar {
+  width: 4px;
+}
+
+.original-text::-webkit-scrollbar-thumb {
+  background: hsl(var(--bc) / 0.2);
+  border-radius: 2px;
+}
+
+/* 操作按钮 */
+.node-actions {
+  display: flex;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid hsl(var(--bc) / 0.05);
+}
+
+/* 元数据 */
+.node-metadata {
+  padding: 0.75rem 1.25rem;
+  display: flex;
+  gap: 1.5rem;
+  font-size: 0.75rem;
+  color: hsl(var(--bc) / 0.5);
+}
+
+.metadata-item {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.metadata-label {
+  font-weight: 500;
+}
+
+.metadata-value {
+  color: hsl(var(--bc) / 0.7);
+}
+</style>

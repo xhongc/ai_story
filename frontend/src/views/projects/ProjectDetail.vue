@@ -1,252 +1,44 @@
 <template>
   <div class="project-detail">
     <loading-container :loading="loading">
-      <!-- 项目头部信息 -->
-      <div class="bg-base-100 rounded-lg shadow-sm p-6 mb-4">
-        <div class="flex justify-between items-center">
-          <div>
-            <h1 class="text-2xl font-bold">{{ project?.name || '加载中...' }}</h1>
-            <p class="text-sm text-base-content/60 mt-1">{{ project?.description || '暂无描述' }}</p>
-          </div>
-          <status-badge v-if="project" :status="project.status" type="project" />
-        </div>
-      </div>
-
-      <!-- 横向Tab栏 -->
-      <div class="bg-base-100 rounded-lg shadow-sm">
-        <div role="tablist" class="tabs tabs-bordered tabs-lg flex-nowrap overflow-x-auto">
-          <input
-            type="radio"
-            name="project_tabs"
-            role="tab"
-            class="tab"
-            aria-label="项目信息"
-            :checked="activeTab === 'info'"
-            @change="activeTab = 'info'"
-          />
-          <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-6">
-            <!-- 项目信息内容 -->
-            <div v-if="project" class="space-y-4">
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="form-control">
-                  <label class="label"><span class="label-text font-semibold">项目名称</span></label>
-                  <input
-                    v-model="editForm.name"
-                    type="text"
-                    class="input input-bordered w-full"
-                    placeholder="请输入项目名称"
-                  />
-                </div>
-                <div class="form-control">
-                  <label class="label"><span class="label-text font-semibold">状态</span></label>
-                  <div><status-badge :status="project.status" type="project" /></div>
-                </div>
-                <div class="form-control">
-                  <label class="label"><span class="label-text font-semibold">创建时间</span></label>
-                  <div class="text-base-content">{{ formatDate(project.created_at) }}</div>
-                </div>
-                <div class="form-control">
-                  <label class="label"><span class="label-text font-semibold">更新时间</span></label>
-                  <div class="text-base-content">{{ formatDate(project.updated_at) }}</div>
-                </div>
-              </div>
-              <div class="form-control">
-                <label class="label"><span class="label-text font-semibold">项目描述</span></label>
-                <textarea
-                  v-model="editForm.description"
-                  class="textarea textarea-bordered w-full"
-                  rows="3"
-                  placeholder="请输入项目描述"
-                ></textarea>
-              </div>
-              <div class="form-control">
-                <label class="label"><span class="label-text font-semibold">原始文案</span></label>
-                <textarea
-                  v-model="editForm.original_topic"
-                  class="textarea textarea-bordered w-full min-h-[200px]"
-                  placeholder="请输入原始文案"
-                ></textarea>
-              </div>
-              <div class="flex justify-between items-start gap-4">
-                <!-- 剪映草稿路径显示 -->
-                <div v-if="project?.jianying_draft_path" class="alert alert-info flex-1">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <div>
-                    <div class="font-bold">剪映草稿已生成</div>
-                    <div class="text-sm">{{ project.jianying_draft_path }}</div>
-                  </div>
-                </div>
-
-                <!-- 操作按钮组 -->
-                <div class="flex gap-2 items-center">
-                  <!-- 剪映草稿生成按钮 -->
-                  <jianying-draft-button
-                    v-if="project"
-                    :project-id="project.id"
-                    :project="project"
-                    @generated="handleDraftGenerated"
-                  />
-
-                  <button
-                    class="btn btn-primary btn-sm"
-                    :disabled="saving"
-                    @click="handleSaveProjectInfo"
-                  >
-                    <span v-if="saving" class="loading loading-spinner loading-sm"></span>
-                    {{ saving ? '保存中...' : '保存' }}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <input
-            type="radio"
-            name="project_tabs"
-            role="tab"
-            class="tab"
-            aria-label="文案改写"
-            :checked="activeTab === 'rewrite'"
-            @change="activeTab = 'rewrite'"
-          />
-          <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-6">
-            <stage-content
-              stage-type="rewrite"
-              :stage="getStage('rewrite')"
-              :all-stages="stages"
-              :project-id="project.id"
-              :original-topic="project?.original_topic"
-              @execute="handleExecuteStage"
-              @save="handleSaveStage"
-              @stage-updated="handleStageUpdated"
-              @stage-completed="handleStageCompleted"
-            />
-          </div>
-
-          <input
-            type="radio"
-            name="project_tabs"
-            role="tab"
-            class="tab"
-            aria-label="分镜输出"
-            :checked="activeTab === 'storyboard'"
-            @change="activeTab = 'storyboard'"
-          />
-          <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-6">
-            <stage-content
-              stage-type="storyboard"
-              :stage="getStage('storyboard')"
-              :all-stages="stages"
-              :project-id="project.id"
-              @execute="handleExecuteStage"
-              @save="handleSaveStage"
-              @stage-updated="handleStageUpdated"
-              @stage-completed="handleStageCompleted"
-            />
-          </div>
-
-          <input
-            type="radio"
-            name="project_tabs"
-            role="tab"
-            class="tab"
-            aria-label="文生图"
-            :checked="activeTab === 'image_generation'"
-            @change="activeTab = 'image_generation'"
-          />
-          <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-6">
-            <stage-content
-              stage-type="image_generation"
-              :stage="getStage('image_generation')"
-              :all-stages="stages"
-              :project-id="project.id"
-              @execute="handleExecuteStage"
-              @save="handleSaveStage"
-              @stage-updated="handleStageUpdated"
-              @stage-completed="handleStageCompleted"
-            />
-          </div>
-
-          <input
-            type="radio"
-            name="project_tabs"
-            role="tab"
-            class="tab"
-            aria-label="运镜输出"
-            :checked="activeTab === 'camera_movement'"
-            @change="activeTab = 'camera_movement'"
-          />
-          <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-6">
-            <stage-content
-              stage-type="camera_movement"
-              :stage="getStage('camera_movement')"
-              :all-stages="stages"
-              :project-id="project.id"
-              @execute="handleExecuteStage"
-              @save="handleSaveStage"
-              @stage-updated="handleStageUpdated"
-              @stage-completed="handleStageCompleted"
-            />
-          </div>
-
-          <input
-            type="radio"
-            name="project_tabs"
-            role="tab"
-            class="tab"
-            aria-label="图生视频"
-            :checked="activeTab === 'video_generation'"
-            @change="activeTab = 'video_generation'"
-          />
-          <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-6">
-            <stage-content
-              stage-type="video_generation"
-              :stage="getStage('video_generation')"
-              :all-stages="stages"
-              :project-id="project.id"
-              @execute="handleExecuteStage"
-              @save="handleSaveStage"
-              @stage-updated="handleStageUpdated"
-              @stage-completed="handleStageCompleted"
-            />
-          </div>
-        </div>
-      </div>
+      <!-- 只展示工作流画布 -->
+      <project-canvas
+        v-if="project"
+        :project="project"
+        :stages="stages"
+        :storyboards="storyboards"
+        @execute-stage="handleExecuteStage"
+        @save-stage="handleSaveStage"
+        @generate-image="handleGenerateImage"
+        @generate-camera="handleGenerateCamera"
+        @generate-video="handleGenerateVideo"
+        @save-storyboard="handleSaveStoryboard"
+        @delete-storyboard="handleDeleteStoryboard"
+        @draft-generated="handleDraftGenerated"
+      />
     </loading-container>
   </div>
 </template>
 
 <script>
 import { mapActions } from 'vuex';
-import StatusBadge from '@/components/common/StatusBadge.vue';
 import LoadingContainer from '@/components/common/LoadingContainer.vue';
-import StageContent from '@/components/projects/StageContent.vue';
-import JianyingDraftButton from '@/components/projects/JianyingDraftButton.vue';
+import ProjectCanvas from '@/components/canvas/ProjectCanvas.vue';
 import { formatDate } from '@/utils/helpers';
 import websocketClient from '@/services/websocketClient';
 
 export default {
   name: 'ProjectDetail',
   components: {
-    StatusBadge,
     LoadingContainer,
-    StageContent,
-    JianyingDraftButton,
+    ProjectCanvas,
   },
   data() {
     return {
       loading: false,
-      saving: false,
       project: null,
       stages: [],
-      activeTab: 'info',
-      editForm: {
-        name: '',
-        description: '',
-        original_topic: '',
-      },
+      storyboards: [],
       savedScrollPosition: 0, // 保存滚动位置
     };
   },
@@ -272,8 +64,9 @@ export default {
         const projectId = this.$route.params.id;
         this.project = await this.fetchProject(projectId);
         this.stages = await this.fetchProjectStages(projectId);
-        // 初始化编辑表单
-        this.initEditForm();
+
+        // 获取分镜数据（必须在stages加载后）
+        this.fetchStoryboardsFromStages();
 
         // 恢复滚动位置
         if (preserveScroll) {
@@ -289,13 +82,80 @@ export default {
       }
     },
 
-    initEditForm() {
-      if (this.project) {
-        this.editForm = {
-          name: this.project.name || '',
-          description: this.project.description || '',
-          original_topic: this.project.original_topic || '',
-        };
+    fetchStoryboardsFromStages() {
+      try {
+        // 从分镜阶段的output_data中获取分镜列表
+        const storyboardStage = this.stages.find(s => s.stage_type === 'storyboard');
+        console.log('[ProjectDetail] Storyboard stage:', storyboardStage);
+
+        if (storyboardStage && storyboardStage.output_data && storyboardStage.output_data.storyboards) {
+          // 获取每个分镜的详细数据（包括images, camera_movement, videos）
+          this.storyboards = storyboardStage.output_data.storyboards.map((sb, index) => ({
+            ...sb,
+            sequence_number: index + 1,
+            images: sb.images || [],
+            camera_movement: sb.camera_movement || null,
+            videos: sb.videos || []
+          }));
+          console.log('[ProjectDetail] Storyboards loaded:', this.storyboards);
+        } else {
+          this.storyboards = [];
+          console.log('[ProjectDetail] No storyboards found');
+
+          // 开发模式：添加模拟数据用于测试画布布局
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[ProjectDetail] Adding mock storyboards for development');
+            this.storyboards = [
+              {
+                id: 'mock-1',
+                sequence_number: 1,
+                scene_description: '开场镜头：城市天际线',
+                narration_text: '在这座繁华的都市中...',
+                image_prompt: 'A beautiful city skyline at sunset',
+                duration_seconds: 3,
+                images: [],
+                camera_movement: null,
+                videos: []
+              },
+              {
+                id: 'mock-2',
+                sequence_number: 2,
+                scene_description: '主角登场',
+                narration_text: '我们的故事从这里开始',
+                image_prompt: 'A young person walking in the city',
+                duration_seconds: 4,
+                images: [],
+                camera_movement: null,
+                videos: []
+              },
+              {
+                id: 'mock-3',
+                sequence_number: 3,
+                scene_description: '转折点',
+                narration_text: '突然，一切都变了',
+                image_prompt: 'Dramatic moment in the story',
+                duration_seconds: 3,
+                images: [],
+                camera_movement: null,
+                videos: []
+              },
+              {
+                id: 'mock-4',
+                sequence_number: 4,
+                scene_description: '高潮部分',
+                narration_text: '这是最关键的时刻',
+                image_prompt: 'Climax scene with tension',
+                duration_seconds: 5,
+                images: [],
+                camera_movement: null,
+                videos: []
+              }
+            ];
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch storyboards:', error);
+        this.storyboards = [];
       }
     },
 
@@ -316,10 +176,6 @@ export default {
 
     disconnectWebSocket() {
       websocketClient.disconnect();
-    },
-
-    getStage(stageType) {
-      return this.stages.find((s) => s.stage_type === stageType) || null;
     },
 
     async handleExecuteStage({ stageType, inputData }) {
@@ -354,58 +210,69 @@ export default {
       }
     },
 
-    handleStageUpdated(stageData) {
-      // 当阶段通过SSE更新时,刷新数据
-      console.log('Stage updated:', stageData);
-      this.fetchData(true); // 保持滚动位置
-    },
-
-    async handleStageCompleted(stageData) {
-      // 当阶段完成时,刷新数据以获取最新的阶段状态
-      console.log('[ProjectDetail] Stage completed:', stageData);
-      console.log('[ProjectDetail] 开始刷新数据...');
-      await this.fetchData(true); // 保持滚动位置
-      console.log('[ProjectDetail] 数据刷新完成，新的 stages:', this.stages);
-    },
-
-    async handleSaveProjectInfo() {
-      // 验证表单
-      if (!this.editForm.name || !this.editForm.name.trim()) {
-        this.$message.error('项目名称不能为空');
-        return;
-      }
-
-      if (!this.editForm.original_topic || !this.editForm.original_topic.trim()) {
-        this.$message.error('原始文案不能为空');
-        return;
-      }
-
-      this.saving = true;
-      try {
-        await this.updateProject({
-          id: this.project.id,
-          data: {
-            name: this.editForm.name.trim(),
-            description: this.editForm.description?.trim() || '',
-            original_topic: this.editForm.original_topic.trim(),
-          },
-        });
-        this.$message.success('保存成功');
-        // 重新加载项目数据
-        await this.fetchData();
-      } catch (error) {
-        console.error('Failed to save project:', error);
-        this.$message.error('保存失败');
-      } finally {
-        this.saving = false;
-      }
-    },
-
     async handleDraftGenerated(data) {
       console.log('剪映草稿生成成功:', data);
       this.$message.success(`剪映草稿生成成功！包含 ${data.videoCount} 个视频`);
       // 重新加载项目数据以更新草稿路径显示
       await this.fetchData(true); // 保持滚动位置
+    },
+
+    // 画布事件处理
+    async handleGenerateImage({ storyboardId, prompt }) {
+      try {
+        this.$message.info('开始生成图片...');
+        // TODO: 调用文生图API
+        console.log('Generate image for storyboard:', storyboardId, 'with prompt:', prompt);
+      } catch (error) {
+        console.error('Failed to generate image:', error);
+        this.$message.error('生成图片失败');
+      }
+    },
+
+    async handleGenerateCamera({ storyboardId }) {
+      try {
+        this.$message.info('开始生成运镜...');
+        // TODO: 调用运镜生成API
+        console.log('Generate camera for storyboard:', storyboardId);
+      } catch (error) {
+        console.error('Failed to generate camera:', error);
+        this.$message.error('生成运镜失败');
+      }
+    },
+
+    async handleGenerateVideo({ storyboardId }) {
+      try {
+        this.$message.info('开始生成视频...');
+        // TODO: 调用图生视频API
+        console.log('Generate video for storyboard:', storyboardId);
+      } catch (error) {
+        console.error('Failed to generate video:', error);
+        this.$message.error('生成视频失败');
+      }
+    },
+
+    async handleSaveStoryboard({ storyboardId, data }) {
+      try {
+        // TODO: 调用保存分镜API
+        console.log('Save storyboard:', storyboardId, data);
+        this.$message.success('保存成功');
+        await this.fetchData(true);
+      } catch (error) {
+        console.error('Failed to save storyboard:', error);
+        this.$message.error('保存失败');
+      }
+    },
+
+    async handleDeleteStoryboard(storyboardId) {
+      try {
+        // TODO: 调用删除分镜API
+        console.log('Delete storyboard:', storyboardId);
+        this.$message.success('删除成功');
+        await this.fetchData(true);
+      } catch (error) {
+        console.error('Failed to delete storyboard:', error);
+        this.$message.error('删除失败');
+      }
     },
   },
 };
@@ -415,18 +282,6 @@ export default {
 .project-detail {
   width: 100%;
   max-width: 100%;
-}
-
-.tab-content {
-  min-height: 400px;
-  width: 100%;
-  max-width: 100%;
-  overflow-x: auto;
-}
-
-/* 防止 tab 标签被挤压 */
-.tab {
-  flex-shrink: 0;
-  white-space: nowrap;
+  height: calc(100vh - 64px); /* 减去顶部导航栏高度 */
 }
 </style>
