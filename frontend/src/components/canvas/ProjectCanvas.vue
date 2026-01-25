@@ -148,6 +148,12 @@ export default {
       // 节点位置配置
       nodePositions: {
         rewrite: { x: 100, y: 100, width: 480, height: 600 }
+      },
+      // 跟踪正在执行的节点
+      executingNodes: {
+        images: {}, // { storyboardId: true }
+        cameras: {}, // { storyboardId: true }
+        videos: {} // { storyboardId: true }
       }
     };
   },
@@ -261,8 +267,24 @@ export default {
   watch: {
     storyboards: {
       deep: true,
-      handler(newVal) {
+      handler(newVal, oldVal) {
         console.log('[ProjectCanvas] Storyboards changed:', newVal);
+
+        // 检查并清除已完成的执行状态
+        newVal.forEach(storyboard => {
+          // 如果图片已生成,清除执行状态
+          if (storyboard.images && storyboard.images.length > 0) {
+            this.$set(this.executingNodes.images, storyboard.id, false);
+          }
+          // 如果运镜已生成,清除执行状态
+          if (storyboard.camera_movement) {
+            this.$set(this.executingNodes.cameras, storyboard.id, false);
+          }
+          // 如果视频已生成,清除执行状态
+          if (storyboard.videos && storyboard.videos.length > 0) {
+            this.$set(this.executingNodes.videos, storyboard.id, false);
+          }
+        });
       }
     }
   },
@@ -310,6 +332,11 @@ export default {
 
     // 获取图片状态
     getImageStatus(storyboard) {
+      // 检查是否正在执行
+      if (this.executingNodes.images[storyboard.id]) {
+        return 'processing';
+      }
+      // 检查是否已完成
       if (storyboard.images && storyboard.images.length > 0) {
         return 'completed';
       }
@@ -326,6 +353,11 @@ export default {
 
     // 获取运镜状态
     getCameraStatus(storyboard) {
+      // 检查是否正在执行
+      if (this.executingNodes.cameras[storyboard.id]) {
+        return 'processing';
+      }
+      // 检查是否已完成
       if (storyboard.camera_movement) {
         return 'completed';
       }
@@ -350,6 +382,11 @@ export default {
 
     // 获取视频状态
     getVideoStatus(storyboard) {
+      // 检查是否正在执行
+      if (this.executingNodes.videos[storyboard.id]) {
+        return 'processing';
+      }
+      // 检查是否已完成
       if (storyboard.videos && storyboard.videos.length > 0) {
         return 'completed';
       }
@@ -386,16 +423,140 @@ export default {
       this.$emit('save-stage', { stageType, outputData });
     },
 
-    handleGenerateImage({ storyboardId, prompt }) {
-      this.$emit('generate-image', { storyboardId, prompt });
+    async handleGenerateImage({ storyboardId, prompt }) {
+      console.log('[ProjectCanvas] 生成图片:', { storyboardId, prompt });
+
+      try {
+        // 查找对应的分镜数据
+        const storyboard = this.storyboards.find(s => s.id === storyboardId);
+        if (!storyboard) {
+          this.$message?.error(`未找到分镜 ${storyboardId}`);
+          return;
+        }
+
+        // 设置执行状态
+        this.$set(this.executingNodes.images, storyboardId, true);
+
+        // 准备输入数据
+        const inputData = {
+          storyboard_ids: [storyboardId],
+          scenes: [{
+            scene_number: storyboard.sequence_number,
+            narration: storyboard.narration_text,
+            visual_prompt: prompt || storyboard.image_prompt,
+            shot_type: storyboard.shot_type || '标准镜头',
+          }]
+        };
+
+        // 触发执行事件
+        this.$emit('execute-stage', {
+          stageType: 'image_generation',
+          inputData,
+          storyboardId
+        });
+      } catch (error) {
+        console.error('[ProjectCanvas] 生成图片失败:', error);
+        this.$message?.error(error.message || '生成图片失败');
+        // 清除执行状态
+        this.$set(this.executingNodes.images, storyboardId, false);
+      }
     },
 
-    handleGenerateCamera({ storyboardId, movementType }) {
-      this.$emit('generate-camera', { storyboardId, movementType });
+    async handleGenerateCamera({ storyboardId, movementType }) {
+      console.log('[ProjectCanvas] 生成运镜:', { storyboardId, movementType });
+
+      try {
+        // 查找对应的分镜数据
+        const storyboard = this.storyboards.find(s => s.id === storyboardId);
+        if (!storyboard) {
+          this.$message?.error(`未找到分镜 ${storyboardId}`);
+          return;
+        }
+
+        // 检查是否有图片
+        if (!storyboard.images || storyboard.images.length === 0) {
+          this.$message?.warning('请先生成图片');
+          return;
+        }
+
+        // 设置执行状态
+        this.$set(this.executingNodes.cameras, storyboardId, true);
+
+        // 准备输入数据
+        const inputData = {
+          storyboard_ids: [storyboardId],
+          scenes: [{
+            scene_number: storyboard.sequence_number,
+            image_url: storyboard.images[0].image_url,
+            movement_type: movementType || 'auto',
+          }]
+        };
+
+        // 触发执行事件
+        this.$emit('execute-stage', {
+          stageType: 'camera_movement',
+          inputData,
+          storyboardId
+        });
+      } catch (error) {
+        console.error('[ProjectCanvas] 生成运镜失败:', error);
+        this.$message?.error(error.message || '生成运镜失败');
+        // 清除执行状态
+        this.$set(this.executingNodes.cameras, storyboardId, false);
+      }
     },
 
-    handleGenerateVideo({ storyboardId }) {
-      this.$emit('generate-video', { storyboardId });
+    async handleGenerateVideo({ storyboardId }) {
+      console.log('[ProjectCanvas] 生成视频:', { storyboardId });
+
+      try {
+        // 查找对应的分镜数据
+        const storyboard = this.storyboards.find(s => s.id === storyboardId);
+        if (!storyboard) {
+          this.$message?.error(`未找到分镜 ${storyboardId}`);
+          return;
+        }
+
+        // 检查是否有运镜
+        if (!storyboard.camera_movement) {
+          this.$message?.warning('请先生成运镜');
+          return;
+        }
+
+        // 检查是否有图片
+        if (!storyboard.images || storyboard.images.length === 0) {
+          this.$message?.warning('请先生成图片');
+          return;
+        }
+
+        // 设置执行状态
+        this.$set(this.executingNodes.videos, storyboardId, true);
+
+        // 准备输入数据
+        const inputData = {
+          storyboard_ids: [storyboardId],
+          scenes: [{
+            scene_number: storyboard.sequence_number,
+            image_url: storyboard.images[0].image_url,
+            camera_movement: {
+              movement_type: storyboard.camera_movement.movement_type,
+              movement_params: storyboard.camera_movement.movement_params,
+            }
+          }]
+        };
+
+        // 触发执行事件
+        this.$emit('execute-stage', {
+          stageType: 'video_generation',
+          inputData,
+          storyboardId
+        });
+      } catch (error) {
+        console.error('[ProjectCanvas] 生成视频失败:', error);
+        this.$message?.error(error.message || '生成视频失败');
+        // 清除执行状态
+        this.$set(this.executingNodes.videos, storyboardId, false);
+      }
     },
 
     handleSaveStoryboard({ storyboardId, data }) {

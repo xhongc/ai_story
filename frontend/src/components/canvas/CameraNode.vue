@@ -128,12 +128,20 @@ export default {
   },
   methods: {
     async handleGenerate() {
+      if (!this.canGenerate) {
+        this.$message?.warning('请先完成图片生成');
+        return;
+      }
+
       this.isGenerating = true;
       try {
-        await this.$emit('generate', {
+        this.$emit('generate', {
           storyboardId: this.storyboardId,
           movementType: this.localMovementType
         });
+      } catch (error) {
+        console.error('[CameraNode] 生成失败:', error);
+        this.$message?.error(error.message || '生成运镜失败');
       } finally {
         this.isGenerating = false;
       }

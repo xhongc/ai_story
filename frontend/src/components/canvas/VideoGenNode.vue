@@ -111,11 +111,19 @@ export default {
   },
   methods: {
     async handleGenerate() {
+      if (!this.canGenerate) {
+        this.$message?.warning('请先完成运镜生成');
+        return;
+      }
+
       this.isGenerating = true;
       try {
-        await this.$emit('generate', {
+        this.$emit('generate', {
           storyboardId: this.storyboardId
         });
+      } catch (error) {
+        console.error('[VideoGenNode] 生成失败:', error);
+        this.$message?.error(error.message || '生成视频失败');
       } finally {
         this.isGenerating = false;
       }

@@ -218,33 +218,39 @@ export default {
     },
 
     // 画布事件处理
-    async handleGenerateImage({ storyboardId, prompt }) {
+    async handleGenerateImage({ stageType, inputData, storyboardId }) {
       try {
+        console.log('[ProjectDetail] 生成图片:', { stageType, inputData, storyboardId });
         this.$message.info('开始生成图片...');
-        // TODO: 调用文生图API
-        console.log('Generate image for storyboard:', storyboardId, 'with prompt:', prompt);
+
+        // 调用执行阶段方法
+        await this.handleExecuteStage({ stageType, inputData });
       } catch (error) {
         console.error('Failed to generate image:', error);
         this.$message.error('生成图片失败');
       }
     },
 
-    async handleGenerateCamera({ storyboardId }) {
+    async handleGenerateCamera({ stageType, inputData, storyboardId }) {
       try {
+        console.log('[ProjectDetail] 生成运镜:', { stageType, inputData, storyboardId });
         this.$message.info('开始生成运镜...');
-        // TODO: 调用运镜生成API
-        console.log('Generate camera for storyboard:', storyboardId);
+
+        // 调用执行阶段方法
+        await this.handleExecuteStage({ stageType, inputData });
       } catch (error) {
         console.error('Failed to generate camera:', error);
         this.$message.error('生成运镜失败');
       }
     },
 
-    async handleGenerateVideo({ storyboardId }) {
+    async handleGenerateVideo({ stageType, inputData, storyboardId }) {
       try {
+        console.log('[ProjectDetail] 生成视频:', { stageType, inputData, storyboardId });
         this.$message.info('开始生成视频...');
-        // TODO: 调用图生视频API
-        console.log('Generate video for storyboard:', storyboardId);
+
+        // 调用执行阶段方法
+        await this.handleExecuteStage({ stageType, inputData });
       } catch (error) {
         console.error('Failed to generate video:', error);
         this.$message.error('生成视频失败');

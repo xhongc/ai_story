@@ -108,12 +108,20 @@ export default {
   },
   methods: {
     async handleGenerate() {
+      if (!this.localPrompt || !this.localPrompt.trim()) {
+        this.$message?.warning('请先输入提示词');
+        return;
+      }
+
       this.isGenerating = true;
       try {
-        await this.$emit('generate', {
+        this.$emit('generate', {
           storyboardId: this.storyboardId,
           prompt: this.localPrompt
         });
+      } catch (error) {
+        console.error('[ImageGenNode] 生成失败:', error);
+        this.$message?.error(error.message || '生成图片失败');
       } finally {
         this.isGenerating = false;
       }
