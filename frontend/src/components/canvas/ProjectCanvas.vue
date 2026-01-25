@@ -1,28 +1,12 @@
 <template>
   <div class="project-canvas-container">
-    <flow-canvas
-      :connections="connections"
-      :nodes="allNodePositions"
-    >
-      <!-- 项目信息节点（固定在左上角） -->
-      <div class="project-info-node" :style="projectInfoStyle">
-        <div class="project-info-header">
-          <div class="flex-1">
-            <h2 class="text-xl font-bold">{{ project.name }}</h2>
-            <p v-if="project.description" class="text-sm text-base-content/60 mt-1">{{ project.description }}</p>
-          </div>
-          <status-badge :status="project.status" type="project" />
-        </div>
-
-        <div class="project-info-meta">
-          <div class="meta-item">
-            <span class="meta-label">创建时间:</span>
-            <span class="meta-value">{{ formatDate(project.created_at) }}</span>
-          </div>
-          <div class="meta-item">
-            <span class="meta-label">更新时间:</span>
-            <span class="meta-value">{{ formatDate(project.updated_at) }}</span>
-          </div>
+    <!-- 项目信息节点（固定在左上角，不随画布移动） -->
+    <div class="project-info-node">
+      <div class="project-info-main">
+        <h2 class="text-lg font-bold">{{ project.name }}</h2>
+        <status-badge :status="project.status" type="project" />
+        <div class="meta-item">
+          <span class="meta-value">{{ formatDate(project.updated_at) }}</span>
         </div>
 
         <!-- 剪映草稿信息 -->
@@ -40,6 +24,13 @@
           @generated="handleDraftGenerated"
         />
       </div>
+    </div>
+
+    <div class="canvas-wrapper">
+      <flow-canvas
+        :connections="connections"
+        :nodes="allNodePositions"
+      >
 
       <!-- 文案改写节点 -->
       <rewrite-node-expanded
@@ -111,6 +102,7 @@
         <div class="empty-hint">请先执行文案改写阶段</div>
       </div>
     </flow-canvas>
+    </div>
   </div>
 </template>
 
@@ -156,23 +148,12 @@ export default {
       // 节点位置配置
       nodePositions: {
         rewrite: { x: 100, y: 100, width: 480, height: 600 }
-      },
-      // 项目信息节点位置
-      projectInfoPosition: { x: 20, y: 20, width: 320, height: 200 }
+      }
     };
   },
   computed: {
     rewriteStage() {
       return this.stages.find(s => s.stage_type === 'rewrite') || null;
-    },
-    projectInfoStyle() {
-      return {
-        position: 'absolute',
-        left: `${this.projectInfoPosition.x}px`,
-        top: `${this.projectInfoPosition.y}px`,
-        width: `${this.projectInfoPosition.width}px`,
-        zIndex: 100
-      };
     },
     connections() {
       const conns = [];
@@ -434,39 +415,46 @@ export default {
 
 <style scoped>
 .project-canvas-container {
+  position: relative;
   width: 100%;
   height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
-/* 项目信息节点样式 */
+.canvas-wrapper {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+/* 项目信息节点样式 - 固定在顶部 */
 .project-info-node {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 200;
   background: hsl(var(--b1));
   border: 2px solid hsl(var(--bc) / 0.2);
   border-radius: 0.75rem;
-  padding: 1rem;
+  padding: 0.75rem 1rem;
   box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+  pointer-events: auto;
 }
 
-.project-info-header {
+.project-info-main {
   display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-}
-
-.project-info-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.75rem;
-  color: hsl(var(--bc) / 0.6);
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .meta-item {
   display: flex;
-  gap: 0.5rem;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: hsl(var(--bc) / 0.6);
 }
 
 .meta-label {

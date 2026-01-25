@@ -1,5 +1,5 @@
 <template>
-  <div class="project-list">
+  <div class="project-list p-6">
     <page-card title="项目列表">
       <template slot="header-right">
         <button class="btn btn-primary btn-sm gap-2" @click="handleCreate">

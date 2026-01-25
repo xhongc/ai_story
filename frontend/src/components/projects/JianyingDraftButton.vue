@@ -138,7 +138,7 @@ export default {
     buttonText() {
       if (this.isGenerating) return '生成中...';
       if (this.project?.jianying_draft_path) return '重新生成草稿';
-      return '生成剪映草稿';
+      return '';
     },
   },
   methods: {

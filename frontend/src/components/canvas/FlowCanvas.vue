@@ -280,7 +280,7 @@ export default {
 .flow-canvas-wrapper {
   position: relative;
   width: 100%;
-  height: calc(100vh - 200px);
+  height: calc(100vh - 70px);
   min-height: 600px;
   background: hsl(var(--b2));
   border-radius: 0.5rem;
@@ -308,7 +308,7 @@ export default {
   position: relative;
   overflow: hidden;
   /* 网格线背景 */
-  background-color: #fff;
+  background-color: #f5f5f5;
   background-image:
     linear-gradient(#e0e0e0 1px, transparent 1px),
     linear-gradient(90deg, #e0e0e0 1px, transparent 1px);
