@@ -14,7 +14,7 @@ def _extract_json_from_text(text: str) -> str:
             if match:
                 text = match.group(1).strip()
 
-        return text
+        return text.replace("\n", "")
 
 def parse_storyboard_json(json_text: str) -> dict:
     """解析分镜JSON数据"""

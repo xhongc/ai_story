@@ -6,7 +6,7 @@
 
 import copy
 import logging
-from typing import Any, Dict, Generator, Optional
+from typing import Any, Dict, Generator, List, Optional
 from core.pipeline.base import PipelineContext, StageProcessor, StageResult
 from django.utils import timezone
 from jinja2 import Template, TemplateError
