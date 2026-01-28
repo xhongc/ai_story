@@ -4,11 +4,9 @@
 遵循单一职责原则(SRP)
 """
 
-import json
 
 from celery.result import AsyncResult
 from django.conf import settings
-from django.http import StreamingHttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
@@ -136,7 +134,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         Returns:
             dict: 整合后的 domain_data
         """
-        from apps.content.models import Storyboard, GeneratedImage, CameraMovement, GeneratedVideo
+        from apps.content.models import GeneratedImage, CameraMovement, GeneratedVideo
 
         # 获取所有分镜场景
         storyboards = storyboard_domain_data.get('storyboards', [])

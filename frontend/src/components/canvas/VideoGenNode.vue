@@ -19,17 +19,6 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
         </svg>
         <button
-          v-if="status === 'pending' || status === 'failed'"
-          class="btn btn-circle btn-xs btn-primary"
-          :disabled="isGenerating || !canGenerate"
-          @click="handleGenerate"
-          title="生成视频"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M8 5v14l11-7z"/>
-          </svg>
-        </button>
-        <button
           v-if="status === 'completed'"
           class="btn btn-circle btn-xs btn-ghost"
           @click="handleRegenerate"
@@ -39,11 +28,21 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
         </button>
+        <button
+          v-else
+          class="btn btn-circle btn-xs btn-primary"
+          @click="handleGenerate"
+          title="生成视频"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M8 5v14l11-7z"/>
+          </svg>
+        </button>
       </div>
     </div>
 
     <!-- 视频预览 -->
-    <div v-if="status === 'completed' && videoUrl" class="video-preview">
+    <div v-if="videoUrl" class="video-preview">
       <video :src="videoUrl" class="preview-video" controls></video>
     </div>
 

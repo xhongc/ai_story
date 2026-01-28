@@ -59,6 +59,6 @@ def parse_json(json_text: str) -> dict:
         return data
 
     except json.JSONDecodeError:
-        return ""
+        return json_text
     except Exception:
-        return ""
+        return json_text

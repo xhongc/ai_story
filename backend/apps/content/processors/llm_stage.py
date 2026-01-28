@@ -236,7 +236,7 @@ class LLMStageProcessor(StageProcessor):
             storyboards_query = Storyboard.objects.filter(project=project).order_by('sequence_number')
 
             if storyboard_ids:
-                storyboards_query = storyboards_query.filter(sequence_number__in=storyboard_ids)
+                storyboards_query = storyboards_query.filter(id__in=storyboard_ids)
 
             storyboards = list(storyboards_query)
 

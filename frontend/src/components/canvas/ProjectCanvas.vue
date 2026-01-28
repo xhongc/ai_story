@@ -345,8 +345,8 @@ export default {
 
     // 获取图片URL
     getImageUrl(storyboard) {
-      if (storyboard.images && storyboard.images.length > 0) {
-        return storyboard.images[0].image_url;
+      if (storyboard.image_generation.images && storyboard.image_generation.images.length > 0) {
+        return storyboard.image_generation.images[0].image_url;
       }
       return '';
     },
@@ -395,8 +395,8 @@ export default {
 
     // 获取视频URL
     getVideoUrl(storyboard) {
-      if (storyboard.videos && storyboard.videos.length > 0) {
-        return storyboard.videos[0].video_url;
+      if (storyboard.video_generation.videos && storyboard.video_generation.videos.length > 0) {
+        return storyboard.video_generation.videos[0].video_url;
       }
       return '';
     },
@@ -473,12 +473,6 @@ export default {
           return;
         }
 
-        // 检查是否有图片
-        if (!storyboard.images || storyboard.images.length === 0) {
-          this.$message?.warning('请先生成图片');
-          return;
-        }
-
         // 设置执行状态
         this.$set(this.executingNodes.cameras, storyboardId, true);
 
@@ -487,7 +481,7 @@ export default {
           storyboard_ids: [storyboardId],
           scenes: [{
             scene_number: storyboard.sequence_number,
-            image_url: storyboard.images[0].image_url,
+            image_url: storyboard.image_generation.images[0].image_url,
             movement_type: movementType || 'auto',
           }]
         };
@@ -524,7 +518,7 @@ export default {
         }
 
         // 检查是否有图片
-        if (!storyboard.images || storyboard.images.length === 0) {
+        if (!storyboard.image_generation.images || storyboard.image_generation.images.length === 0) {
           this.$message?.warning('请先生成图片');
           return;
         }
@@ -537,7 +531,7 @@ export default {
           storyboard_ids: [storyboardId],
           scenes: [{
             scene_number: storyboard.sequence_number,
-            image_url: storyboard.images[0].image_url,
+            image_url: storyboard.image_generation.images[0].image_url,
             camera_movement: {
               movement_type: storyboard.camera_movement.movement_type,
               movement_params: storyboard.camera_movement.movement_params,

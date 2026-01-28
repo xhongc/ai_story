@@ -42,7 +42,7 @@
     </div>
 
     <!-- 图片预览 -->
-    <div v-if="status === 'completed' && imageUrl" class="image-preview">
+    <div v-if="imageUrl" class="image-preview">
       <img :src="imageUrl" alt="生成的图片" class="preview-img" />
     </div>
 

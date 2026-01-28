@@ -21,12 +21,13 @@ class MockImage2VideoClient(Image2VideoClient):
         "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4",
     ]
 
-    async def _generate_video(
+    def _generate_video(
         self,
-        image_url: str,
-        camera_movement: Dict[str, Any],
-        duration: float,
-        fps: int,
+        prompt: str,
+        negative_prompt: str = "",
+        width: int = 512,
+        height: int = 512,
+        steps: int = 20,
         **kwargs
     ) -> AIResponse:
         """
@@ -53,7 +54,7 @@ class MockImage2VideoClient(Image2VideoClient):
         model = kwargs.get('model', self.model_name)
 
         # 根据图片URL哈希选择视频（保证相同图片返回相同视频）
-        image_hash = hash(image_url) % len(self.MOCK_VIDEO_URLS)
+        image_hash = hash(prompt) % len(self.MOCK_VIDEO_URLS)
         video_url = self.MOCK_VIDEO_URLS[image_hash]
 
         # 构建视频数据
@@ -61,27 +62,20 @@ class MockImage2VideoClient(Image2VideoClient):
             "url": video_url,
             "width": width,
             "height": height,
-            "duration": duration,
-            "fps": fps,
             "format": "mp4",
             "file_size": 1024 * 1024,  # 模拟1MB文件大小
-            "camera_movement": camera_movement
+            "camera_movement": prompt
         }
 
         latency_ms = int((time.time() - start_time) * 1000)
 
         return AIResponse(
             success=True,
-            data={
-                'url': video_url,
-                'video': video_data,
-                'videos': [video_data]  # 兼容多视频格式
-            },
+            data=[video_data],
             metadata={
                 'latency_ms': latency_ms,
                 'model': model,
                 'is_mock': True,
-                'source_image': image_url[:100]  # 记录部分源图片URL
             }
         )
 
