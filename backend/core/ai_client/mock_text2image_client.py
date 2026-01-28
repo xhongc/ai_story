@@ -79,10 +79,7 @@ class MockText2ImageClient(Text2ImageClient):
 
         return AIResponse(
             success=True,
-            data={
-                'urls': image_urls,
-                'images': images_data
-            },
+            data=images_data,
             metadata={
                 'latency_ms': latency_ms,
                 'model': self.model_name,

@@ -20,7 +20,7 @@
             class="icon-btn"
             :class="{ 'icon-btn-disabled': status === 'processing' || isExecuting }"
             :disabled="status === 'processing' || isExecuting"
-            @click.stop="handleQuickExecute"
+            @click.stop="handleQuickExecute('rewrite')"
             title="运行改写"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -34,7 +34,7 @@
             class="icon-btn"
             :class="{ 'icon-btn-disabled': status !== 'completed' || isGeneratingStoryboard }"
             :disabled="status !== 'completed' || isGeneratingStoryboard"
-            @click.stop="handleGenerateStoryboard"
+            @click.stop="handleGenerateStoryboard('storyboard')"
             title="生成分镜"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -201,34 +201,22 @@ export default {
     }
   },
   methods: {
-    async handleQuickExecute() {
+    async handleQuickExecute(mode='rewrite') {
       if (this.status === 'processing' || this.isExecuting) {
         return;
       }
-      await this.handleExecute();
+      await this.handleExecute(mode);
     },
 
-    async handleGenerateStoryboard() {
-      if (this.status !== 'completed' || this.isGeneratingStoryboard) {
+    async handleGenerateStoryboard(mode='storyboard') {
+      if (this.status === 'processing' || this.isGeneratingStoryboard) {
         return;
       }
-
-      this.isGeneratingStoryboard = true;
-      try {
-        await this.$emit('generate-storyboard', {
-          projectId: this.projectId,
-          rewrittenText: this.data.rewritten_text
-        });
-        this.$message?.success('开始生成分镜');
-      } catch (error) {
-        console.error('生成分镜失败:', error);
-        this.$message?.error('生成分镜失败');
-      } finally {
-        this.isGeneratingStoryboard = false;
-      }
+      await this.handleExecute(mode);
     },
 
-    async handleExecute() {
+    async handleExecute(mode) {
+      console.log('handleExecute', mode);
       this.isExecuting = true;
       this.streamingText = ''; // 清空之前的流式文本
 
@@ -236,7 +224,7 @@ export default {
         // 使用API方法发送POST请求启动任务
         await projectsAPI.executeStage(
           this.projectId,
-          'rewrite',
+          mode,
           { original_topic: this.originalTopic },
           true // 启用SSE流式输出
         );
@@ -248,7 +236,7 @@ export default {
         }
 
         // 使用sseService创建SSE客户端连接
-        this.sseClient = createProjectStageSSE(this.projectId, 'rewrite', {
+        this.sseClient = createProjectStageSSE(this.projectId, mode, {
           autoReconnect: false
         });
 

@@ -10,6 +10,7 @@ import random
 from typing import Any, Dict, Generator, List, Optional
 from jinja2 import Template, TemplateError
 
+from backend.core.ai_client.base import AIResponse
 from core.ai_client.factory import create_ai_client
 from core.pipeline.base import PipelineContext, StageProcessor
 from django.utils import timezone
@@ -143,7 +144,7 @@ class Text2ImageStageProcessor(StageProcessor):
 
             # 如果指定了分镜ID,则只处理这些分镜
             if storyboard_ids:
-                storyboards_query = storyboards_query.filter(sequence_number__in=storyboard_ids)
+                storyboards_query = storyboards_query.filter(id__in=storyboard_ids)
 
             storyboards = list(storyboards_query)
 
@@ -496,6 +497,8 @@ class Text2ImageStageProcessor(StageProcessor):
 
             # 解析响应
             # 假设响应格式: {"data": [{"url": "...", "width": 1920, "height": 1080}]}
+            if getattr(response, 'data'):
+                response = {"data": getattr(response, 'data')}
             if 'data' not in response or not response['data']:
                 logger.error(f"分镜 {storyboard.get('sequence_number')} 响应格式错误: {response}")
                 return None

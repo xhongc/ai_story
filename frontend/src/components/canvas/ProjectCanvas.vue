@@ -137,10 +137,6 @@ export default {
     stages: {
       type: Array,
       default: () => []
-    },
-    storyboards: {
-      type: Array,
-      default: () => []
     }
   },
   data() {
@@ -160,6 +156,10 @@ export default {
   computed: {
     rewriteStage() {
       return this.stages.find(s => s.stage_type === 'rewrite') || null;
+    },
+    storyboards() {
+      const storyboardStage = this.stages.find(s => s.stage_type === 'storyboard') || null;
+      return storyboardStage?.domain_data?.storyboards || [];
     },
     connections() {
       const conns = [];

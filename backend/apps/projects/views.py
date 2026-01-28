@@ -77,26 +77,183 @@ class ProjectViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["get"])
     def stages(self, request, pk=None):
         """
-        获取项目的所有阶段
+        获取项目的所有阶段（简化版）
         GET /api/v1/projects/{id}/stages/
 
-        智能数据传递逻辑:
-        - 当分镜生成阶段有输出数据时,自动传递给文生图阶段的输入
+        返回格式:
+        - 只返回 rewrite 和 storyboard 两条记录
+        - storyboard 的 domain_data 中整合了 image_generation、camera_movement、video_generation 数据
+        - 数据按分镜场景分组，每个场景包含对应的图片、运镜、视频数据
         """
         project = self.get_object()
-        stages = project.stages.all()
-        serializer = ProjectStageSerializer(stages, many=True)
 
-        # 获取序列化后的数据
-        data = serializer.data
+        # 获取 rewrite 和 storyboard 阶段
+        rewrite_stage = project.stages.filter(stage_type='rewrite').first()
+        storyboard_stage = project.stages.filter(stage_type='storyboard').first()
 
-        # 构建阶段索引字典
-        stage_index_map = {}
-        for index, stage_data in enumerate(data):
-            stage_type = stage_data["stage_type"]
-            stage_index_map[stage_type] = index
+        # 获取其他阶段用于数据整合
+        image_stage = project.stages.filter(stage_type='image_generation').first()
+        camera_stage = project.stages.filter(stage_type='camera_movement').first()
+        video_stage = project.stages.filter(stage_type='video_generation').first()
 
-        return Response(data)
+        result = []
+
+        # 1. 添加 rewrite 阶段
+        if rewrite_stage:
+            rewrite_serializer = ProjectStageSerializer(rewrite_stage)
+            result.append(rewrite_serializer.data)
+
+        # 2. 添加 storyboard 阶段（整合其他阶段数据）
+        if storyboard_stage:
+            storyboard_serializer = ProjectStageSerializer(storyboard_stage)
+            storyboard_data = storyboard_serializer.data
+
+            # 整合其他阶段的数据到 domain_data 中
+            if storyboard_data.get('domain_data'):
+                storyboard_data['domain_data'] = self._integrate_stage_data(
+                    project,
+                    storyboard_data['domain_data'],
+                    image_stage,
+                    camera_stage,
+                    video_stage
+                )
+
+            result.append(storyboard_data)
+
+        return Response(result)
+
+    def _integrate_stage_data(self, project, storyboard_domain_data, image_stage, camera_stage, video_stage):
+        """
+        将 image_generation、camera_movement、video_generation 数据整合到 storyboard 的 domain_data 中
+
+        Args:
+            project: 项目对象
+            storyboard_domain_data: storyboard 的原始 domain_data
+            image_stage: image_generation 阶段对象
+            camera_stage: camera_movement 阶段对象
+            video_stage: video_generation 阶段对象
+
+        Returns:
+            dict: 整合后的 domain_data
+        """
+        from apps.content.models import Storyboard, GeneratedImage, CameraMovement, GeneratedVideo
+
+        # 获取所有分镜场景
+        storyboards = storyboard_domain_data.get('storyboards', [])
+
+        # 为每个分镜场景整合数据
+        for sb_data in storyboards:
+            storyboard_id = sb_data.get('id')
+
+            # 初始化默认数据结构
+            sb_data['image_generation'] = {
+                'status': image_stage.status if image_stage else 'pending',
+                'images': []
+            }
+            sb_data['camera_movement'] = {
+                'status': camera_stage.status if camera_stage else 'pending',
+                'data': None
+            }
+            sb_data['video_generation'] = {
+                'status': video_stage.status if video_stage else 'pending',
+                'videos': []
+            }
+
+            if not storyboard_id:
+                continue
+
+            try:
+                # 1. 整合 image_generation 数据
+                if image_stage:
+                    images = GeneratedImage.objects.filter(
+                        storyboard_id=storyboard_id
+                    ).select_related('model_provider').order_by('-created_at')
+
+                    sb_data['image_generation']['images'] = [
+                        {
+                            'id': str(img.id),
+                            'image_url': img.image_url,
+                            'thumbnail_url': img.thumbnail_url,
+                            'width': img.width,
+                            'height': img.height,
+                            'file_size': img.file_size,
+                            'status': img.status,
+                            'status_display': img.get_status_display(),
+                            'model_provider': {
+                                'id': str(img.model_provider.id) if img.model_provider else None,
+                                'name': img.model_provider.name if img.model_provider else None,
+                                'model_name': img.model_provider.model_name if img.model_provider else None,
+                            } if img.model_provider else None,
+                            'generation_params': img.generation_params,
+                            'retry_count': img.retry_count,
+                            'created_at': img.created_at.isoformat() if img.created_at else None,
+                        }
+                        for img in images
+                    ]
+
+                # 2. 整合 camera_movement 数据
+                if camera_stage:
+                    try:
+                        camera = CameraMovement.objects.select_related('model_provider').get(
+                            storyboard_id=storyboard_id
+                        )
+                        sb_data['camera_movement']['data'] = {
+                            'id': str(camera.id),
+                            'movement_type': camera.movement_type,
+                            'movement_type_display': camera.get_movement_type_display() if camera.movement_type else None,
+                            'movement_params': camera.movement_params,
+                            'model_provider': {
+                                'id': str(camera.model_provider.id) if camera.model_provider else None,
+                                'name': camera.model_provider.name if camera.model_provider else None,
+                                'model_name': camera.model_provider.model_name if camera.model_provider else None,
+                            } if camera.model_provider else None,
+                            'prompt_used': camera.prompt_used,
+                            'generation_metadata': camera.generation_metadata,
+                            'created_at': camera.created_at.isoformat() if camera.created_at else None,
+                            'updated_at': camera.updated_at.isoformat() if camera.updated_at else None,
+                        }
+                    except CameraMovement.DoesNotExist:
+                        pass
+
+                # 3. 整合 video_generation 数据
+                if video_stage:
+                    videos = GeneratedVideo.objects.filter(
+                        storyboard_id=storyboard_id
+                    ).select_related('model_provider', 'image', 'camera_movement').order_by('-created_at')
+
+                    sb_data['video_generation']['videos'] = [
+                        {
+                            'id': str(video.id),
+                            'video_url': video.video_url,
+                            'thumbnail_url': video.thumbnail_url,
+                            'duration': video.duration,
+                            'width': video.width,
+                            'height': video.height,
+                            'fps': video.fps,
+                            'file_size': video.file_size,
+                            'status': video.status,
+                            'status_display': video.get_status_display(),
+                            'image_id': str(video.image.id) if video.image else None,
+                            'camera_movement_id': str(video.camera_movement.id) if video.camera_movement else None,
+                            'model_provider': {
+                                'id': str(video.model_provider.id) if video.model_provider else None,
+                                'name': video.model_provider.name if video.model_provider else None,
+                                'model_name': video.model_provider.model_name if video.model_provider else None,
+                            } if video.model_provider else None,
+                            'generation_params': video.generation_params,
+                            'retry_count': video.retry_count,
+                            'created_at': video.created_at.isoformat() if video.created_at else None,
+                        }
+                        for video in videos
+                    ]
+
+            except Exception as e:
+                # 记录错误但不中断处理
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"整合分镜 {storyboard_id} 的数据失败: {str(e)}", exc_info=True)
+
+        return storyboard_domain_data
 
     @action(detail=True, methods=["post"])
     def execute_stage(self, request, pk=None):

@@ -70,8 +70,8 @@ export default {
   },
   data() {
     return {
-      sceneDescription: this.storyboard.scene_description || '',
-      narrationText: this.storyboard.narration_text || ''
+      sceneDescription: this.storyboard.generation_metadata.raw_scene_data.visual_prompt || '',
+      narrationText: this.storyboard.generation_metadata.raw_scene_data.narration || ''
     };
   },
   computed: {

@@ -53,7 +53,7 @@ export class SSEClient {
       this.eventSource.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log('[SSE] 收到消息:', data);
+          // console.log('[SSE] 收到消息:', data);
 
           // 触发通用message事件
           this.emit('message', data);

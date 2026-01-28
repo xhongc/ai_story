@@ -6,7 +6,6 @@
         v-if="project"
         :project="project"
         :stages="stages"
-        :storyboards="storyboards"
         @execute-stage="handleExecuteStage"
         @save-stage="handleSaveStage"
         @generate-image="handleGenerateImage"
