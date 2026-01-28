@@ -371,7 +371,6 @@
 
 <script>
 import projectApi from '@/api/projects';
-import WSClient from '@/utils/wsClient';
 import { createProjectStageSSE, SSE_EVENT_TYPES } from '@/services/sseService';
 
 export default {

@@ -8,7 +8,6 @@
 
 - **框架**: Django 3.2.15 + Django REST Framework
 - **异步**: Celery + Redis
-- **WebSocket**: Django Channels
 - **数据库**: SQLite (开发) / PostgreSQL (生产)
 - **容器化**: Docker + Docker Compose
 
@@ -219,8 +218,7 @@ pytest --cov=apps --cov=core
 4. ✅ Pipeline架构 (已完成)
 5. ⏳ RESTful API实现 (待实现)
 6. ⏳ 完整的处理器实现 (待实现)
-7. ⏳ WebSocket实时通信 (待实现)
-8. ⏳ 前端开发 (待实现)
+7. ⏳ 前端开发 (待实现)
 
 ## 许可证
 

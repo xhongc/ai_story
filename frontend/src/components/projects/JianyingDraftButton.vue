@@ -98,7 +98,6 @@
 
 <script>
 import { mapActions } from 'vuex';
-import wsClient from '@/utils/wsClient';
 
 export default {
   name: 'JianyingDraftButton',
@@ -194,15 +193,7 @@ export default {
         this.errorMessage = '';
       }, 300);
     },
-  },
-
-  beforeUnmount() {
-    // 组件销毁时关闭WebSocket
-    if (this.ws) {
-      wsClient.close(this.ws);
-      this.ws = null;
-    }
-  },
+  }
 };
 </script>
 

@@ -31,7 +31,6 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'django_celery_beat',
-    'channels',
 
     # 本地应用
     'apps.projects',
@@ -72,7 +71,6 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'config.wsgi.application'
-ASGI_APPLICATION = 'config.asgi.application'
 
 # 数据库配置
 DATABASES = {
@@ -142,16 +140,6 @@ CELERY_TIMEZONE = TIME_ZONE
 
 # Redis Pub/Sub配置 (用于实时流式推送)
 REDIS_PUBSUB_URL = os.getenv('REDIS_PUBSUB_URL', f'redis://{REDIS_HOST}:{REDIS_PORT}/2')  # 数据库2: Pub/Sub专用
-
-# Channels配置 (WebSocket)
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            'hosts': [f'redis://{REDIS_HOST}:{REDIS_PORT}/3'],  # 数据库3: Channels专用
-        },
-    },
-}
 
 # CORS配置
 CORS_ALLOW_ALL_ORIGINS = False

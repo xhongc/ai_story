@@ -15,8 +15,7 @@
     "vuex": "^3.6.2",
     "axios": "^1.6.2",
     "lodash": "^4.17.21",
-    "dayjs": "^1.11.10",
-    "socket.io-client": "^4.6.1"
+    "dayjs": "^1.11.10"
   },
   "devDependencies": {
     "@babel/core": "^7.23.5",

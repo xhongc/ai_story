@@ -10,7 +10,6 @@ AI Story生成系统的Vue.js前端应用。
 - **Element UI** - UI组件库
 - **Tailwind CSS** - 实用优先的CSS框架
 - **Axios** - HTTP客户端
-- **Socket.IO Client** - WebSocket实时通信
 - **Webpack 5** - 模块打包工具
 
 ## 项目结构
@@ -55,8 +54,7 @@ frontend/
 │   │   ├── projectService.js
 │   │   ├── promptService.js
 │   │   ├── modelService.js
-│   │   ├── contentService.js
-│   │   └── websocketClient.js
+│   │   └── contentService.js
 │   ├── utils/             # 工具函数
 │   │   ├── helpers.js     # 辅助函数
 │   │   └── constants.js   # 常量定义
@@ -127,7 +125,7 @@ docker run -p 3000:80 ai-story-frontend
 - 项目列表、创建、编辑、删除
 - 项目详情查看
 - 工作流阶段可视化
-- 实时状态更新(WebSocket)
+- 实时状态更新
 
 ### 2. 内容展示
 - 分镜列表展示
@@ -147,13 +145,11 @@ docker run -p 3000:80 ai-story-frontend
 前端通过以下服务与后端通信:
 
 - **RESTful API**: `/api/v1/*`
-- **WebSocket**: `ws://localhost:8000/ws/projects/{id}/`
 
 环境变量配置:
 
 ```env
 VUE_APP_API_BASE_URL=http://localhost:8000/api/v1
-VUE_APP_WS_URL=ws://localhost:8000
 ```
 
 ## 代码规范
@@ -193,7 +189,6 @@ VUE_APP_WS_URL=ws://localhost:8000
 ### 调试技巧
 - 使用 Vue DevTools 浏览器扩展
 - Chrome DevTools 网络面板监控API
-- WebSocket调试工具
 
 ## 待开发功能
 

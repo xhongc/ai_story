@@ -116,14 +116,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
             "channel": "ai_story:project:xxx:stage:rewrite",
             "message": "任务已启动"
         }
-        前端需要:
-        1. 通过WebSocket订阅返回的channel
-        2. 或通过轮询 /api/v1/projects/{id}/task-status/?task_id=xxx 获取状态
-
-        模式2: SSE流式输出 (use_streaming=true)
-        返回: text/event-stream 流式响应
-        前端使用EventSource接收
-        ⚠️ 需要ASGI服务器支持
         """
         project = self.get_object()
         serializer = StageExecuteSerializer(
@@ -133,7 +125,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
         stage_name = serializer.validated_data["stage_name"]
         input_data = serializer.validated_data.get("input_data", {})
-        use_streaming = request.data.get("use_streaming", False)
 
         # 获取阶段
         stage = get_object_or_404(ProjectStage, project=project, stage_type=stage_name)
@@ -142,11 +133,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
         if project.status != "processing":
             project.status = "processing"
             project.save()
-
-        # 模式1: SSE流式输出 (旧方式，作为fallback)
-        if use_streaming:
-            return self._execute_stage_streaming(project, stage_name, input_data)
-
         # 模式2: Celery异步任务 (默认，推荐)
         return self._execute_stage_async(project, stage_name, input_data)
 
@@ -205,129 +191,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
             },
             status=status.HTTP_202_ACCEPTED,
         )
-
-    def _execute_stage_streaming(self, project, stage_name, input_data):
-        """
-        使用SSE流式执行阶段 (旧方式，作为fallback)
-        ⚠️ 需要ASGI服务器支持
-        """
-        import asyncio
-        import queue
-        import threading
-
-        from apps.content.processors.image2video_stage import (
-            Image2VideoStageProcessor,
-        )
-        from apps.content.processors.llm_stage import LLMStageProcessor
-        from apps.content.processors.text2image_stage import (
-            Text2ImageStageProcessor,
-        )
-
-        # 使用队列在异步和同步之间传递数据
-        data_queue = queue.Queue()
-
-        # 根据阶段类型选择处理器
-        if stage_name in ["rewrite", "storyboard", "camera_movement"]:
-            processor_class = LLMStageProcessor
-            processor_kwargs = {"stage_type": stage_name}
-            timeout = 300  # 5分钟
-        elif stage_name == "image_generation":
-            processor_class = Text2ImageStageProcessor
-            processor_kwargs = {}
-            timeout = 300
-        elif stage_name == "video_generation":
-            processor_class = Image2VideoStageProcessor
-            processor_kwargs = {}
-            timeout = 600  # 10分钟
-        else:
-            return Response(
-                {"error": f"未知阶段类型: {stage_name}"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # 异步任务:在后台线程中运行
-        async def async_producer():
-            """异步生成器 - 在独立线程的事件循环中运行"""
-            processor = processor_class(**processor_kwargs)
-
-            try:
-                # 根据阶段类型调用不同的处理方法
-                if stage_name in ["rewrite", "storyboard", "camera_movement"]:
-                    async for chunk in processor.process_stream(
-                        project_id=str(project.id), input_data=input_data
-                    ):
-                        event_data = json.dumps(chunk, ensure_ascii=False)
-                        data_queue.put(f"data: {event_data}\n\n".encode("utf-8"))
-                else:
-                    # 文生图和图生视频
-                    storyboard_ids = input_data.get("storyboard_ids", None)
-                    async for chunk in processor.process_stream(
-                        project_id=str(project.id), storyboard_ids=storyboard_ids
-                    ):
-                        event_data = json.dumps(chunk, ensure_ascii=False)
-                        data_queue.put(f"data: {event_data}\n\n".encode("utf-8"))
-
-            except Exception as e:
-                error_data = json.dumps(
-                    {"type": "error", "error": str(e)}, ensure_ascii=False
-                )
-                data_queue.put(f"data: {error_data}\n\n".encode("utf-8"))
-            finally:
-                # 标记结束
-                data_queue.put(None)
-
-        # 在新线程中运行异步任务
-        def run_async_in_thread():
-            """在独立线程中创建新的事件循环并运行异步任务"""
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                loop.run_until_complete(async_producer())
-            finally:
-                loop.close()
-
-        # 启动后台线程
-        thread = threading.Thread(target=run_async_in_thread)
-        thread.daemon = True
-        thread.start()
-
-        # 同步生成器:从队列中读取数据
-        def sync_event_stream():
-            """同步生成器 - 从队列中读取异步生成的数据"""
-            while True:
-                try:
-                    # 从队列中获取数据(阻塞等待)
-                    chunk = data_queue.get(timeout=timeout)
-
-                    # None表示结束
-                    if chunk is None:
-                        break
-
-                    yield chunk
-
-                except queue.Empty:
-                    # 超时
-                    error_data = json.dumps(
-                        {"type": "error", "error": "请求超时"}, ensure_ascii=False
-                    )
-                    yield f"data: {error_data}\n\n".encode("utf-8")
-                    break
-                except Exception as e:
-                    error_data = json.dumps(
-                        {"type": "error", "error": f"流式传输错误: {str(e)}"},
-                        ensure_ascii=False,
-                    )
-                    yield f"data: {error_data}\n\n".encode("utf-8")
-                    break
-
-        # 返回SSE响应
-        response = StreamingHttpResponse(
-            sync_event_stream(), content_type="text/event-stream; charset=utf-8"
-        )
-        response["Cache-Control"] = "no-cache, no-transform"
-        response["X-Accel-Buffering"] = "no"  # 禁用Nginx缓冲
-
-        return response
 
     @action(detail=True, methods=["get"])
     def task_status(self, request, pk=None):

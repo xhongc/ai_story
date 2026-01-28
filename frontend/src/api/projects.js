@@ -58,13 +58,15 @@ export default {
    * @param {String} projectId - 项目ID
    * @param {String} stageName - 阶段名称
    * @param {Object} inputData - 输入数据(可选)
+   * @param {Boolean} useStreaming - 是否启用SSE流式输出(可选)
    */
-  executeStage(projectId, stageName, inputData = {}) {
-    console.log(444, projectId, stageName, inputData)
+  executeStage(projectId, stageName, inputData = {}, useStreaming = false) {
+    console.log(444, projectId, stageName, inputData, useStreaming);
 
     return apiClient.post(`/projects/projects/${projectId}/execute_stage/`, {
       stage_name: stageName,
       input_data: inputData,
+      use_streaming: useStreaming,
     });
   },
 

@@ -135,6 +135,9 @@
 </template>
 
 <script>
+import { createProjectStageSSE } from '@/services/sseService';
+import projectsAPI from '@/api/projects';
+
 export default {
   name: 'RewriteNodeExpanded',
   props: {
@@ -164,7 +167,9 @@ export default {
       rewrittenContent: '',
       isExecuting: false,
       isSaving: false,
-      isGeneratingStoryboard: false
+      isGeneratingStoryboard: false,
+      sseClient: null,
+      streamingText: '' // 用于存储流式接收的文本
     };
   },
   computed: {
@@ -225,13 +230,90 @@ export default {
 
     async handleExecute() {
       this.isExecuting = true;
+      this.streamingText = ''; // 清空之前的流式文本
+
       try {
-        await this.$emit('execute', {
-          stageType: 'rewrite',
-          inputData: { original_topic: this.originalTopic }
+        // 使用API方法发送POST请求启动任务
+        await projectsAPI.executeStage(
+          this.projectId,
+          'rewrite',
+          { original_topic: this.originalTopic },
+          true // 启用SSE流式输出
+        );
+
+        // 断开已有的SSE连接
+        if (this.sseClient) {
+          this.sseClient.disconnect();
+          this.sseClient = null;
+        }
+
+        // 使用sseService创建SSE客户端连接
+        this.sseClient = createProjectStageSSE(this.projectId, 'rewrite', {
+          autoReconnect: false
         });
-      } finally {
+
+        // 监听SSE事件
+        this.sseClient
+          .on('open', () => {
+            console.log('[RewriteNode] SSE连接已建立');
+          })
+          .on('token', (data) => {
+            // 流式token，追加到文本
+            if (data.content) {
+              this.streamingText += data.content;
+              // 实时更新到data中，触发textarea更新
+              if (this.data) {
+                this.$set(this.data, 'rewritten_text', this.streamingText);
+              }
+            }
+          })
+          .on('done', (data) => {
+            // 生成完成
+            console.log('[RewriteNode] 改写完成');
+            this.isExecuting = false;
+
+            // 使用完整文本（如果有）
+            if (data.full_text) {
+              this.streamingText = data.full_text;
+              if (this.data) {
+                this.$set(this.data, 'rewritten_text', this.streamingText);
+              }
+            }
+
+            this.$message?.success('文案改写完成');
+
+            // 关闭SSE连接
+            if (this.sseClient) {
+              this.sseClient.disconnect();
+              this.sseClient = null;
+            }
+          })
+          .on('error', (data) => {
+            // 生成失败
+            console.error('[RewriteNode] 改写失败:', data.error);
+            this.isExecuting = false;
+            this.$message?.error(data.error?.message || '改写失败');
+
+            // 关闭SSE连接
+            if (this.sseClient) {
+              this.sseClient.disconnect();
+              this.sseClient = null;
+            }
+          })
+          .on('close', () => {
+            console.log('[RewriteNode] SSE连接已关闭');
+          });
+
+      } catch (error) {
+        console.error('执行失败:', error);
+        this.$message?.error('执行失败: ' + error.message);
         this.isExecuting = false;
+
+        // 清理SSE连接
+        if (this.sseClient) {
+          this.sseClient.disconnect();
+          this.sseClient = null;
+        }
       }
     },
 
@@ -263,6 +345,13 @@ export default {
     formatDate(dateStr) {
       if (!dateStr) return 'N/A';
       return new Date(dateStr).toLocaleString('zh-CN');
+    }
+  },
+  beforeDestroy() {
+    // 组件销毁前清理SSE连接
+    if (this.sseClient) {
+      this.sseClient.disconnect();
+      this.sseClient = null;
     }
   }
 };

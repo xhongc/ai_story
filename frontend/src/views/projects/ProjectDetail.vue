@@ -25,7 +25,6 @@ import { mapActions } from 'vuex';
 import LoadingContainer from '@/components/common/LoadingContainer.vue';
 import ProjectCanvas from '@/components/canvas/ProjectCanvas.vue';
 import { formatDate } from '@/utils/helpers';
-import websocketClient from '@/services/websocketClient';
 
 export default {
   name: 'ProjectDetail',
@@ -44,10 +43,6 @@ export default {
   },
   created() {
     this.fetchData();
-    this.connectWebSocket();
-  },
-  beforeDestroy() {
-    this.disconnectWebSocket();
   },
   methods: {
     ...mapActions('projects', ['fetchProject', 'fetchProjectStages', 'executeStage', 'updateProject', 'updateStageData']),
@@ -157,25 +152,6 @@ export default {
         console.error('Failed to fetch storyboards:', error);
         this.storyboards = [];
       }
-    },
-
-    connectWebSocket() {
-      const projectId = this.$route.params.id;
-      websocketClient.connect(projectId);
-
-      websocketClient.on('stage_update', (data) => {
-        console.log('Stage update:', data);
-        this.fetchData(true); // 保持滚动位置
-      });
-
-      websocketClient.on('project_update', (data) => {
-        console.log('Project update:', data);
-        this.project = data.project;
-      });
-    },
-
-    disconnectWebSocket() {
-      websocketClient.disconnect();
     },
 
     async handleExecuteStage({ stageType, inputData }) {

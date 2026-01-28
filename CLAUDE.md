@@ -9,7 +9,7 @@ AI Story生成系统 - 基于Django + Vue的AI驱动的故事脚本到视频的�
 **核心工作流:** 文案改写 → 分镜生成 → 文生图 → 运镜生成 → 图生视频
 
 **技术栈:**
-- 后端: Django 3.2.15 + DRF + Celery + Redis + Channels
+- 后端: Django 3.2.15 + DRF + Celery + Redis
 - 前端: Vue 2.7.14 + Vuex + daisyUI 4.12.23 + Tailwind CSS 3.4.17 ✅
 - 包管理: uv (Python) + npm (Node.js)
 - 数据库: SQLite (开发) / PostgreSQL (生产)
@@ -22,7 +22,6 @@ AI Story生成系统 - 基于Django + Vue的AI驱动的故事脚本到视频的�
 - 前端应用: http://localhost:3000
 - 后端API: http://localhost:8000
 - Django Admin: http://localhost:8000/admin
-- WebSocket: ws://localhost:8000/ws/projects/{project_id}/
 
 ### 后端开发
 
@@ -37,10 +36,10 @@ uv sync --group dev  # 开发环境
 uv run python manage.py migrate
 
 # ⚠️ 重要:启动服务器
-# 选项1: 使用ASGI服务器(推荐 - 支持WebSocket和SSE流式输出)
+# 选项1: 使用ASGI服务器(推荐 - 支持SSE流式输出)
 ./run_asgi.sh        # 或: daphne -b 0.0.0.0 -p 8000 config.asgi:application
 
-# 选项2: 使用WSGI开发服务器(不支持WebSocket和真正的SSE流式)
+# 选项2: 使用WSGI开发服务器(不支持真正的SSE流式)
 uv run python manage.py runserver
 
 # 或激活虚拟环境后直接使用
@@ -50,12 +49,11 @@ python manage.py runserver
 ```
 
 **流式生成架构说明:**
-- **新架构 (Celery + Redis Pub/Sub + WebSocket)**:
+- **新架构 (Celery + Redis Pub/Sub)**:
   - 异步任务执行，不阻塞HTTP请求
   - 通过Redis Pub/Sub实时推送进度
-  - 前端通过WebSocket订阅接收实时数据
+  - 前端通过轮询或SSE接收实时数据
   - 支持任务重试、超时控制、分布式部署
-  - 详见: [CELERY_REDIS_STREAMING.md](backend/CELERY_REDIS_STREAMING.md)
 
 - **旧架构 (SSE流式)**:
   - ASGI模式: 支持真正的实时流式输出
@@ -243,7 +241,6 @@ docker-compose up -d
 - [apps/projects/models.py](backend/apps/projects/models.py) - 项目管理域模型
 - [apps/projects/views.py](backend/apps/projects/views.py) - 项目API视图（704行，18个action）
 - [apps/projects/tasks.py](backend/apps/projects/tasks.py) - Celery异步任务定义
-- [apps/projects/consumers.py](backend/apps/projects/consumers.py) - WebSocket消费者
 - [apps/content/processors/llm_stage.py](backend/apps/content/processors/llm_stage.py) - LLM处理器（510行）
 - [apps/content/processors/text2image_stage.py](backend/apps/content/processors/text2image_stage.py) - 文生图处理器
 - [core/pipeline/base.py](backend/core/pipeline/base.py) - Pipeline基类定义
@@ -258,12 +255,10 @@ docker-compose up -d
 - [frontend/src/views/projects/ProjectList.vue](frontend/src/views/projects/ProjectList.vue) - 项目列表页
 - [frontend/src/store/modules/projects.js](frontend/src/store/modules/projects.js) - 项目状态管理
 - [frontend/src/api/projects.js](frontend/src/api/projects.js) - 项目API封装
-- [frontend/src/utils/wsClient.js](frontend/src/utils/wsClient.js) - WebSocket客户端
 - [frontend/src/components/layout/Layout.vue](frontend/src/components/layout/Layout.vue) - 主布局组件
 - [frontend/src/router/index.js](frontend/src/router/index.js) - 路由配置
 
 **文档文件**:
-- [backend/CELERY_REDIS_STREAMING.md](backend/CELERY_REDIS_STREAMING.md) - Celery+Redis流式架构详细文档（523行）
 - [README.md](README.md) - 项目总体说明
 
 ## 架构设计
@@ -503,20 +498,18 @@ export DJANGO_SETTINGS_MODULE=config.settings.production
 - **前端应用:** http://localhost:3000 ✅
 - **Django Admin:** http://localhost:8000/admin
 - **API根路径:** http://localhost:8000/api/v1/
-- **WebSocket:** ws://localhost:8000/ws/projects/{project_id}/
 
 ## 关键实现细节
 
 ### Redis 数据库分离策略
 
-系统使用5个独立的Redis数据库，避免数据冲突：
+系统使用4个独立的Redis数据库，避免数据冲突：
 
 ```python
 # config/settings/base.py
 CELERY_BROKER_URL = 'redis://localhost:6379/0'      # 数据库0: Celery任务队列
 CELERY_RESULT_BACKEND = 'redis://localhost:6379/1'  # 数据库1: Celery结果存储
 REDIS_PUBSUB_URL = 'redis://localhost:6379/2'       # 数据库2: Pub/Sub专用
-CHANNEL_LAYERS = {'hosts': ['redis://localhost:6379/3']}  # 数据库3: Channels专用
 CACHES = {'LOCATION': 'redis://localhost:6379/4'}   # 数据库4: Django缓存
 ```
 

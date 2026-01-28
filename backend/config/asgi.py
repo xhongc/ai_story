@@ -1,6 +1,6 @@
 """
 ASGI配置
-用于异步Web服务器和WebSocket
+用于异步Web服务器
 """
 
 import os
