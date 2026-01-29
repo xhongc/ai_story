@@ -351,6 +351,18 @@ const actions = {
       throw error;
     }
   },
+
+  // 运行完整工作流
+  async runPipeline({ commit }, { projectId }) {
+    try {
+      const result = await projectApi.runPipeline(projectId);
+      // 返回 { task_id, channel, message, project_id }
+      return result;
+    } catch (error) {
+      console.error('运行工作流失败:', error);
+      throw error;
+    }
+  },
 };
 
 export default {

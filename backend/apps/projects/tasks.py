@@ -549,3 +549,183 @@ def generate_jianying_draft(
 
     finally:
         pass
+
+
+@app.task(
+    bind=True,
+    max_retries=0,
+    default_retry_delay=60,
+    acks_late=True,
+    reject_on_worker_lost=True,
+    soft_time_limit=3600,  # 60分钟软超时（完整流程较长）
+    time_limit=4200  # 70分钟硬超时
+)
+def run_full_pipeline_task(
+    self,
+    project_id: str,
+    user_id: int
+) -> Dict[str, Any]:
+    """
+    运行完整工作流任务（智能跳过已完成阶段）
+
+    Args:
+        self: Celery任务实例
+        project_id: 项目ID
+        user_id: 用户ID
+
+    Returns:
+        Dict包含: success, completed_stages, skipped_stages, error
+    """
+    task_id = self.request.id
+    channel = f"ai_story:project:{project_id}:pipeline"
+
+    logger.info(f"开始运行完整工作流, 项目: {project_id}, 任务ID: {task_id}")
+
+    # 初始化Redis发布器
+    publisher = RedisStreamPublisher(project_id, 'pipeline')
+
+    # 定义阶段顺序
+    stage_order = [
+        'rewrite',
+        'storyboard',
+        'image_generation',
+        'camera_movement',
+        'video_generation'
+    ]
+
+    completed_stages = []
+    skipped_stages = []
+
+    try:
+        # 获取项目
+        project = Project.objects.get(id=project_id, user_id=user_id)
+
+        # 更新项目状态
+        project.status = 'processing'
+        project.save()
+
+        # 发布开始消息
+        publisher.publish_stage_update(
+            status='processing',
+            progress=0,
+            message='开始执行完整工作流'
+        )
+
+        # 遍历所有阶段
+        for index, stage_name in enumerate(stage_order):
+            try:
+                # 获取阶段
+                stage = ProjectStage.objects.get(project=project, stage_type=stage_name)
+
+                # 检查阶段是否已完成
+                if stage.status == 'completed':
+                    logger.info(f"阶段 {stage_name} 已完成，跳过")
+                    skipped_stages.append(stage_name)
+
+                    # 发布跳过消息
+                    publisher.publish_stage_update(
+                        status='processing',
+                        progress=int((index + 1) / len(stage_order) * 100),
+                        message=f'阶段 {stage.get_stage_type_display()} 已完成，跳过'
+                    )
+                    continue
+
+                # 执行阶段
+                logger.info(f"开始执行阶段: {stage_name}")
+
+                # 发布阶段开始消息
+                publisher.publish_stage_update(
+                    status='processing',
+                    progress=int(index / len(stage_order) * 100),
+                    message=f'开始执行阶段: {stage.get_stage_type_display()}'
+                )
+
+                # 根据阶段类型调用对应的任务
+                if stage_name in ['rewrite', 'storyboard', 'camera_movement']:
+                    # LLM类阶段
+                    input_data = stage.input_data or {}
+                    result = execute_llm_stage(
+                        project_id=project_id,
+                        stage_name=stage_name,
+                        input_data=input_data,
+                        user_id=user_id
+                    )
+
+                elif stage_name == 'image_generation':
+                    # 文生图阶段
+                    result = execute_text2image_stage(
+                        project_id=project_id,
+                        storyboard_ids=None,  # 处理所有分镜
+                        user_id=user_id
+                    )
+
+                elif stage_name == 'video_generation':
+                    # 图生视频阶段
+                    result = execute_image2video_stage(
+                        project_id=project_id,
+                        storyboard_ids=None,  # 处理所有分镜
+                        user_id=user_id
+                    )
+
+                # 检查执行结果
+                if result.get('success'):
+                    completed_stages.append(stage_name)
+                    logger.info(f"阶段 {stage_name} 执行成功")
+                else:
+                    error_msg = result.get('error', '未知错误')
+                    raise Exception(f"阶段 {stage_name} 执行失败: {error_msg}")
+
+            except ProjectStage.DoesNotExist:
+                error_msg = f'阶段不存在: {stage_name}'
+                logger.error(error_msg)
+                raise Exception(error_msg)
+
+        # 所有阶段完成
+        project.status = 'completed'
+        project.save()
+
+        # 发布完成消息
+        publisher.publish_done(
+            metadata={
+                'completed_stages': completed_stages,
+                'skipped_stages': skipped_stages,
+                'total_stages': len(stage_order)
+            }
+        )
+
+        logger.info(f"完整工作流执行完成, 项目: {project_id}")
+
+        return {
+            'success': True,
+            'task_id': task_id,
+            'channel': channel,
+            'completed_stages': completed_stages,
+            'skipped_stages': skipped_stages
+        }
+
+    except Project.DoesNotExist:
+        error_msg = f'项目不存在: {project_id}'
+        logger.error(error_msg)
+        publisher.publish_error(error_msg)
+        return {'success': False, 'error': error_msg}
+
+    except Exception as e:
+        error_msg = f'工作流执行失败: {str(e)}'
+        logger.exception(error_msg)
+
+        # 更新项目状态
+        try:
+            project = Project.objects.get(id=project_id)
+            project.status = 'failed'
+            project.save()
+        except Exception:
+            pass
+
+        # 发布错误消息
+        publisher.publish_error(error_msg)
+
+        return {'success': False, 'error': error_msg}
+
+    finally:
+        publisher.close()
+

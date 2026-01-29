@@ -678,6 +678,53 @@ class ProjectViewSet(viewsets.ModelViewSet):
         )
 
     @action(detail=True, methods=["post"])
+    def run_pipeline(self, request, pk=None):
+        """
+        运行完整工作流（智能跳过已完成阶段）
+        POST /api/v1/projects/{id}/run_pipeline/
+
+        功能:
+        - 按顺序执行5个阶段: rewrite → storyboard → image_generation → camera_movement → video_generation
+        - 自动检测并跳过已完成的阶段
+        - 通过Redis Pub/Sub实时推送进度
+
+        返回:
+        {
+            "task_id": "celery-task-id",
+            "channel": "ai_story:project:xxx:pipeline",
+            "message": "工作流已启动",
+            "stages_to_execute": ["rewrite", "storyboard", ...]
+        }
+        """
+        from apps.projects.tasks import run_full_pipeline_task
+
+        project = self.get_object()
+
+        # 更新项目状态为处理中
+        if project.status != "processing":
+            project.status = "processing"
+            project.save()
+
+        # 启动Celery任务
+        task = run_full_pipeline_task.delay(
+            project_id=str(project.id),
+            user_id=self.request.user.id
+        )
+
+        # 构建Redis频道名称
+        channel = f"ai_story:project:{project.id}:pipeline"
+
+        return Response(
+            {
+                "task_id": task.id,
+                "channel": channel,
+                "message": "工作流已启动",
+                "project_id": str(project.id),
+            },
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    @action(detail=True, methods=["post"])
     def generate_jianying_draft(self, request, pk=None):
         """
         生成剪映草稿

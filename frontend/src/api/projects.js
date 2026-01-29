@@ -187,6 +187,14 @@ export default {
   },
 
   /**
+   * 运行完整工作流（智能跳过已完成阶段）
+   * @param {String} projectId - 项目ID
+   */
+  runPipeline(projectId) {
+    return apiClient.post(`/projects/projects/${projectId}/run_pipeline/`);
+  },
+
+  /**
    * 生成剪映草稿
    * @param {String} projectId - 项目ID
    * @param {Object} options - 可选参数

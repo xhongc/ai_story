@@ -14,6 +14,7 @@
         @save-storyboard="handleSaveStoryboard"
         @delete-storyboard="handleDeleteStoryboard"
         @draft-generated="handleDraftGenerated"
+        @pipeline-started="handlePipelineStarted"
       />
     </loading-container>
   </div>
@@ -24,6 +25,7 @@ import { mapActions } from 'vuex';
 import LoadingContainer from '@/components/common/LoadingContainer.vue';
 import ProjectCanvas from '@/components/canvas/ProjectCanvas.vue';
 import { formatDate } from '@/utils/helpers';
+import { SSEClient } from '@/services/sseService';
 
 export default {
   name: 'ProjectDetail',
@@ -38,10 +40,18 @@ export default {
       stages: [],
       storyboards: [],
       savedScrollPosition: 0, // 保存滚动位置
+      // SSE 客户端
+      pipelineSSEClient: null,
     };
   },
   created() {
     this.fetchData();
+  },
+  beforeDestroy() {
+    // 组件销毁时断开 SSE 连接
+    if (this.pipelineSSEClient) {
+      this.pipelineSSEClient.disconnect();
+    }
   },
   methods: {
     ...mapActions('projects', ['fetchProject', 'fetchProjectStages', 'executeStage', 'updateProject', 'updateStageData']),
@@ -254,6 +264,83 @@ export default {
         console.error('Failed to delete storyboard:', error);
         this.$message.error('删除失败');
       }
+    },
+
+    handlePipelineStarted({ taskId, channel }) {
+      console.log('[ProjectDetail] Pipeline started:', { taskId, channel });
+
+      // 断开之前的连接
+      if (this.pipelineSSEClient) {
+        this.pipelineSSEClient.disconnect();
+      }
+
+      // 创建 SSE 客户端监听所有阶段
+      // 注意：URL 路径是 /api/v1/projects/sse/projects/{id}/
+      const API_BASE_URL = process.env.VUE_APP_API_BASE_URL || 'http://localhost:8000';
+      const sseUrl = `${API_BASE_URL}/api/v1/projects/sse/projects/${this.project.id}/`;
+
+      console.log('[ProjectDetail] 连接 SSE:', sseUrl);
+
+      this.pipelineSSEClient = new SSEClient();
+      this.pipelineSSEClient.connect(sseUrl);
+
+      // 监听各种事件
+      this.pipelineSSEClient
+        .on('connected', (data) => {
+          console.log('[Pipeline SSE] 已连接:', data);
+        })
+        .on('stage_update', (data) => {
+          console.log('[Pipeline SSE] 阶段更新:', data);
+
+          // 只处理 pipeline 阶段的消息
+          if (data.stage === 'pipeline') {
+            this.$message.info(data.message || '工作流执行中...');
+          }
+
+          // 刷新项目数据
+          this.fetchData(true);
+        })
+        .on('progress', (data) => {
+          console.log('[Pipeline SSE] 进度更新:', data);
+          // 可以在这里更新进度条
+        })
+        .on('done', (data) => {
+          console.log('[Pipeline SSE] 完成:', data);
+
+          // 只处理 pipeline 阶段的完成消息
+          if (data.stage === 'pipeline') {
+            this.$message.success('工作流执行完成！');
+
+            // 刷新项目数据
+            this.fetchData(true);
+
+            // 断开连接
+            if (this.pipelineSSEClient) {
+              this.pipelineSSEClient.disconnect();
+              this.pipelineSSEClient = null;
+            }
+          }
+        })
+        .on('error', (data) => {
+          console.error('[Pipeline SSE] 错误:', data);
+
+          // 只处理 pipeline 阶段的错误消息
+          if (data.stage === 'pipeline') {
+            this.$message.error(data.error || '工作流执行失败');
+
+            // 刷新项目数据
+            this.fetchData(true);
+
+            // 断开连接
+            if (this.pipelineSSEClient) {
+              this.pipelineSSEClient.disconnect();
+              this.pipelineSSEClient = null;
+            }
+          }
+        })
+        .on('close', () => {
+          console.log('[Pipeline SSE] 连接已关闭');
+        });
     },
   },
 };

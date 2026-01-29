@@ -17,6 +17,37 @@
           <span class="text-xs">剪映草稿已生成</span>
         </div>
 
+        <!-- 运行流程按钮 -->
+        <button
+          class="btn btn-ghost btn-sm gap-2"
+          :class="{ loading: isRunningPipeline }"
+          :disabled="isRunningPipeline"
+          @click="handleRunPipeline"
+        >
+          <svg
+            v-if="!isRunningPipeline"
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+            />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+          {{ isRunningPipeline ? '运行中...' : '' }}
+        </button>
+
         <!-- 剪映草稿生成按钮 -->
         <jianying-draft-button
           :project-id="project.id"
@@ -150,7 +181,11 @@ export default {
         images: {}, // { storyboardId: true }
         cameras: {}, // { storyboardId: true }
         videos: {} // { storyboardId: true }
-      }
+      },
+      // 运行流程状态
+      isRunningPipeline: false,
+      pipelineTaskId: null,
+      pipelineChannel: null
     };
   },
   computed: {
@@ -285,6 +320,19 @@ export default {
             this.$set(this.executingNodes.videos, storyboard.id, false);
           }
         });
+      }
+    },
+    // 监听项目状态变化，重置运行流程按钮状态
+    'project.status': {
+      handler(newStatus, oldStatus) {
+        console.log('[ProjectCanvas] Project status changed:', oldStatus, '->', newStatus);
+
+        // 如果项目状态变为 completed 或 failed，重置运行流程按钮
+        if (this.isRunningPipeline && (newStatus === 'completed' || newStatus === 'failed')) {
+          this.isRunningPipeline = false;
+          this.pipelineTaskId = null;
+          this.pipelineChannel = null;
+        }
       }
     }
   },
@@ -563,6 +611,41 @@ export default {
 
     handleDraftGenerated(data) {
       this.$emit('draft-generated', data);
+    },
+
+    async handleRunPipeline() {
+      console.log('[ProjectCanvas] 运行完整流程');
+
+      try {
+        this.isRunningPipeline = true;
+
+        // 调用API启动工作流
+        const response = await this.$store.dispatch('projects/runPipeline', {
+          projectId: this.project.id
+        });
+
+        this.pipelineTaskId = response.task_id;
+        this.pipelineChannel = response.channel;
+
+        console.log('[ProjectCanvas] 工作流已启动:', {
+          taskId: this.pipelineTaskId,
+          channel: this.pipelineChannel
+        });
+
+        // 通知父组件开始监听进度
+        this.$emit('pipeline-started', {
+          taskId: this.pipelineTaskId,
+          channel: this.pipelineChannel
+        });
+
+        // 显示成功消息
+        this.$message?.success('工作流已启动，正在执行...');
+
+      } catch (error) {
+        console.error('[ProjectCanvas] 启动工作流失败:', error);
+        this.$message?.error(error.response?.data?.error || error.message || '启动工作流失败');
+        this.isRunningPipeline = false;
+      }
     }
   }
 };
