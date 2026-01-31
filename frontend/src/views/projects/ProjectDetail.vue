@@ -15,6 +15,7 @@
         @delete-storyboard="handleDeleteStoryboard"
         @draft-generated="handleDraftGenerated"
         @pipeline-started="handlePipelineStarted"
+        @storyboard-generated="handleStoryboardGenerated"
       />
     </loading-container>
   </div>
@@ -263,6 +264,19 @@ export default {
       } catch (error) {
         console.error('Failed to delete storyboard:', error);
         this.$message.error('删除失败');
+      }
+    },
+
+    async handleStoryboardGenerated() {
+      console.log('[ProjectDetail] 分镜生成完成，刷新画布数据');
+      // 只刷新 stages 数据，不刷新整个页面
+      try {
+        const projectId = this.$route.params.id;
+        this.stages = await this.fetchProjectStages(projectId);
+        this.fetchStoryboardsFromStages();
+        console.log('[ProjectDetail] 画布数据已刷新，分镜数量:', this.storyboards.length);
+      } catch (error) {
+        console.error('[ProjectDetail] 刷新画布数据失败:', error);
       }
     },
 

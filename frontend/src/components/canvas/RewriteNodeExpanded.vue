@@ -1,7 +1,7 @@
 <template>
   <div
     class="rewrite-node-expanded"
-    :class="`status-${status}`"
+    :class="`status-${effectiveStatus}`"
     :style="nodeStyle"
   >
     <!-- 节点头部 -->
@@ -32,8 +32,6 @@
           <!-- 生成分镜图标 -->
           <button
             class="icon-btn"
-            :class="{ 'icon-btn-disabled': status !== 'completed' || isGeneratingStoryboard }"
-            :disabled="status !== 'completed' || isGeneratingStoryboard"
             @click.stop="handleGenerateStoryboard('storyboard')"
             title="生成分镜"
           >
@@ -42,17 +40,6 @@
             </svg>
           </button>
         </div>
-
-        <!-- <div class="status-badge">
-          <span v-if="status === 'processing'" class="loading loading-spinner loading-xs"></span>
-          <svg v-else-if="status === 'completed'" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-          </svg>
-          <svg v-else-if="status === 'failed'" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-          <span class="status-text">{{ statusText }}</span>
-        </div> -->
       </div>
     </div>
 
@@ -78,46 +65,6 @@
         @wheel.stop
         @mousedown.stop
       ></textarea>
-    </div>
-
-    <!-- 操作按钮 -->
-    <div class="node-actions">
-      <button
-        v-if="status === 'pending' || status === 'failed'"
-        class="btn btn-primary btn-sm"
-        :disabled="isExecuting"
-        @click="handleExecute"
-      >
-        <span v-if="isExecuting" class="loading loading-spinner loading-xs"></span>
-        {{ isExecuting ? '执行中...' : '执行改写' }}
-      </button>
-
-      <button
-        v-if="status === 'completed'"
-        class="btn btn-success btn-sm"
-        :disabled="isSaving"
-        @click="handleSave"
-      >
-        <span v-if="isSaving" class="loading loading-spinner loading-xs"></span>
-        {{ isSaving ? '保存中...' : '保存修改' }}
-      </button>
-
-      <button
-        v-if="status === 'failed'"
-        class="btn btn-warning btn-sm"
-        :disabled="isExecuting"
-        @click="handleRetry"
-      >
-        重试
-      </button>
-
-      <button
-        v-if="status === 'completed'"
-        class="btn btn-ghost btn-sm"
-        @click="handleReset"
-      >
-        重新生成
-      </button>
     </div>
 
     <!-- 元数据信息 -->
@@ -180,6 +127,13 @@ export default {
         top: `${this.position.y}px`,
       };
     },
+    // 计算有效状态：如果正在执行改写或生成分镜，显示processing状态
+    effectiveStatus() {
+      if (this.isExecuting || this.isGeneratingStoryboard) {
+        return 'processing';
+      }
+      return this.status;
+    },
     statusText() {
       const statusMap = {
         pending: '待执行',
@@ -218,6 +172,9 @@ export default {
     async handleExecute(mode) {
       console.log('handleExecute', mode);
       this.isExecuting = true;
+      if (mode === 'storyboard') {
+        this.isGeneratingStoryboard = true;
+      }
       this.streamingText = ''; // 清空之前的流式文本
 
       try {
@@ -257,8 +214,9 @@ export default {
           })
           .on('done', (data) => {
             // 生成完成
-            console.log('[RewriteNode] 改写完成');
+            console.log('[RewriteNode] 生成完成, mode:', mode);
             this.isExecuting = false;
+            this.isGeneratingStoryboard = false;
 
             // 使用完整文本（如果有）
             if (data.full_text) {
@@ -268,7 +226,14 @@ export default {
               }
             }
 
-            this.$message?.success('文案改写完成');
+            // 根据模式显示不同的成功消息
+            if (mode === 'storyboard') {
+              this.$message?.success('分镜生成完成');
+              // 触发刷新事件，通知父组件更新画布
+              this.$emit('storyboard-generated');
+            } else {
+              this.$message?.success('文案改写完成');
+            }
 
             // 关闭SSE连接
             if (this.sseClient) {
@@ -278,9 +243,10 @@ export default {
           })
           .on('error', (data) => {
             // 生成失败
-            console.error('[RewriteNode] 改写失败:', data.error);
+            console.error('[RewriteNode] 生成失败:', data.error);
             this.isExecuting = false;
-            this.$message?.error(data.error?.message || '改写失败');
+            this.isGeneratingStoryboard = false;
+            this.$message?.error(data.error?.message || '生成失败');
 
             // 关闭SSE连接
             if (this.sseClient) {
@@ -296,6 +262,7 @@ export default {
         console.error('执行失败:', error);
         this.$message?.error('执行失败: ' + error.message);
         this.isExecuting = false;
+        this.isGeneratingStoryboard = false;
 
         // 清理SSE连接
         if (this.sseClient) {
@@ -347,7 +314,7 @@ export default {
 
 <style scoped>
 .rewrite-node-expanded {
-  width: 480px;
+  width: 580px;
   background: #fafafa;
   border: 2px solid hsl(var(--bc) / 0.2);
   border-radius: 1rem;
@@ -372,7 +339,7 @@ export default {
 
 .status-completed {
   border-color: hsl(var(--su));
-  background: #f0fdf4;
+  background: #fafafa;
 }
 
 .status-failed {

@@ -126,6 +126,7 @@ class GlobalVariable(models.Model):
         ('number', '数字'),
         ('boolean', '布尔值'),
         ('json', 'JSON对象'),
+        ('image', '图片'),
     ]
 
     SCOPE_TYPES = [
@@ -135,7 +136,13 @@ class GlobalVariable(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     key = models.CharField('变量键', max_length=100, db_index=True)
-    value = models.TextField('变量值')
+    value = models.TextField('变量值', blank=True, default='')
+    image_file = models.ImageField(
+        '图片文件',
+        upload_to='assets/images/%Y/%m/',
+        blank=True,
+        null=True
+    )
     variable_type = models.CharField(
         '变量类型',
         max_length=20,
@@ -202,6 +209,11 @@ class GlobalVariable(models.Model):
                 return json.loads(self.value)
             except json.JSONDecodeError:
                 return {}
+        elif self.variable_type == 'image':
+            # 图片类型返回图片URL
+            if self.image_file:
+                return self.image_file.url
+            return self.value or ''
         else:  # string
             return self.value
 

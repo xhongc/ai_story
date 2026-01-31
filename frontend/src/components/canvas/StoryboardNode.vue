@@ -32,7 +32,7 @@
       <textarea
         v-model="sceneDescription"
         class="textarea textarea-bordered textarea-xs w-full"
-        rows="2"
+        rows="4"
         placeholder="场景描述..."
       ></textarea>
     </div>

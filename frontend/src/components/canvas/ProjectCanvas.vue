@@ -174,7 +174,7 @@ export default {
     return {
       // 节点位置配置
       nodePositions: {
-        rewrite: { x: 100, y: 100, width: 480, height: 600 }
+        rewrite: { x: 50, y: 100 }
       },
       // 跟踪正在执行的节点
       executingNodes: {

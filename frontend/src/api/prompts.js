@@ -430,6 +430,39 @@ export const globalVariableAPI = {
       data: { key, scope },
     });
   },
+
+  /**
+   * 创建全局变量（支持文件上传）
+   * @param {FormData} formData - 包含文件的表单数据
+   * @returns {Promise}
+   */
+  createWithFile(formData) {
+    return apiClient({
+      url: '/prompts/variables/',
+      method: 'post',
+      data: formData,
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+
+  /**
+   * 更新全局变量（支持文件上传）
+   * @param {String} id - 变量ID
+   * @param {FormData} formData - 包含文件的表单数据
+   * @returns {Promise}
+   */
+  updateWithFile(id, formData) {
+    return apiClient({
+      url: `/prompts/variables/${id}/`,
+      method: 'put',
+      data: formData,
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
 };
 
 /**
@@ -440,6 +473,7 @@ export const GLOBAL_VARIABLE_TYPES = [
   { value: 'number', label: '数字' },
   { value: 'boolean', label: '布尔值' },
   { value: 'json', label: 'JSON对象' },
+  { value: 'image', label: '图片' },
 ];
 
 /**

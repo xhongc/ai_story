@@ -224,10 +224,10 @@
           </li>
           <li>
             <router-link
-              to="/prompts/variables"
-              :class="{ 'active': activeMenu === '/prompts/variables' }"
+              to="/assets"
+              :class="{ 'active': activeMenu === '/assets' || activeMenu.startsWith('/assets/') }"
               class="flex items-center gap-3 tooltip tooltip-right"
-              :data-tip="sidebarCollapsed ? '全局变量' : ''"
+              :data-tip="sidebarCollapsed ? '资产管理' : ''"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -240,14 +240,14 @@
                 <path
                   stroke-linecap="round"
                   stroke-linejoin="round"
-                  d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"
+                  d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
                 />
               </svg>
               <span
                 v-show="!sidebarCollapsed"
                 class="transition-opacity duration-300"
                 :class="sidebarCollapsed ? 'opacity-0' : 'opacity-100'"
-              >全局变量</span>
+              >资产管理</span>
             </router-link>
           </li>
           <li>

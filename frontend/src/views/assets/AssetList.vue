@@ -1,10 +1,10 @@
 <template>
-  <div class="global-variable-list">
+  <div class="asset-list">
     <!-- 页面头部 -->
-    <PageCard title="全局变量管理">
+    <PageCard title="资产管理">
       <template slot="header-right">
         <button class="btn btn-primary btn-sm" @click="handleCreate">
-          + 创建变量
+          + 新建资产
         </button>
       </template>
 
@@ -14,7 +14,7 @@
           <input
             v-model="searchKeyword"
             type="text"
-            placeholder="搜索变量键或描述..."
+            placeholder="搜索资产键或描述..."
             class="input input-bordered w-full"
             @input="handleSearch"
           />
@@ -33,6 +33,7 @@
             <option value="number">数字</option>
             <option value="boolean">布尔值</option>
             <option value="json">JSON对象</option>
+            <option value="image">图片</option>
           </select>
         </div>
         <div class="form-control">
@@ -48,7 +49,7 @@
       <!-- Loading状态 -->
       <LoadingContainer :loading="loading">
         <!-- 空状态 -->
-        <div v-if="!loading && variables.length === 0" class="text-center py-12">
+        <div v-if="!loading && assets.length === 0" class="text-center py-12">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             class="h-16 w-16 mx-auto text-base-300"
@@ -60,20 +61,20 @@
               stroke-linecap="round"
               stroke-linejoin="round"
               stroke-width="2"
-              d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"
+              d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
             />
           </svg>
-          <p class="mt-4 text-base-content/60">暂无全局变量</p>
-          <button class="btn btn-primary btn-sm mt-4" @click="handleCreate">创建第一个变量</button>
+          <p class="mt-4 text-base-content/60">暂无资产</p>
+          <button class="btn btn-primary btn-sm mt-4" @click="handleCreate">创建第一个资产</button>
         </div>
 
-        <!-- 变量表格 -->
+        <!-- 资产表格 -->
         <div v-else class="overflow-x-auto">
           <table class="table table-zebra w-full">
             <thead>
               <tr>
-                <th>变量键</th>
-                <th>值</th>
+                <th>资产键</th>
+                <th>值/预览</th>
                 <th>类型</th>
                 <th>作用域</th>
                 <th>分组</th>
@@ -84,47 +85,59 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="variable in variables" :key="variable.id">
+              <tr v-for="asset in assets" :key="asset.id">
                 <td>
-                  <code class="text-sm bg-base-200 px-2 py-1 rounded">{{ variable.key }}</code>
+                  <code class="text-sm bg-base-200 px-2 py-1 rounded">{{ asset.key }}</code>
                 </td>
                 <td>
-                  <div class="max-w-xs truncate" :title="String(variable.value)">
-                    {{ formatValue(variable) }}
+                  <!-- 图片类型显示缩略图 -->
+                  <div v-if="asset.variable_type === 'image'" class="flex items-center">
+                    <img
+                      v-if="asset.image_url"
+                      :src="asset.image_url"
+                      :alt="asset.key"
+                      class="w-12 h-12 object-cover rounded cursor-pointer hover:opacity-80"
+                      @click="previewImage(asset.image_url)"
+                    />
+                    <span v-else class="text-base-content/40">未上传</span>
+                  </div>
+                  <!-- 其他类型显示值 -->
+                  <div v-else class="max-w-xs truncate" :title="String(asset.value)">
+                    {{ formatValue(asset) }}
                   </div>
                 </td>
                 <td>
-                  <span class="badge badge-sm" :class="getTypeBadgeClass(variable.variable_type)">
-                    {{ variable.variable_type_display }}
+                  <span class="badge badge-sm" :class="getTypeBadgeClass(asset.variable_type)">
+                    {{ asset.variable_type_display }}
                   </span>
                 </td>
                 <td>
-                  <span class="badge badge-sm" :class="getScopeBadgeClass(variable.scope)">
-                    {{ variable.scope_display }}
+                  <span class="badge badge-sm" :class="getScopeBadgeClass(asset.scope)">
+                    {{ asset.scope_display }}
                   </span>
                 </td>
                 <td>
-                  <span v-if="variable.group" class="badge badge-outline badge-sm">
-                    {{ variable.group }}
+                  <span v-if="asset.group" class="badge badge-outline badge-sm">
+                    {{ asset.group }}
                   </span>
                   <span v-else class="text-base-content/40">-</span>
                 </td>
                 <td>
-                  <div class="max-w-xs truncate" :title="variable.description">
-                    {{ variable.description || '-' }}
+                  <div class="max-w-xs truncate" :title="asset.description">
+                    {{ asset.description || '-' }}
                   </div>
                 </td>
                 <td>
-                  <StatusBadge :status="variable.is_active ? 'active' : 'inactive'" />
+                  <StatusBadge :status="asset.is_active ? 'active' : 'inactive'" />
                 </td>
                 <td class="text-sm text-base-content/60">
-                  {{ formatDate(variable.updated_at) }}
+                  {{ formatDate(asset.updated_at) }}
                 </td>
                 <td>
                   <div class="flex gap-2">
                     <button
                       class="btn btn-ghost btn-xs"
-                      @click="handleEdit(variable)"
+                      @click="handleEdit(asset)"
                       title="编辑"
                     >
                       <svg
@@ -140,8 +153,8 @@
                     </button>
                     <button
                       class="btn btn-ghost btn-xs text-error"
-                      @click="handleDelete(variable)"
-                      :disabled="variable.scope === 'system' && !isAdmin"
+                      @click="handleDelete(asset)"
+                      :disabled="asset.scope === 'system' && !isAdmin"
                       title="删除"
                     >
                       <svg
@@ -166,14 +179,16 @@
       </LoadingContainer>
     </PageCard>
 
-    <!-- 创建/编辑对话框 -->
-    <VariableFormModal
-      v-if="showFormModal"
-      :variable="editingVariable"
-      :groups="groups"
-      @close="showFormModal = false"
-      @success="handleFormSuccess"
-    />
+    <!-- 图片预览弹窗 -->
+    <div v-if="previewImageUrl" class="modal modal-open" @click="previewImageUrl = null">
+      <div class="modal-box max-w-4xl" @click.stop>
+        <img :src="previewImageUrl" alt="预览" class="w-full" />
+        <div class="modal-action">
+          <button class="btn" @click="previewImageUrl = null">关闭</button>
+        </div>
+      </div>
+      <div class="modal-backdrop" @click="previewImageUrl = null"></div>
+    </div>
   </div>
 </template>
 
@@ -182,27 +197,24 @@ import { globalVariableAPI } from '@/api/prompts';
 import PageCard from '@/components/common/PageCard.vue';
 import LoadingContainer from '@/components/common/LoadingContainer.vue';
 import StatusBadge from '@/components/common/StatusBadge.vue';
-import VariableFormModal from '@/components/prompts/VariableFormModal.vue';
 
 export default {
-  name: 'GlobalVariableList',
+  name: 'AssetList',
   components: {
     PageCard,
     LoadingContainer,
     StatusBadge,
-    VariableFormModal,
   },
   data() {
     return {
       loading: false,
-      variables: [],
+      assets: [],
       groups: [],
       searchKeyword: '',
       filterScope: '',
       filterType: '',
       filterGroup: '',
-      showFormModal: false,
-      editingVariable: null,
+      previewImageUrl: null,
     };
   },
   computed: {
@@ -211,11 +223,11 @@ export default {
     },
   },
   created() {
-    this.loadVariables();
+    this.loadAssets();
     this.loadGroups();
   },
   methods: {
-    async loadVariables() {
+    async loadAssets() {
       this.loading = true;
       try {
         const params = {
@@ -225,10 +237,9 @@ export default {
           group: this.filterGroup || undefined,
         };
         const response = await globalVariableAPI.getList(params);
-        console.log(response)
-        this.variables = response.results || [];
+        this.assets = response.results || [];
       } catch (error) {
-        console.error('加载变量失败:', error);
+        console.error('加载资产失败:', error);
       } finally {
         this.loading = false;
       }
@@ -244,67 +255,62 @@ export default {
     },
 
     handleSearch() {
-      // 防抖搜索
       clearTimeout(this.searchTimer);
       this.searchTimer = setTimeout(() => {
-        this.loadVariables();
+        this.loadAssets();
       }, 500);
     },
 
     handleFilter() {
-      this.loadVariables();
+      this.loadAssets();
     },
 
     handleCreate() {
-      this.editingVariable = null;
-      this.showFormModal = true;
+      this.$router.push({ name: 'AssetCreate' });
     },
 
-    handleEdit(variable) {
-      this.editingVariable = variable;
-      this.showFormModal = true;
+    handleEdit(asset) {
+      this.$router.push({ name: 'AssetDetail', params: { id: asset.id } });
     },
 
-    async handleDelete(variable) {
-      if (variable.scope === 'system' && !this.isAdmin) {
+    async handleDelete(asset) {
+      if (asset.scope === 'system' && !this.isAdmin) {
         return;
       }
 
       const confirmed = await this.$confirm(
-        `确定要删除变量 "${variable.key}" 吗？`,
+        `确定要删除资产 "${asset.key}" 吗？`,
         '删除确认'
       );
 
       if (!confirmed) return;
 
       try {
-        await globalVariableAPI.delete(variable.id);
-        this.loadVariables();
+        await globalVariableAPI.delete(asset.id);
+        this.loadAssets();
         this.loadGroups();
       } catch (error) {
         console.error('删除失败:', error);
       }
     },
 
-    handleFormSuccess() {
-      this.showFormModal = false;
-      this.loadVariables();
-      this.loadGroups();
+    previewImage(url) {
+      this.previewImageUrl = url;
     },
 
-    formatValue(variable) {
-      const value = variable.value;
-      if (variable.variable_type === 'json') {
+    formatValue(asset) {
+      const value = asset.value;
+      if (asset.variable_type === 'json') {
         try {
           return JSON.stringify(JSON.parse(value), null, 2);
         } catch {
           return value;
         }
       }
-      if (value.length > 50) {
+      if (value && value.length > 50) {
         return value.substring(0, 50) + '...';
       }
-      return value;
+      return value || '-';
     },
 
     formatDate(dateString) {
@@ -325,6 +331,7 @@ export default {
         number: 'badge-success',
         boolean: 'badge-warning',
         json: 'badge-secondary',
+        image: 'badge-accent',
       };
       return classes[type] || 'badge-ghost';
     },
@@ -337,7 +344,7 @@ export default {
 </script>
 
 <style scoped>
-.global-variable-list {
+.asset-list {
   padding: 1.5rem;
 }
 

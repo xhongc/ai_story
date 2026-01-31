@@ -102,11 +102,31 @@ const routes = [
         component: () => import('@/views/prompts/PromptTemplateEditor.vue'),
         meta: { title: '编辑提示词模板' },
       },
+    ],
+  },
+  // 资产管理路由
+  {
+    path: '/assets',
+    component: () => import('@/views/Layout.vue'),
+    meta: { requiresAuth: true },
+    children: [
       {
-        path: 'variables',
-        name: 'GlobalVariableList',
-        component: () => import('@/views/prompts/GlobalVariableList.vue'),
-        meta: { title: '全局变量管理' },
+        path: '',
+        name: 'AssetList',
+        component: () => import('@/views/assets/AssetList.vue'),
+        meta: { title: '资产管理' },
+      },
+      {
+        path: 'new',
+        name: 'AssetCreate',
+        component: () => import('@/views/assets/AssetForm.vue'),
+        meta: { title: '新建资产' },
+      },
+      {
+        path: ':id',
+        name: 'AssetDetail',
+        component: () => import('@/views/assets/AssetForm.vue'),
+        meta: { title: '编辑资产' },
       },
     ],
   },

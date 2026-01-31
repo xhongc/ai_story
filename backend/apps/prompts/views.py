@@ -11,6 +11,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from jinja2 import Template
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -357,6 +358,7 @@ class GlobalVariableViewSet(viewsets.ModelViewSet):
 
     queryset = GlobalVariable.objects.all()
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['scope', 'group', 'variable_type', 'is_active', 'created_by']
     search_fields = ['key', 'description', 'group']

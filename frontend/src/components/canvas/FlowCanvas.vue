@@ -38,33 +38,6 @@
         class="canvas-content"
         :style="canvasStyle"
       >
-        <!-- SVG 连接线层 -->
-        <svg class="connection-layer" :style="svgStyle">
-          <defs>
-            <!-- 箭头标记 -->
-            <marker
-              id="arrowhead"
-              markerWidth="10"
-              markerHeight="10"
-              refX="9"
-              refY="3"
-              orient="auto"
-            >
-              <polygon points="0 0, 10 3, 0 6" fill="currentColor" />
-            </marker>
-          </defs>
-          <g v-for="connection in connections" :key="connection.id">
-            <path
-              :d="calculatePath(connection)"
-              :stroke="getConnectionColor(connection)"
-              stroke-width="2"
-              fill="none"
-              marker-end="url(#arrowhead)"
-              class="connection-line"
-            />
-          </g>
-        </svg>
-
         <!-- 节点内容插槽 -->
         <slot :scale="scale"></slot>
       </div>
@@ -76,10 +49,6 @@
 export default {
   name: 'FlowCanvas',
   props: {
-    connections: {
-      type: Array,
-      default: () => []
-    },
     nodes: {
       type: Object,
       default: () => ({})
@@ -104,13 +73,6 @@ export default {
       return {
         transform: `translate(${this.translateX}px, ${this.translateY}px) scale(${this.scale})`,
         transformOrigin: '0 0',
-      };
-    },
-    svgStyle() {
-      // SVG 需要覆盖整个画布
-      return {
-        width: '100%',
-        height: '100%',
       };
     }
   },
@@ -207,8 +169,7 @@ export default {
     handleMouseDown(e) {
       // 只有在空白区域点击才开始拖动
       if (e.target.classList.contains('canvas-container') ||
-          e.target.classList.contains('canvas-content') ||
-          e.target.classList.contains('connection-layer')) {
+          e.target.classList.contains('canvas-content')) {
         this.isDragging = true;
         this.dragStartX = e.clientX;
         this.dragStartY = e.clientY;
@@ -234,43 +195,6 @@ export default {
       e.preventDefault();
       const delta = e.deltaY > 0 ? 0.98 : 1.02;
       this.setScale(this.scale * delta);
-    },
-
-    // 计算连接线路径（贝塞尔曲线）
-    calculatePath(connection) {
-      const fromNode = this.nodes[connection.from];
-      const toNode = this.nodes[connection.to];
-
-      if (!fromNode || !toNode) return '';
-
-      const startX = fromNode.x + (fromNode.width || 200);
-      const startY = fromNode.y + (fromNode.height || 100) / 2;
-      const endX = toNode.x;
-      const endY = toNode.y + (toNode.height || 100) / 2;
-
-      // 计算控制点（水平贝塞尔曲线）
-      const controlPointOffset = Math.abs(endX - startX) / 2;
-      const cp1x = startX + controlPointOffset;
-      const cp1y = startY;
-      const cp2x = endX - controlPointOffset;
-      const cp2y = endY;
-
-      return `M ${startX} ${startY} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${endX} ${endY}`;
-    },
-
-    // 根据目标节点状态获取连接线颜色
-    getConnectionColor(connection) {
-      const toNode = this.nodes[connection.to];
-      if (!toNode) return 'currentColor';
-
-      const statusColors = {
-        pending: 'hsl(var(--bc) / 0.2)',
-        processing: 'hsl(var(--in))',
-        completed: 'hsl(var(--su))',
-        failed: 'hsl(var(--er))',
-      };
-
-      return statusColors[toNode.status] || 'currentColor';
     }
   }
 };
@@ -326,19 +250,4 @@ export default {
   transition: transform 0.1s ease-out;
 }
 
-.connection-layer {
-  position: absolute;
-  top: 0;
-  left: 0;
-  pointer-events: none;
-  z-index: 1;
-}
-
-.connection-line {
-  transition: stroke 0.3s ease;
-}
-
-.connection-line:hover {
-  stroke-width: 3;
-}
 </style>

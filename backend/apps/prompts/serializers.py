@@ -309,6 +309,7 @@ class GlobalVariableSerializer(serializers.ModelSerializer):
     variable_type_display = serializers.CharField(source='get_variable_type_display', read_only=True)
     scope_display = serializers.CharField(source='get_scope_display', read_only=True)
     typed_value = serializers.SerializerMethodField()
+    image_url = serializers.SerializerMethodField()
 
     class Meta:
         model = GlobalVariable
@@ -317,6 +318,7 @@ class GlobalVariableSerializer(serializers.ModelSerializer):
             'variable_type', 'variable_type_display',
             'scope', 'scope_display',
             'group', 'description', 'is_active',
+            'image_file', 'image_url',
             'created_by', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_by', 'created_at', 'updated_at']
@@ -324,6 +326,15 @@ class GlobalVariableSerializer(serializers.ModelSerializer):
     def get_typed_value(self, obj):
         """获取类型转换后的值"""
         return obj.get_typed_value()
+
+    def get_image_url(self, obj):
+        """获取图片完整URL"""
+        if obj.image_file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.image_file.url)
+            return obj.image_file.url
+        return None
 
     def validate_key(self, value):
         """
@@ -350,6 +361,10 @@ class GlobalVariableSerializer(serializers.ModelSerializer):
         根据变量类型验证值的格式
         """
         variable_type = self.initial_data.get('variable_type', 'string')
+
+        # 图片类型的 value 可以为空（图片存储在 image_file 字段）
+        if variable_type == 'image':
+            return value
 
         if variable_type == 'number':
             try:
@@ -415,6 +430,7 @@ class GlobalVariableListSerializer(serializers.ModelSerializer):
     variable_type_display = serializers.CharField(source='get_variable_type_display', read_only=True)
     scope_display = serializers.CharField(source='get_scope_display', read_only=True)
     typed_value = serializers.SerializerMethodField()
+    image_url = serializers.SerializerMethodField()
 
     class Meta:
         model = GlobalVariable
@@ -422,12 +438,22 @@ class GlobalVariableListSerializer(serializers.ModelSerializer):
             'id', 'key', 'value', 'typed_value',
             'variable_type', 'variable_type_display',
             'scope', 'scope_display',
-            'group', 'is_active', 'updated_at'
+            'group', 'is_active', 'updated_at',
+            'image_file', 'image_url'
         ]
 
     def get_typed_value(self, obj):
         """获取类型转换后的值"""
         return obj.get_typed_value()
+
+    def get_image_url(self, obj):
+        """获取图片完整URL"""
+        if obj.image_file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.image_file.url)
+            return obj.image_file.url
+        return None
 
 
 class GlobalVariableBatchSerializer(serializers.Serializer):
