@@ -55,6 +55,8 @@
         rows="2"
         placeholder="文生图提示词..."
         :disabled="status === 'processing'"
+        @wheel.stop
+        @mousedown.stop
       ></textarea>
     </div>
 

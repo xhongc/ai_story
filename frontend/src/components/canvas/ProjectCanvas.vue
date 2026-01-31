@@ -429,8 +429,8 @@ export default {
       if (this.executingNodes.cameras[storyboard.id]) {
         return 'processing';
       }
-      // 检查是否已完成
-      if (storyboard.camera_movement) {
+      // 检查是否已完成（需要检查 camera_movement.data 是否存在）
+      if (storyboard.camera_movement?.data) {
         return 'completed';
       }
       return 'pending';
@@ -438,16 +438,16 @@ export default {
 
     // 获取运镜类型
     getCameraMovementType(storyboard) {
-      if (storyboard.camera_movement) {
-        return storyboard.camera_movement.movement_type;
+      if (storyboard.camera_movement?.data) {
+        return storyboard.camera_movement.data.movement_type;
       }
       return '';
     },
 
     // 获取运镜参数
     getCameraMovementParams(storyboard) {
-      if (storyboard.camera_movement) {
-        return storyboard.camera_movement.movement_params;
+      if (storyboard.camera_movement?.data) {
+        return storyboard.camera_movement.data.movement_params;
       }
       return null;
     },

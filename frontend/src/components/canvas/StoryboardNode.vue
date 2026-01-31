@@ -34,6 +34,8 @@
         class="textarea textarea-bordered textarea-xs w-full"
         rows="4"
         placeholder="场景描述..."
+        @wheel.stop
+        @mousedown.stop
       ></textarea>
     </div>
 
@@ -45,6 +47,8 @@
         class="textarea textarea-bordered textarea-xs w-full"
         rows="2"
         placeholder="旁白文案..."
+        @wheel.stop
+        @mousedown.stop
       ></textarea>
     </div>
 
