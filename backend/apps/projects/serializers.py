@@ -435,21 +435,12 @@ class StageExecuteSerializer(serializers.Serializer):
         except Project.DoesNotExist:
             raise serializers.ValidationError("项目不存在")
 
-        # 检查项目状态
-        if project.status not in ['draft', 'processing', 'paused']:
-            raise serializers.ValidationError(
-                f"项目状态为 {project.get_status_display()} 时不能执行阶段"
-            )
-
         # 检查阶段是否存在
         try:
             stage = ProjectStage.objects.get(project_id=project_id, stage_type=stage_name)
         except ProjectStage.DoesNotExist:
             raise serializers.ValidationError(f"阶段 {stage_name} 不存在")
 
-        # 检查阶段状态
-        # if stage.status == 'processing':
-        #     raise serializers.ValidationError(f"阶段 {stage_name} 正在处理中")
 
         return attrs
 

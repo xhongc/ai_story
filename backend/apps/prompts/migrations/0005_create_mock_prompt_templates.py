@@ -56,7 +56,7 @@ def create_mock_prompt_template_set(apps, schema_editor):
         {
             'stage_type': 'rewrite',
             'model_provider': mock_llm,
-            'template_content': '''请对以下内容进行改写和优化：
+            'template_content': '''【改写】请对以下内容进行改写和优化：
 
 原始内容：
 {{ original_content }}
@@ -75,7 +75,7 @@ def create_mock_prompt_template_set(apps, schema_editor):
         {
             'stage_type': 'storyboard',
             'model_provider': mock_llm,
-            'template_content': '''请根据以下内容生成分镜脚本：
+            'template_content': '''【分镜】请根据以下内容生成分镜脚本：
 
 内容：
 {{ rewritten_content }}
@@ -114,7 +114,7 @@ def create_mock_prompt_template_set(apps, schema_editor):
         {
             'stage_type': 'camera_movement',
             'model_provider': mock_llm,
-            'template_content': '''请为以下场景生成运镜参数：
+            'template_content': '''【运镜】请为以下场景生成运镜参数：
 
 场景描述：
 {{ scene_description }}

@@ -187,7 +187,7 @@ class MockLLMClient(LLMClient):
         start_time = time.time()
 
         # 获取模拟响应
-        response_text = self._get_mock_response(prompt)
+        response_text = self._get_mock_response(system_prompt)
 
         # 模拟流式输出，每次返回几个字符
         chunk_size = 10
