@@ -82,6 +82,7 @@
         :project-id="project.id"
         @execute="handleExecuteStage"
         @save="handleSaveStage"
+        @storyboard-generated="$emit('storyboard-generated')"
       />
 
       <!-- 每个分镜及其子节点 -->
