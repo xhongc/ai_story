@@ -18,21 +18,9 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
         </svg>
         <button
-          v-if="status === 'pending' || status === 'failed'"
           class="btn btn-circle btn-xs btn-primary"
-          :disabled="isGenerating || !canGenerate"
           @click="handleGenerate"
           title="生成运镜"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M8 5v14l11-7z"/>
-          </svg>
-        </button>
-        <button
-          v-if="status === 'completed'"
-          class="btn btn-circle btn-xs btn-primary"
-          @click="handleRegenerate"
-          title="重新生成运镜"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
             <path d="M8 5v14l11-7z"/>

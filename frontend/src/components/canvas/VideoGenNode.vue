@@ -110,10 +110,6 @@ export default {
   },
   methods: {
     async handleGenerate() {
-      if (!this.canGenerate) {
-        this.$message?.warning('请先完成运镜生成');
-        return;
-      }
 
       this.isGenerating = true;
       try {

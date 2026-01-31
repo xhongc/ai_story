@@ -26,7 +26,7 @@ import { mapActions } from 'vuex';
 import LoadingContainer from '@/components/common/LoadingContainer.vue';
 import ProjectCanvas from '@/components/canvas/ProjectCanvas.vue';
 import { formatDate } from '@/utils/helpers';
-import { SSEClient } from '@/services/sseService';
+import { SSEClient, createProjectStageSSE } from '@/services/sseService';
 
 export default {
   name: 'ProjectDetail',
@@ -43,6 +43,8 @@ export default {
       savedScrollPosition: 0, // 保存滚动位置
       // SSE 客户端
       pipelineSSEClient: null,
+      // 单阶段 SSE 客户端
+      stageSSEClient: null,
     };
   },
   created() {
@@ -52,6 +54,9 @@ export default {
     // 组件销毁时断开 SSE 连接
     if (this.pipelineSSEClient) {
       this.pipelineSSEClient.disconnect();
+    }
+    if (this.stageSSEClient) {
+      this.stageSSEClient.disconnect();
     }
   },
   methods: {
@@ -166,15 +171,88 @@ export default {
 
     async handleExecuteStage({ stageType, inputData }) {
       try {
-        await this.executeStage({
+        const result = await this.executeStage({
           projectId: this.project.id,
           stageName: stageType,
           inputData: inputData
         });
         this.$message.success('阶段执行已开始');
+
+        // 如果返回了 task_id，建立 SSE 连接监听任务完成
+        if (result && result.task_id) {
+          this.connectStageSSE(stageType);
+        }
       } catch (error) {
         console.error('Failed to execute stage:', error);
         this.$message.error('执行失败');
+      }
+    },
+
+    /**
+     * 连接单阶段 SSE 监听任务完成
+     */
+    connectStageSSE(stageName) {
+      // 断开之前的连接
+      if (this.stageSSEClient) {
+        this.stageSSEClient.disconnect();
+      }
+
+      console.log('[ProjectDetail] 连接阶段 SSE:', stageName);
+
+      this.stageSSEClient = createProjectStageSSE(this.project.id, stageName);
+
+      this.stageSSEClient
+        .on('connected', (data) => {
+          console.log('[Stage SSE] 已连接:', data);
+        })
+        .on('stage_update', (data) => {
+          console.log('[Stage SSE] 阶段更新:', data);
+        })
+        .on('progress', (data) => {
+          console.log('[Stage SSE] 进度更新:', data);
+        })
+        .on('done', (data) => {
+          console.log('[Stage SSE] 完成:', data);
+          this.$message.success(`${stageName} 执行完成`);
+
+          // 刷新画布数据
+          this.refreshCanvasData();
+
+          // 断开连接
+          if (this.stageSSEClient) {
+            this.stageSSEClient.disconnect();
+            this.stageSSEClient = null;
+          }
+        })
+        .on('error', (data) => {
+          console.error('[Stage SSE] 错误:', data);
+          this.$message.error(data.error || `${stageName} 执行失败`);
+
+          // 刷新画布数据
+          this.refreshCanvasData();
+
+          // 断开连接
+          if (this.stageSSEClient) {
+            this.stageSSEClient.disconnect();
+            this.stageSSEClient = null;
+          }
+        })
+        .on('close', () => {
+          console.log('[Stage SSE] 连接已关闭');
+        });
+    },
+
+    /**
+     * 刷新画布数据（不刷新整个页面）
+     */
+    async refreshCanvasData() {
+      try {
+        const projectId = this.$route.params.id;
+        this.stages = await this.fetchProjectStages(projectId);
+        this.fetchStoryboardsFromStages();
+        console.log('[ProjectDetail] 画布数据已刷新');
+      } catch (error) {
+        console.error('[ProjectDetail] 刷新画布数据失败:', error);
       }
     },
 

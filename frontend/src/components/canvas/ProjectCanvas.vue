@@ -332,15 +332,15 @@ export default {
         // 检查并清除已完成的执行状态
         newVal.forEach(storyboard => {
           // 如果图片已生成,清除执行状态
-          if (storyboard.images && storyboard.images.length > 0) {
+          if (storyboard.image_generation?.images && storyboard.image_generation.images.length > 0) {
             this.$set(this.executingNodes.images, storyboard.id, false);
           }
           // 如果运镜已生成,清除执行状态
-          if (storyboard.camera_movement) {
+          if (storyboard.camera_movement?.data) {
             this.$set(this.executingNodes.cameras, storyboard.id, false);
           }
           // 如果视频已生成,清除执行状态
-          if (storyboard.videos && storyboard.videos.length > 0) {
+          if (storyboard.video_generation?.videos && storyboard.video_generation.videos.length > 0) {
             this.$set(this.executingNodes.videos, storyboard.id, false);
           }
         });
@@ -409,7 +409,7 @@ export default {
         return 'processing';
       }
       // 检查是否已完成
-      if (storyboard.images && storyboard.images.length > 0) {
+      if (storyboard.image_generation?.images && storyboard.image_generation.images.length > 0) {
         return 'completed';
       }
       return 'pending';
@@ -459,7 +459,7 @@ export default {
         return 'processing';
       }
       // 检查是否已完成
-      if (storyboard.videos && storyboard.videos.length > 0) {
+      if (storyboard.video_generation?.videos && storyboard.video_generation.videos.length > 0) {
         return 'completed';
       }
       return 'pending';
@@ -475,8 +475,8 @@ export default {
 
     // 获取视频信息
     getVideoInfo(storyboard) {
-      if (storyboard.videos && storyboard.videos.length > 0) {
-        const video = storyboard.videos[0];
+      if (storyboard.video_generation?.videos && storyboard.video_generation.videos.length > 0) {
+        const video = storyboard.video_generation.videos[0];
         return {
           duration: video.duration || 0,
           width: video.width || 0,
@@ -584,13 +584,13 @@ export default {
         }
 
         // 检查是否有运镜
-        if (!storyboard.camera_movement) {
+        if (!storyboard.camera_movement?.data) {
           this.$message?.warning('请先生成运镜');
           return;
         }
 
         // 检查是否有图片
-        if (!storyboard.image_generation.images || storyboard.image_generation.images.length === 0) {
+        if (!storyboard.image_generation?.images || storyboard.image_generation.images.length === 0) {
           this.$message?.warning('请先生成图片');
           return;
         }
@@ -605,8 +605,8 @@ export default {
             scene_number: storyboard.sequence_number,
             image_url: storyboard.image_generation.images[0].image_url,
             camera_movement: {
-              movement_type: storyboard.camera_movement.movement_type,
-              movement_params: storyboard.camera_movement.movement_params,
+              movement_type: storyboard.camera_movement.data.movement_type,
+              movement_params: storyboard.camera_movement.data.movement_params,
             }
           }]
         };
