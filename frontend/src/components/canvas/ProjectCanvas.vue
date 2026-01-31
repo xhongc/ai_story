@@ -3,10 +3,19 @@
     <!-- 项目信息节点（固定在左上角，不随画布移动） -->
     <div class="project-info-node">
       <div class="project-info-main">
-        <h2 class="text-lg font-bold">{{ project.name }}</h2>
+        <h2 class="text-lg font-bold project-name" :title="project.name">{{ truncatedProjectName }}</h2>
         <status-badge :status="project.status" type="project" />
         <div class="meta-item">
           <span class="meta-value">{{ formatDate(project.updated_at) }}</span>
+        </div>
+
+        <!-- 提示词模板 -->
+        <div v-if="project.prompt_set_name" class="meta-item">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <span class="meta-label">模板:</span>
+          <span class="meta-value">{{ project.prompt_set_name }}</span>
         </div>
 
         <!-- 剪映草稿信息 -->
@@ -172,10 +181,6 @@ export default {
   },
   data() {
     return {
-      // 节点位置配置
-      nodePositions: {
-        rewrite: { x: 50, y: 100 }
-      },
       // 跟踪正在执行的节点
       executingNodes: {
         images: {}, // { storyboardId: true }
@@ -189,6 +194,20 @@ export default {
     };
   },
   computed: {
+    // 截断项目名称
+    truncatedProjectName() {
+      const maxLength = 10;
+      if (this.project.name && this.project.name.length > maxLength) {
+        return this.project.name.slice(0, maxLength) + '...';
+      }
+      return this.project.name;
+    },
+    // 节点位置配置（固定位置，由 FlowCanvas 自动居中）
+    nodePositions() {
+      return {
+        rewrite: { x: 50, y: 100 }
+      };
+    },
     rewriteStage() {
       return this.stages.find(s => s.stage_type === 'rewrite') || null;
     },
@@ -246,7 +265,11 @@ export default {
     // 计算所有节点的位置信息（用于画布自动适配和连接线计算）
     allNodePositions() {
       const positions = {
-        rewrite: this.nodePositions.rewrite
+        rewrite: {
+          ...this.nodePositions.rewrite,
+          width: 580,
+          height: 400
+        }
       };
 
       // 添加所有分镜及其子节点的位置
@@ -676,7 +699,7 @@ export default {
   border: 2px solid hsl(var(--bc) / 0.2);
   border-radius: 0.75rem;
   padding: 0.75rem 1rem;
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  /* box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); */
   pointer-events: auto;
 }
 
@@ -701,6 +724,11 @@ export default {
 
 .meta-value {
   color: hsl(var(--bc) / 0.8);
+}
+
+.project-name {
+  max-width: 200px;
+  cursor: default;
 }
 
 .draft-info {
