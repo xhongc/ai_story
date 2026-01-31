@@ -280,7 +280,7 @@ export default {
 .flow-canvas-wrapper {
   position: relative;
   width: 100%;
-  height: calc(100vh - 70px);
+  height: 100%;
   min-height: 600px;
   background: hsl(var(--b2));
   border-radius: 0.5rem;

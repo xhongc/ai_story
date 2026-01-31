@@ -350,6 +350,6 @@ export default {
 .project-detail {
   width: 100%;
   max-width: 100%;
-  height: calc(100vh - 64px); /* 减去顶部导航栏高度 */
+  height: 100%;
 }
 </style>

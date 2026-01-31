@@ -6,6 +6,7 @@
 
 from rest_framework import serializers
 
+from apps.content.models import ContentRewrite
 from apps.projects.utils import parse_storyboard_json
 from .models import Project, ProjectStage, ProjectModelConfig
 
@@ -62,7 +63,17 @@ class ProjectStageSerializer(serializers.ModelSerializer):
                         'updated_at': rewrite.updated_at.isoformat() if rewrite.updated_at else None,
                     }
                 except ContentRewrite.DoesNotExist:
-                    return None
+                    # 返回空的结构化数据
+                    return {
+                        'id': None,
+                        'original_text': None,
+                        'rewritten_text': None,
+                        'model_provider': None,
+                        'prompt_used': None,
+                        'generation_metadata': None,
+                        'created_at': None,
+                        'updated_at': None,
+                    }
 
             elif stage_type == 'storyboard':
                 # 返回分镜列表数据
@@ -361,6 +372,12 @@ class ProjectCreateSerializer(serializers.ModelSerializer):
 
         # 创建默认模型配置
         ProjectModelConfig.objects.create(project=project)
+
+        # 创建 ContentRewrite，使用原始文案初始化
+        ContentRewrite.objects.create(
+            project=project,
+            original_text=project.original_topic
+        )
 
         return project
 

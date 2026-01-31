@@ -1,5 +1,5 @@
 <template>
-  <div class="model-list">
+  <div class="model-list p-6">
     <page-card title="模型管理">
       <template slot="header-right">
         <button class="btn btn-primary btn-sm gap-2" @click="handleCreate">

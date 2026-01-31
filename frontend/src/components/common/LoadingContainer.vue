@@ -21,8 +21,9 @@ export default {
 
 <style scoped>
 .loading-container {
+  height: 100%;
   min-height: 200px;
-  align-items: center;
-  justify-content: center;
+  display: flex;
+  flex-direction: column;
 }
 </style>

@@ -24,7 +24,7 @@ class ContentRewrite(models.Model):
     )
 
     original_text = models.TextField('原始文本')
-    rewritten_text = models.TextField('改写后文本')
+    rewritten_text = models.TextField('改写后文本', blank=True, default='')
 
     model_provider = models.ForeignKey(
         ModelProvider,

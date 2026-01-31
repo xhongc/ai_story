@@ -96,10 +96,31 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
         result = []
 
-        # 1. 添加 rewrite 阶段
+        # 1. 添加 rewrite 阶段（即使不存在也返回空结构）
         if rewrite_stage:
             rewrite_serializer = ProjectStageSerializer(rewrite_stage)
             result.append(rewrite_serializer.data)
+        else:
+            # 返回空的结构化数据
+            result.append({
+                'id': None,
+                'project': project.id,
+                'stage_type': 'rewrite',
+                'stage_type_display': '文案改写',
+                'status': 'pending',
+                'status_display': '待处理',
+                'input_data': None,
+                'output_data': None,
+                'retry_count': 0,
+                'max_retries': 3,
+                'error_message': None,
+                'started_at': None,
+                'completed_at': None,
+                'created_at': None,
+                'domain_data': {
+                    'content_rewrite': None
+                }
+            })
 
         # 2. 添加 storyboard 阶段（整合其他阶段数据）
         if storyboard_stage:

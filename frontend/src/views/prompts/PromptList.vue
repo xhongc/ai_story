@@ -1,5 +1,5 @@
 <template>
-  <div class="prompt-list">
+  <div class="prompt-list p-6">
     <!-- 页面头部 -->
     <PageCard title="提示词管理">
       <template slot="header-right">
