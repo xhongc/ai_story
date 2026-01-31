@@ -126,13 +126,13 @@
           <div class="card-actions justify-end mt-8">
             <button
               type="button"
-              class="btn btn-ghost"
+              class="btn btn-ghost btn-sm"
               @click="handleCancel"
               :disabled="submitting"
             >
               取消
             </button>
-            <button type="submit" class="btn btn-primary" :disabled="submitting">
+            <button type="submit" class="btn btn-primary btn-sm" :disabled="submitting">
               <span v-if="submitting" class="loading loading-spinner loading-sm"></span>
               <span v-if="!submitting">
                 创建项目

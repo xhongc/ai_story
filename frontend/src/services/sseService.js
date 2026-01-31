@@ -3,8 +3,8 @@
  * 对接后端 ProjectStageSSEView 接口
  *
  * 后端接口:
- * - 单阶段: GET /api/v1/sse/projects/{project_id}/stages/{stage_name}/
- * - 所有阶段: GET /api/v1/sse/projects/{project_id}/
+ * - 单阶段: GET /api/v1/projects/sse/projects/{project_id}/stages/{stage_name}/
+ * - 所有阶段: GET /api/v1/projects/sse/projects/{project_id}/
  */
 
 const API_BASE_URL = process.env.VUE_APP_API_BASE_URL || 'http://localhost:8010';

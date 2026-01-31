@@ -368,7 +368,7 @@ export default {
 
       // 创建 SSE 客户端监听所有阶段
       // 注意：URL 路径是 /api/v1/projects/sse/projects/{id}/
-      const API_BASE_URL = process.env.VUE_APP_API_BASE_URL || 'http://localhost:8000';
+      const API_BASE_URL = process.env.VUE_APP_API_BASE_URL || 'http://localhost:8010';
       const sseUrl = `${API_BASE_URL}/api/v1/projects/sse/projects/${this.project.id}/`;
 
       console.log('[ProjectDetail] 连接 SSE:', sseUrl);
@@ -384,13 +384,21 @@ export default {
         .on('stage_update', (data) => {
           console.log('[Pipeline SSE] 阶段更新:', data);
 
-          // 只处理 pipeline 阶段的消息
-          if (data.stage === 'pipeline') {
-            this.$message.info(data.message || '工作流执行中...');
+          // 显示阶段更新消息
+          if (data.stage && data.stage !== 'pipeline') {
+            const stageNames = {
+              'rewrite': '文案改写',
+              'storyboard': '分镜生成',
+              'image_generation': '图片生成',
+              'camera_movement': '运镜生成',
+              'video_generation': '视频生成'
+            };
+            const stageName = stageNames[data.stage] || data.stage;
+            this.$message.info(`${stageName}: ${data.message || '执行中...'}`);
           }
 
-          // 刷新项目数据
-          this.fetchData(true);
+          // 实时刷新画布数据
+          this.refreshCanvasData();
         })
         .on('progress', (data) => {
           console.log('[Pipeline SSE] 进度更新:', data);
@@ -399,7 +407,23 @@ export default {
         .on('done', (data) => {
           console.log('[Pipeline SSE] 完成:', data);
 
-          // 只处理 pipeline 阶段的完成消息
+          // 显示阶段完成消息
+          if (data.stage && data.stage !== 'pipeline') {
+            const stageNames = {
+              'rewrite': '文案改写',
+              'storyboard': '分镜生成',
+              'image_generation': '图片生成',
+              'camera_movement': '运镜生成',
+              'video_generation': '视频生成'
+            };
+            const stageName = stageNames[data.stage] || data.stage;
+            this.$message.success(`${stageName} 完成`);
+
+            // 实时刷新画布数据
+            this.refreshCanvasData();
+          }
+
+          // 处理 pipeline 整体完成
           if (data.stage === 'pipeline') {
             this.$message.success('工作流执行完成！');
 
@@ -416,7 +440,23 @@ export default {
         .on('error', (data) => {
           console.error('[Pipeline SSE] 错误:', data);
 
-          // 只处理 pipeline 阶段的错误消息
+          // 显示阶段错误消息
+          if (data.stage && data.stage !== 'pipeline') {
+            const stageNames = {
+              'rewrite': '文案改写',
+              'storyboard': '分镜生成',
+              'image_generation': '图片生成',
+              'camera_movement': '运镜生成',
+              'video_generation': '视频生成'
+            };
+            const stageName = stageNames[data.stage] || data.stage;
+            this.$message.error(`${stageName} 失败: ${data.error || '未知错误'}`);
+
+            // 刷新画布数据
+            this.refreshCanvasData();
+          }
+
+          // 处理 pipeline 整体错误
           if (data.stage === 'pipeline') {
             this.$message.error(data.error || '工作流执行失败');
 
