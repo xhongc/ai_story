@@ -810,6 +810,67 @@ class ProjectViewSet(viewsets.ModelViewSet):
             }
         )
 
+    @action(detail=True, methods=["patch"])
+    def update_camera_movement(self, request, pk=None):
+        """
+        更新运镜参数
+        PATCH /api/v1/projects/projects/{id}/update_camera_movement/
+        Body: {
+            "camera_id": "...",
+            "movement_type": "...",
+            "movement_params": {...}
+        }
+        """
+        from apps.content.models import CameraMovement
+
+        project = self.get_object()
+        camera_id = request.data.get("camera_id")
+
+        if not camera_id:
+            return Response(
+                {"error": "缺少 camera_id"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        camera = get_object_or_404(
+            CameraMovement,
+            id=camera_id,
+            storyboard__project=project,
+        )
+
+        allowed_fields = [
+            "movement_type",
+            "movement_params",
+        ]
+
+        updates = {}
+        for field in allowed_fields:
+            if field in request.data:
+                updates[field] = request.data[field]
+
+        if not updates:
+            return Response(
+                {"error": "未提供可更新的字段"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        for field, value in updates.items():
+            setattr(camera, field, value)
+
+        camera.save()
+
+        return Response(
+            {
+                "message": "运镜参数已更新",
+                "camera_movement": {
+                    "id": str(camera.id),
+                    "movement_type": camera.movement_type,
+                    "movement_params": camera.movement_params,
+                    "updated_at": camera.updated_at.isoformat() if camera.updated_at else None,
+                },
+            }
+        )
+
     @action(detail=True, methods=["post"])
     def run_pipeline(self, request, pk=None):
         """

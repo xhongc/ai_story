@@ -116,8 +116,10 @@
           :movement-type="getCameraMovementType(storyboard)"
           :movement-params="getCameraMovementParams(storyboard)"
           :storyboard-id="storyboard.id"
+          :camera-id="getCameraId(storyboard)"
           :can-generate="getImageStatus(storyboard) === 'completed'"
           @generate="handleGenerateCamera"
+          @save="handleSaveCamera"
         />
 
         <!-- 视频生成节点 -->
@@ -475,6 +477,13 @@ export default {
       return null;
     },
 
+    getCameraId(storyboard) {
+      if (storyboard.camera_movement?.data) {
+        return storyboard.camera_movement.data.id;
+      }
+      return null;
+    },
+
     // 获取视频状态
     getVideoStatus(storyboard) {
       // 检查整个阶段是否正在执行
@@ -657,6 +666,10 @@ export default {
 
     handleSaveStoryboard({ storyboardId, data, silent }) {
       this.$emit('save-storyboard', { storyboardId, data, silent });
+    },
+
+    handleSaveCamera({ cameraId, data, silent }) {
+      this.$emit('save-camera', { cameraId, data, silent });
     },
 
     handleDeleteStoryboard(storyboardId) {

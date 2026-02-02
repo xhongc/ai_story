@@ -13,6 +13,7 @@
         @generate-camera="handleGenerateCamera"
         @generate-video="handleGenerateVideo"
         @save-storyboard="handleSaveStoryboard"
+        @save-camera="handleSaveCamera"
         @delete-storyboard="handleDeleteStoryboard"
         @draft-generated="handleDraftGenerated"
         @pipeline-started="handlePipelineStarted"
@@ -68,7 +69,8 @@ export default {
       'updateProject',
       'updateStageData',
       'updateRewrite',
-      'updateStoryboard'
+      'updateStoryboard',
+      'updateCameraMovement'
     ]),
     formatDate,
 
@@ -368,6 +370,25 @@ export default {
         console.error('Failed to save storyboard:', error);
         if (!silent) {
           this.$message.error('保存失败');
+        }
+      }
+    },
+
+    async handleSaveCamera({ cameraId, data, silent = false }) {
+      try {
+        await this.updateCameraMovement({
+          projectId: this.project.id,
+          cameraId,
+          data
+        });
+        if (!silent) {
+          this.$message.success('运镜参数保存成功');
+        }
+        await this.refreshCanvasData();
+      } catch (error) {
+        console.error('Failed to save camera movement:', error);
+        if (!silent) {
+          this.$message.error('运镜参数保存失败');
         }
       }
     },

@@ -68,12 +68,8 @@ class MockLLMClient(LLMClient):
         "camera_movement": """{
   "movement_type": "zoom_in",
   "movement_params": {
-    "start_scale": 1.0,
-    "end_scale": 1.2,
-    "duration": 3.0,
-    "easing": "ease_in_out"
-  },
-  "description": "缓慢推进镜头，聚焦主体"
+      "description": "缓慢推进镜头，聚焦主体"
+  }
 }""",
 
         "default": """这是一个模拟的 LLM 响应。

@@ -46,22 +46,6 @@
       <video :src="videoUrl" class="preview-video" controls></video>
     </div>
 
-    <!-- 视频信息 -->
-    <div v-if="status === 'completed' && videoInfo" class="node-info">
-      <div class="info-item">
-        <span class="info-label">时长:</span>
-        <span class="info-value">{{ videoInfo.duration }}s</span>
-      </div>
-      <div class="info-item">
-        <span class="info-label">分辨率:</span>
-        <span class="info-value">{{ videoInfo.width }}×{{ videoInfo.height }}</span>
-      </div>
-      <div class="info-item">
-        <span class="info-label">帧率:</span>
-        <span class="info-value">{{ videoInfo.fps }}fps</span>
-      </div>
-    </div>
-
   </div>
 </template>
 
@@ -135,7 +119,7 @@ export default {
 <style scoped>
 .video-gen-node {
   width: 250px;
-  min-height: 280px;
+  height: 280px;
   background: #fafafa;
   border: 2px solid hsl(var(--bc) / 0.2);
   border-radius: 0.75rem;
@@ -144,6 +128,7 @@ export default {
   transition: all 0.3s ease;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .video-gen-node:hover {
@@ -206,39 +191,19 @@ export default {
 }
 
 .video-preview {
+  flex: 1;
   width: 100%;
-  aspect-ratio: 16/9;
   overflow: hidden;
   background: hsl(var(--b3));
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .preview-video {
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-.node-info {
-  padding: 0.75rem 0.875rem;
-  border-bottom: 1px solid hsl(var(--bc) / 0.05);
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
-}
-
-.info-item {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.6875rem;
-}
-
-.info-label {
-  color: hsl(var(--bc) / 0.5);
-}
-
-.info-value {
-  color: hsl(var(--bc) / 0.8);
-  font-weight: 500;
 }
 
 </style>

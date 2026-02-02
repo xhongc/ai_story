@@ -363,6 +363,18 @@ const actions = {
     }
   },
 
+  // 更新运镜参数
+  async updateCameraMovement({ commit }, { projectId, cameraId, data }) {
+    try {
+      const payload = { camera_id: cameraId, ...data };
+      const result = await projectApi.updateCameraMovement(projectId, payload);
+      return result;
+    } catch (error) {
+      console.error('更新运镜失败:', error);
+      throw error;
+    }
+  },
+
   // 生成剪映草稿
   async generateJianyingDraft({ commit }, { projectId, options }) {
     try {

@@ -32,11 +32,15 @@
     <!-- 运镜类型 -->
     <div class="node-content">
       <label class="content-label">运镜类型</label>
-      <select
+      <input
         v-model="localMovementType"
-        class="select select-bordered select-xs w-full"
+        list="movement-type-options"
+        class="input input-bordered input-xs w-full input-sm"
         :disabled="status === 'processing'"
-      >
+        placeholder="自动选择或输入自定义类型"
+        @blur="handleMovementTypeChange"
+      />
+      <datalist id="movement-type-options">
         <option value="">自动选择</option>
         <option value="static">静态</option>
         <option value="zoom_in">推进</option>
@@ -47,19 +51,20 @@
         <option value="tilt_down">下摇</option>
         <option value="dolly_in">前推</option>
         <option value="dolly_out">后拉</option>
-      </select>
+      </datalist>
     </div>
 
     <!-- 运镜参数 -->
-    <div v-if="status === 'completed' && movementParams" class="node-info">
-      <div class="info-item">
-        <span class="info-label">速度:</span>
-        <span class="info-value">{{ movementParams.speed || 'N/A' }}</span>
-      </div>
-      <div class="info-item">
-        <span class="info-label">强度:</span>
-        <span class="info-value">{{ movementParams.intensity || 'N/A' }}</span>
-      </div>
+    <div v-if="status === 'completed' && movementParams" class="node-description">
+      <label class="content-label">运镜参数</label>
+      <textarea
+        v-model="localDescription"
+        class="description-textarea"
+        :disabled="status === 'processing'"
+        placeholder="输入运镜参数描述"
+        rows="3"
+        @blur="handleDescriptionChange"
+      ></textarea>
     </div>
 
   </div>
@@ -89,6 +94,10 @@ export default {
       type: [String, Number],
       required: true
     },
+    cameraId: {
+      type: [String, Number],
+      default: null
+    },
     canGenerate: {
       type: Boolean,
       default: true
@@ -97,7 +106,10 @@ export default {
   data() {
     return {
       localMovementType: this.movementType,
-      isGenerating: false
+      localDescription: this.movementParams?.description || '',
+      isGenerating: false,
+      lastSavedMovementType: this.movementType,
+      lastSavedDescription: this.movementParams?.description || ''
     };
   },
   computed: {
@@ -112,6 +124,16 @@ export default {
   watch: {
     movementType(newVal) {
       this.localMovementType = newVal;
+      this.lastSavedMovementType = newVal;
+    },
+    movementParams: {
+      handler(newVal) {
+        if (newVal?.description !== undefined) {
+          this.localDescription = newVal.description;
+          this.lastSavedDescription = newVal.description;
+        }
+      },
+      deep: true
     }
   },
   methods: {
@@ -131,6 +153,51 @@ export default {
     },
     async handleRegenerate() {
       await this.handleGenerate();
+    },
+    handleMovementTypeChange() {
+      // 当用户修改运镜类型时，自动保存
+      this.handleAutoSave();
+    },
+    handleDescriptionChange() {
+      // 当用户修改运镜描述时，自动保存
+      this.handleAutoSave();
+    },
+    handleAutoSave() {
+      // 检查是否有变化
+      const movementTypeChanged = this.localMovementType !== this.lastSavedMovementType;
+      const descriptionChanged = this.localDescription !== this.lastSavedDescription;
+
+      if (!movementTypeChanged && !descriptionChanged) {
+        return;
+      }
+
+      // 如果没有 cameraId，说明运镜还未生成，不需要保存
+      if (!this.cameraId) {
+        return;
+      }
+
+      // 构建更新数据
+      const data = {};
+      if (movementTypeChanged) {
+        data.movement_type = this.localMovementType;
+      }
+      if (descriptionChanged) {
+        data.movement_params = {
+          ...this.movementParams,
+          description: this.localDescription
+        };
+      }
+
+      // 触发保存事件
+      this.$emit('save', {
+        cameraId: this.cameraId,
+        data,
+        silent: true
+      });
+
+      // 更新最后保存的值
+      this.lastSavedMovementType = this.localMovementType;
+      this.lastSavedDescription = this.localDescription;
     }
   }
 };
@@ -222,27 +289,38 @@ export default {
   margin-bottom: 0.375rem;
 }
 
-.node-info {
-  padding: 0.625rem 0.875rem;
+.node-description {
+  padding: 0.75rem 0.875rem;
   border-bottom: 1px solid hsl(var(--bc) / 0.05);
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
 }
 
-.info-item {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.6875rem;
+.description-textarea {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: hsl(var(--bc) / 0.7);
+  background: hsl(var(--b2) / 0.3);
+  padding: 0.625rem;
+  border-radius: 0.375rem;
+  border: 1px solid hsl(var(--bc) / 0.1);
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  width: 100%;
+  resize: vertical;
+  min-height: 60px;
+  font-family: inherit;
+  transition: border-color 0.2s ease;
 }
 
-.info-label {
-  color: hsl(var(--bc) / 0.5);
+.description-textarea:focus {
+  outline: none;
+  border-color: hsl(var(--p));
+  background: hsl(var(--b1));
 }
 
-.info-value {
-  color: hsl(var(--bc) / 0.8);
-  font-weight: 500;
+.description-textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 </style>

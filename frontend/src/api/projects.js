@@ -205,6 +205,15 @@ export default {
   },
 
   /**
+   * 更新运镜参数
+   * @param {String} projectId - 项目ID
+   * @param {Object} data - 更新数据 {camera_id, movement_type?, movement_params?}
+   */
+  updateCameraMovement(projectId, data) {
+    return apiClient.patch(`/projects/projects/${projectId}/update_camera_movement/`, data);
+  },
+
+  /**
    * 运行完整工作流（智能跳过已完成阶段）
    * @param {String} projectId - 项目ID
    */

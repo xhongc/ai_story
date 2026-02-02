@@ -551,7 +551,7 @@ class LLMStageProcessor(StageProcessor):
                     raise ValueError("解析结果为空或格式错误")
 
                 movement_type = camera_data.get('movement_type', '')
-                movement_params = camera_data.get('params', {})
+                movement_params = camera_data.get('movement_params', {})
 
             except (ValueError, KeyError, TypeError) as e:
                 # 记录解析失败的原因
