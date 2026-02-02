@@ -4,6 +4,7 @@
       <!-- 只展示工作流画布 -->
       <project-canvas
         v-if="project"
+        ref="projectCanvas"
         :project="project"
         :stages="stages"
         @execute-stage="handleExecuteStage"
@@ -389,6 +390,11 @@ export default {
         .on('stage_update', (data) => {
           console.log('[Pipeline SSE] 阶段更新:', data);
 
+          // 设置阶段的 loading 状态
+          if (data.stage && data.stage !== 'pipeline' && data.status === 'processing') {
+            this.$refs.projectCanvas?.setStageLoading(data.stage, true);
+          }
+
           // 显示阶段更新消息
           if (data.stage && data.stage !== 'pipeline') {
             const stageNames = {
@@ -408,6 +414,11 @@ export default {
         .on('stage_completed', (data) => {
           console.log('[Pipeline SSE] 阶段完成:', data);
 
+          // 清除阶段的 loading 状态
+          if (data.stage && data.stage !== 'pipeline') {
+            this.$refs.projectCanvas?.setStageLoading(data.stage, false);
+          }
+
           // 显示阶段完成消息
           if (data.stage && data.stage !== 'pipeline') {
             const stageNames = {
@@ -426,10 +437,29 @@ export default {
         })
         .on('progress', (data) => {
           console.log('[Pipeline SSE] 进度更新:', data);
+
+          // 根据阶段类型设置对应分镜节点的 loading 状态
+          if (data.stage && data.current) {
+            const stageToItemType = {
+              'image_generation': 'image',
+              'camera_movement': 'camera',
+              'video_generation': 'video'
+            };
+            const itemType = stageToItemType[data.stage];
+            if (itemType) {
+              // 设置当前处理的分镜节点为 loading 状态
+              this.$refs.projectCanvas?.setItemLoading(itemType, data.current, true);
+            }
+          }
           // 可以在这里更新进度条
         })
         .on('item_completed', (data) => {
           console.log('[Pipeline SSE] 单项完成:', data);
+
+          // 清除单个分镜节点的 loading 状态
+          if (data.item_type && data.sequence_number) {
+            this.$refs.projectCanvas?.setItemLoading(data.item_type, data.sequence_number, false);
+          }
 
           // 单个分镜的图片/运镜/视频生成完成，刷新画布
           const itemTypeNames = {
@@ -454,6 +484,9 @@ export default {
           console.log('[Pipeline SSE] 流程完成:', data);
           this.$message.success('工作流执行完成！');
 
+          // 重置所有 loading 状态
+          this.$refs.projectCanvas?.resetAllLoading();
+
           // 刷新项目数据
           this.fetchData(true);
 
@@ -466,6 +499,9 @@ export default {
         .on('pipeline_error', (data) => {
           console.error('[Pipeline SSE] 流程错误:', data);
           this.$message.error(data.error || '工作流执行失败');
+
+          // 重置所有 loading 状态
+          this.$refs.projectCanvas?.resetAllLoading();
 
           // 刷新项目数据
           this.fetchData(true);

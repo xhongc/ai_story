@@ -188,6 +188,14 @@ export default {
         cameras: {}, // { storyboardId: true }
         videos: {} // { storyboardId: true }
       },
+      // 跟踪正在执行的阶段（用于整个阶段的 loading 状态）
+      executingStages: {
+        rewrite: false,
+        storyboard: false,
+        image_generation: false,
+        camera_movement: false,
+        video_generation: false
+      },
       // 运行流程状态
       isRunningPipeline: false,
       pipelineTaskId: null,
@@ -404,7 +412,14 @@ export default {
 
     // 获取图片状态
     getImageStatus(storyboard) {
-      // 检查是否正在执行
+      // 检查整个阶段是否正在执行
+      if (this.executingStages.image_generation) {
+        // 如果整个阶段正在执行，检查该分镜是否正在处理
+        if (this.executingNodes.images[storyboard.id]) {
+          return 'processing';
+        }
+      }
+      // 检查单个节点是否正在执行
       if (this.executingNodes.images[storyboard.id]) {
         return 'processing';
       }
@@ -425,7 +440,14 @@ export default {
 
     // 获取运镜状态
     getCameraStatus(storyboard) {
-      // 检查是否正在执行
+      // 检查整个阶段是否正在执行
+      if (this.executingStages.camera_movement) {
+        // 如果整个阶段正在执行，检查该分镜是否正在处理
+        if (this.executingNodes.cameras[storyboard.id]) {
+          return 'processing';
+        }
+      }
+      // 检查单个节点是否正在执行
       if (this.executingNodes.cameras[storyboard.id]) {
         return 'processing';
       }
@@ -454,7 +476,14 @@ export default {
 
     // 获取视频状态
     getVideoStatus(storyboard) {
-      // 检查是否正在执行
+      // 检查整个阶段是否正在执行
+      if (this.executingStages.video_generation) {
+        // 如果整个阶段正在执行，检查该分镜是否正在处理
+        if (this.executingNodes.videos[storyboard.id]) {
+          return 'processing';
+        }
+      }
+      // 检查单个节点是否正在执行
       if (this.executingNodes.videos[storyboard.id]) {
         return 'processing';
       }
@@ -670,6 +699,65 @@ export default {
         this.$message?.error(error.response?.data?.error || error.message || '启动工作流失败');
         this.isRunningPipeline = false;
       }
+    },
+
+    /**
+     * 设置阶段的 loading 状态
+     * @param {string} stageName - 阶段名称
+     * @param {boolean} isLoading - 是否正在加载
+     */
+    setStageLoading(stageName, isLoading) {
+      console.log('[ProjectCanvas] 设置阶段 loading:', stageName, isLoading);
+      if (this.executingStages.hasOwnProperty(stageName)) {
+        this.executingStages[stageName] = isLoading;
+      }
+    },
+
+    /**
+     * 设置单个分镜节点的 loading 状态
+     * @param {string} itemType - 节点类型 (image/camera/video)
+     * @param {number} sequenceNumber - 分镜序号
+     * @param {boolean} isLoading - 是否正在加载
+     */
+    setItemLoading(itemType, sequenceNumber, isLoading) {
+      console.log('[ProjectCanvas] 设置节点 loading:', itemType, sequenceNumber, isLoading);
+
+      // 根据序号找到对应的分镜
+      const storyboard = this.storyboards.find(s => s.sequence_number === sequenceNumber);
+      if (!storyboard) {
+        console.warn('[ProjectCanvas] 未找到分镜:', sequenceNumber);
+        return;
+      }
+
+      const storyboardId = storyboard.id;
+
+      if (itemType === 'image') {
+        this.$set(this.executingNodes.images, storyboardId, isLoading);
+      } else if (itemType === 'camera') {
+        this.$set(this.executingNodes.cameras, storyboardId, isLoading);
+      } else if (itemType === 'video') {
+        this.$set(this.executingNodes.videos, storyboardId, isLoading);
+      }
+    },
+
+    /**
+     * 重置所有 loading 状态
+     */
+    resetAllLoading() {
+      console.log('[ProjectCanvas] 重置所有 loading 状态');
+      this.isRunningPipeline = false;
+      this.executingStages = {
+        rewrite: false,
+        storyboard: false,
+        image_generation: false,
+        camera_movement: false,
+        video_generation: false
+      };
+      this.executingNodes = {
+        images: {},
+        cameras: {},
+        videos: {}
+      };
     }
   }
 };
