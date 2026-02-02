@@ -161,6 +161,14 @@ class LLMStageProcessor(StageProcessor):
                             project, stage, full_text, prompt, {"index": task.get("scene_number", "")}
                         )
 
+                        # 如果是运镜生成，发送单个运镜完成消息
+                        if self.stage_type == 'camera_movement':
+                            yield {
+                                'type': 'camera_generated',
+                                'scene_number': task.get("scene_number", index),
+                                'sequence_number': task.get("scene_number", index),
+                            }
+
                         # 更新阶段状态
                         ProjectStage.objects.filter(id=stage.id).update(
                             completed_at=timezone.now(),

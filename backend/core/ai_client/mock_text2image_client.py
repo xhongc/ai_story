@@ -49,7 +49,7 @@ class MockText2ImageClient(Text2ImageClient):
         start_time = time.time()
 
         # 模拟API延迟（图片生成通常较慢）
-        time.sleep(1.0)
+        time.sleep(5.0)
 
         # 从kwargs获取参数
         ratio = kwargs.get('ratio', '1:1')

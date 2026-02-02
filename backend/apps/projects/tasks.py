@@ -93,6 +93,14 @@ def execute_llm_stage(
                 full_text = chunk.get('full_text', full_text)
                 publisher.publish_token(content, full_text)
 
+            elif chunk_type == 'camera_generated':
+                # 单个运镜生成完成，通知前端刷新
+                publisher.publish_item_completed(
+                    item_type='camera',
+                    sequence_number=chunk.get('sequence_number', 0),
+                    metadata=chunk
+                )
+
             elif chunk_type == 'stage_update':
                 # 发布阶段更新
                 publisher.publish_stage_update(
@@ -243,6 +251,14 @@ def execute_text2image_stage(
                     item_name=chunk.get('item_name', ''),
                 )
 
+            elif chunk_type == 'image_generated':
+                # 单个图片生成完成，通知前端刷新
+                publisher.publish_item_completed(
+                    item_type='image',
+                    sequence_number=chunk.get('sequence_number', 0),
+                    metadata=chunk
+                )
+
             elif chunk_type == 'stage_update':
                 # 发布阶段更新
                 publisher.publish_stage_update(
@@ -376,6 +392,14 @@ def execute_image2video_stage(
                     current=chunk.get('current', 0),
                     total=chunk.get('total', 0),
                     item_name=chunk.get('item_name', '')
+                )
+
+            elif chunk_type == 'video_generated':
+                # 单个视频生成完成，通知前端刷新
+                publisher.publish_item_completed(
+                    item_type='video',
+                    sequence_number=chunk.get('scene_number', 0),
+                    metadata=chunk
                 )
 
             elif chunk_type == 'stage_update':

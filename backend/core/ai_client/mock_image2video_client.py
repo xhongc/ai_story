@@ -46,7 +46,7 @@ class MockImage2VideoClient(Image2VideoClient):
         start_time = time.time()
 
         # 模拟API延迟（视频生成通常很慢）
-        time.sleep(2.0)
+        time.sleep(5.0)
 
         # 从kwargs获取参数
         width = kwargs.get('width', 1280)

@@ -243,6 +243,7 @@ export const SSE_EVENT_TYPES = {
   TOKEN: 'token',
   STAGE_UPDATE: 'stage_update',
   STAGE_COMPLETED: 'stage_completed',
+  ITEM_COMPLETED: 'item_completed',
   PROGRESS: 'progress',
   DONE: 'done',
   STREAM_END: 'stream_end',

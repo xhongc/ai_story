@@ -428,6 +428,21 @@ export default {
           console.log('[Pipeline SSE] 进度更新:', data);
           // 可以在这里更新进度条
         })
+        .on('item_completed', (data) => {
+          console.log('[Pipeline SSE] 单项完成:', data);
+
+          // 单个分镜的图片/运镜/视频生成完成，刷新画布
+          const itemTypeNames = {
+            'image': '图片',
+            'camera': '运镜',
+            'video': '视频'
+          };
+          const itemTypeName = itemTypeNames[data.item_type] || data.item_type;
+          console.log(`[Pipeline SSE] 分镜 ${data.sequence_number} ${itemTypeName}生成完成`);
+
+          // 刷新画布数据
+          this.refreshCanvasData();
+        })
         .on('done', (data) => {
           console.log('[Pipeline SSE] done 消息:', data);
 

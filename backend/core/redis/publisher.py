@@ -191,6 +191,36 @@ class RedisStreamPublisher:
 
         return self.publish(message)
 
+    def publish_item_completed(
+        self,
+        item_type: str,
+        sequence_number: int,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> bool:
+        """
+        发布单个项目完成消息 (用于通知前端刷新单个分镜)
+
+        Args:
+            item_type: 项目类型 (image/camera/video)
+            sequence_number: 分镜序号
+            metadata: 元数据
+
+        Returns:
+            bool: 是否发布成功
+        """
+        message = {
+            'type': 'item_completed',
+            'stage': self.stage_name,
+            'project_id': self.project_id,
+            'item_type': item_type,
+            'sequence_number': sequence_number
+        }
+
+        if metadata:
+            message['metadata'] = metadata
+
+        return self.publish(message)
+
     def publish_error(self, error: str, retry_count: int = 0) -> bool:
         """
         发布错误消息
