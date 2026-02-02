@@ -166,7 +166,7 @@ export default {
 
 .status-completed {
   border-color: hsl(var(--su));
-  background: #f0fdf4;
+  background: #fafafa;
 }
 
 .status-failed {
