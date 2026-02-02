@@ -94,15 +94,19 @@ export default {
 
     fetchStoryboardsFromStages() {
       try {
-        // 从分镜阶段的output_data中获取分镜列表
+        // 从分镜阶段的domain_data中获取分镜列表
         const storyboardStage = this.stages.find(s => s.stage_type === 'storyboard');
         console.log('[ProjectDetail] Storyboard stage:', storyboardStage);
 
-        if (storyboardStage && storyboardStage.output_data && storyboardStage.output_data.storyboards) {
+        // 优先从 domain_data 获取（后端序列化器返回的真实领域数据）
+        // 如果没有则尝试从 output_data 获取（兼容旧数据）
+        const storyboardData = storyboardStage?.domain_data || storyboardStage?.output_data;
+
+        if (storyboardData && storyboardData.storyboards && storyboardData.storyboards.length > 0) {
           // 获取每个分镜的详细数据（包括images, camera_movement, videos）
-          this.storyboards = storyboardStage.output_data.storyboards.map((sb, index) => ({
+          this.storyboards = storyboardData.storyboards.map((sb, index) => ({
             ...sb,
-            sequence_number: index + 1,
+            sequence_number: sb.sequence_number || index + 1,
             images: sb.images || [],
             camera_movement: sb.camera_movement || null,
             videos: sb.videos || []
@@ -374,7 +378,8 @@ export default {
       console.log('[ProjectDetail] 连接 SSE:', sseUrl);
 
       this.pipelineSSEClient = new SSEClient();
-      this.pipelineSSEClient.connect(sseUrl);
+      // 全阶段订阅模式：只有 pipeline_done/pipeline_error 才关闭连接
+      this.pipelineSSEClient.connect(sseUrl, { allStagesMode: true });
 
       // 监听各种事件
       this.pipelineSSEClient
@@ -400,12 +405,8 @@ export default {
           // 实时刷新画布数据
           this.refreshCanvasData();
         })
-        .on('progress', (data) => {
-          console.log('[Pipeline SSE] 进度更新:', data);
-          // 可以在这里更新进度条
-        })
-        .on('done', (data) => {
-          console.log('[Pipeline SSE] 完成:', data);
+        .on('stage_completed', (data) => {
+          console.log('[Pipeline SSE] 阶段完成:', data);
 
           // 显示阶段完成消息
           if (data.stage && data.stage !== 'pipeline') {
@@ -418,27 +419,50 @@ export default {
             };
             const stageName = stageNames[data.stage] || data.stage;
             this.$message.success(`${stageName} 完成`);
-
-            // 实时刷新画布数据
-            this.refreshCanvasData();
           }
 
-          // 处理 pipeline 整体完成
-          if (data.stage === 'pipeline') {
-            this.$message.success('工作流执行完成！');
+          // 刷新画布数据
+          this.refreshCanvasData();
+        })
+        .on('progress', (data) => {
+          console.log('[Pipeline SSE] 进度更新:', data);
+          // 可以在这里更新进度条
+        })
+        .on('done', (data) => {
+          console.log('[Pipeline SSE] done 消息:', data);
 
-            // 刷新项目数据
-            this.fetchData(true);
+          // done 消息现在只用于单阶段订阅的结束信号
+          // 全阶段订阅使用 stage_completed 来刷新画布
+          // pipeline 整体完成使用 pipeline_done
+        })
+        .on('pipeline_done', (data) => {
+          console.log('[Pipeline SSE] 流程完成:', data);
+          this.$message.success('工作流执行完成！');
 
-            // 断开连接
-            if (this.pipelineSSEClient) {
-              this.pipelineSSEClient.disconnect();
-              this.pipelineSSEClient = null;
-            }
+          // 刷新项目数据
+          this.fetchData(true);
+
+          // 断开连接
+          if (this.pipelineSSEClient) {
+            this.pipelineSSEClient.disconnect();
+            this.pipelineSSEClient = null;
+          }
+        })
+        .on('pipeline_error', (data) => {
+          console.error('[Pipeline SSE] 流程错误:', data);
+          this.$message.error(data.error || '工作流执行失败');
+
+          // 刷新项目数据
+          this.fetchData(true);
+
+          // 断开连接
+          if (this.pipelineSSEClient) {
+            this.pipelineSSEClient.disconnect();
+            this.pipelineSSEClient = null;
           }
         })
         .on('error', (data) => {
-          console.error('[Pipeline SSE] 错误:', data);
+          console.error('[Pipeline SSE] 阶段错误:', data);
 
           // 显示阶段错误消息
           if (data.stage && data.stage !== 'pipeline') {
@@ -454,20 +478,6 @@ export default {
 
             // 刷新画布数据
             this.refreshCanvasData();
-          }
-
-          // 处理 pipeline 整体错误
-          if (data.stage === 'pipeline') {
-            this.$message.error(data.error || '工作流执行失败');
-
-            // 刷新项目数据
-            this.fetchData(true);
-
-            // 断开连接
-            if (this.pipelineSSEClient) {
-              this.pipelineSSEClient.disconnect();
-              this.pipelineSSEClient = null;
-            }
           }
         })
         .on('close', () => {

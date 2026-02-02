@@ -170,6 +170,27 @@ class RedisStreamPublisher:
 
         return self.publish(message)
 
+    def publish_stage_completed(self, metadata: Optional[Dict[str, Any]] = None) -> bool:
+        """
+        发布阶段完成消息 (用于通知前端刷新画布)
+
+        Args:
+            metadata: 元数据
+
+        Returns:
+            bool: 是否发布成功
+        """
+        message = {
+            'type': 'stage_completed',
+            'stage': self.stage_name,
+            'project_id': self.project_id
+        }
+
+        if metadata:
+            message['metadata'] = metadata
+
+        return self.publish(message)
+
     def publish_error(self, error: str, retry_count: int = 0) -> bool:
         """
         发布错误消息
@@ -188,6 +209,50 @@ class RedisStreamPublisher:
             'error': error,
             'retry_count': retry_count
         }
+        return self.publish(message)
+
+    def publish_pipeline_done(self, metadata: Optional[Dict[str, Any]] = None) -> bool:
+        """
+        发布流程完成消息 (用于全阶段订阅的结束信号)
+
+        Args:
+            metadata: 元数据
+
+        Returns:
+            bool: 是否发布成功
+        """
+        message = {
+            'type': 'pipeline_done',
+            'stage': self.stage_name,
+            'project_id': self.project_id
+        }
+
+        if metadata:
+            message['metadata'] = metadata
+
+        return self.publish(message)
+
+    def publish_pipeline_error(self, error: str, metadata: Optional[Dict[str, Any]] = None) -> bool:
+        """
+        发布流程错误消息 (用于全阶段订阅的错误结束信号)
+
+        Args:
+            error: 错误描述
+            metadata: 元数据
+
+        Returns:
+            bool: 是否发布成功
+        """
+        message = {
+            'type': 'pipeline_error',
+            'stage': self.stage_name,
+            'project_id': self.project_id,
+            'error': error
+        }
+
+        if metadata:
+            message['metadata'] = metadata
+
         return self.publish(message)
 
     def publish_progress(

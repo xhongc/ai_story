@@ -113,6 +113,8 @@ def execute_llm_stage(
                 )
                 # 发布完成消息
                 publisher.publish_done(full_text, metadata)
+                # 发布阶段完成消息 (通知前端刷新画布)
+                publisher.publish_stage_completed(metadata)
 
             elif chunk_type == 'error':
                 # 处理错误
@@ -260,6 +262,8 @@ def execute_text2image_stage(
                 )
                 # 发布完成消息
                 publisher.publish_done(metadata=metadata)
+                # 发布阶段完成消息 (通知前端刷新画布)
+                publisher.publish_stage_completed(metadata)
 
             elif chunk_type == 'error':
                 # 处理错误
@@ -387,6 +391,8 @@ def execute_image2video_stage(
                 metadata = chunk.get('metadata', {})
                 # 发布完成消息
                 publisher.publish_done(metadata=metadata)
+                # 发布阶段完成消息 (通知前端刷新画布)
+                publisher.publish_stage_completed(metadata)
 
             elif chunk_type == 'error':
                 # 处理错误
@@ -693,6 +699,15 @@ def run_full_pipeline_task(
             }
         )
 
+        # 发布流程完成消息 (用于全阶段订阅的结束信号)
+        publisher.publish_pipeline_done(
+            metadata={
+                'completed_stages': completed_stages,
+                'skipped_stages': skipped_stages,
+                'total_stages': len(stage_order)
+            }
+        )
+
         logger.info(f"完整工作流执行完成, 项目: {project_id}")
 
         return {
@@ -723,6 +738,9 @@ def run_full_pipeline_task(
 
         # 发布错误消息
         publisher.publish_error(error_msg)
+
+        # 发布流程错误消息 (用于全阶段订阅的结束信号)
+        publisher.publish_pipeline_error(error_msg)
 
         return {'success': False, 'error': error_msg}
 

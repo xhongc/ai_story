@@ -146,10 +146,19 @@ class RedisStreamSubscriber:
 
                         yield data
 
-                        # 如果收到done或error消息,结束监听
-                        if data.get('type') in ('done', 'error'):
-                            logger.info(f"收到结束消息: {data.get('type')}")
-                            break
+                        # 判断是否应该结束监听
+                        # 单阶段订阅: done/error 时结束
+                        # 全阶段订阅(模式匹配): pipeline_done/pipeline_error 时结束
+                        if '*' in self.channel:
+                            # 全阶段订阅: 只有 pipeline_done 或 pipeline_error 才结束
+                            if data.get('type') in ('pipeline_done', 'pipeline_error'):
+                                logger.info(f"收到流程结束消息: {data.get('type')}")
+                                break
+                        else:
+                            # 单阶段订阅: done/error 时结束
+                            if data.get('type') in ('done', 'error'):
+                                logger.info(f"收到阶段结束消息: {data.get('type')}")
+                                break
 
                     except json.JSONDecodeError as e:
                         logger.error(f"JSON解析失败: {str(e)}, 原始数据: {message['data']}")

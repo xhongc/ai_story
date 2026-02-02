@@ -19,6 +19,7 @@ export class SSEClient {
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 3;
     this.reconnectDelay = 1000; // 1秒
+    this.isAllStagesMode = false; // 是否为全阶段订阅模式
   }
 
   /**
@@ -26,10 +27,12 @@ export class SSEClient {
    * @param {string} url - SSE端点URL
    * @param {Object} options - 配置选项
    * @param {boolean} options.autoReconnect - 是否自动重连
+   * @param {boolean} options.allStagesMode - 是否为全阶段订阅模式
    * @returns {SSEClient} 返回自身以支持链式调用
    */
   connect(url, options = {}) {
-    const { autoReconnect = false } = options;
+    const { autoReconnect = false, allStagesMode = false } = options;
+    this.isAllStagesMode = allStagesMode;
 
     // 如果已有连接，先关闭
     if (this.eventSource) {
@@ -63,8 +66,14 @@ export class SSEClient {
             this.emit(data.type, data);
           }
 
-          // 如果收到done或error，自动关闭连接
-          if (data.type === 'done' || data.type === 'error' || data.type === 'stream_end') {
+          // 判断是否应该关闭连接
+          // 全阶段模式: 只有 pipeline_done/pipeline_error/stream_end 才关闭
+          // 单阶段模式: done/error/stream_end 都会关闭
+          const shouldClose = this.isAllStagesMode
+            ? ['pipeline_done', 'pipeline_error', 'stream_end'].includes(data.type)
+            : ['done', 'error', 'stream_end'].includes(data.type);
+
+          if (shouldClose) {
             console.log('[SSE] 收到结束信号，准备关闭连接');
             setTimeout(() => this.disconnect(), 100);
           }
@@ -213,7 +222,8 @@ export function createProjectStageSSE(projectId, stageName, options = {}) {
 export function createProjectAllStagesSSE(projectId, options = {}) {
   const client = new SSEClient();
   const url = `${API_BASE_URL}/api/v1/projects/sse/projects/${projectId}/`;
-  client.connect(url, options);
+  // 全阶段订阅模式：只有 pipeline_done/pipeline_error 才关闭连接
+  client.connect(url, { ...options, allStagesMode: true });
   return client;
 }
 
@@ -232,9 +242,12 @@ export const SSE_EVENT_TYPES = {
   CONNECTED: 'connected',
   TOKEN: 'token',
   STAGE_UPDATE: 'stage_update',
+  STAGE_COMPLETED: 'stage_completed',
   PROGRESS: 'progress',
   DONE: 'done',
   STREAM_END: 'stream_end',
+  PIPELINE_DONE: 'pipeline_done',
+  PIPELINE_ERROR: 'pipeline_error',
 };
 
 /**

@@ -66,7 +66,7 @@ class MockLLMClient(LLMClient):
 """,
 
         "camera_movement": """{
-  "movement_type": "slow_zoom_in",
+  "movement_type": "zoom_in",
   "movement_params": {
     "start_scale": 1.0,
     "end_scale": 1.2,
@@ -202,7 +202,7 @@ class MockLLMClient(LLMClient):
         # 根据关键词判断响应类型
         if any(keyword in prompt_lower for keyword in ['改写', 'rewrite', '润色', '优化文案']):
             return self.MOCK_RESPONSES['rewrite']
-        elif any(keyword in prompt_lower for keyword in ['分镜', 'storyboard', '场景', 'scene']):
+        elif any(keyword in prompt_lower for keyword in ['分镜', 'storyboard']):
             return self.MOCK_RESPONSES['storyboard']
         elif any(keyword in prompt_lower for keyword in ['运镜', 'camera', '镜头', 'movement']):
             return self.MOCK_RESPONSES['camera_movement']
