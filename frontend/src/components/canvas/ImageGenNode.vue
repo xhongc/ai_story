@@ -42,22 +42,13 @@
     </div>
 
     <!-- 图片预览 -->
-    <div v-if="imageUrl" class="image-preview">
-      <img :src="imageUrl" alt="生成的图片" class="preview-img" />
-    </div>
-
-    <!-- 提示词 -->
-    <div class="node-content">
-      <label class="content-label">提示词</label>
-      <textarea
-        v-model="localPrompt"
-        class="textarea textarea-bordered textarea-xs w-full"
-        rows="2"
-        placeholder="文生图提示词..."
-        :disabled="status === 'processing'"
-        @wheel.stop
-        @mousedown.stop
-      ></textarea>
+    <div class="image-preview">
+      <img v-if="imageUrl" :src="imageUrl" alt="生成的图片" class="preview-img" />
+      <div v-else class="image-placeholder">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      </div>
     </div>
 
   </div>
@@ -91,7 +82,9 @@ export default {
   data() {
     return {
       localPrompt: this.prompt,
-      isGenerating: false
+      isGenerating: false,
+      lastSavedPrompt: this.prompt || '',
+      isEditing: false
     };
   },
   computed: {
@@ -105,10 +98,34 @@ export default {
   },
   watch: {
     prompt(newVal) {
-      this.localPrompt = newVal;
+      if (!this.isEditing) {
+        this.localPrompt = newVal;
+        this.lastSavedPrompt = newVal || '';
+      }
     }
   },
   methods: {
+    handleFocus() {
+      this.isEditing = true;
+    },
+    handleBlur() {
+      this.isEditing = false;
+      this.handleAutoSave();
+    },
+    handleAutoSave() {
+      const nextPrompt = this.localPrompt || '';
+      if (nextPrompt === this.lastSavedPrompt) {
+        return;
+      }
+      this.$emit('save', {
+        storyboardId: this.storyboardId,
+        data: {
+          image_prompt: nextPrompt
+        },
+        silent: true
+      });
+      this.lastSavedPrompt = nextPrompt;
+    },
     async handleGenerate() {
       if (!this.localPrompt || !this.localPrompt.trim()) {
         this.$message?.warning('请先输入提示词');
@@ -140,7 +157,6 @@ export default {
 <style scoped>
 .image-gen-node {
   width: 250px;
-  min-height: 280px;
   background: #fafafa;
   border: 2px solid hsl(var(--bc) / 0.2);
   border-radius: 0.75rem;
@@ -149,6 +165,7 @@ export default {
   transition: all 0.3s ease;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .image-gen-node:hover {
@@ -211,10 +228,14 @@ export default {
 }
 
 .image-preview {
+  flex: 1;
   width: 100%;
-  aspect-ratio: 16/9;
+  min-height: 140px;
   overflow: hidden;
   background: hsl(var(--b3));
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .preview-img {
@@ -223,17 +244,12 @@ export default {
   object-fit: cover;
 }
 
-.node-content {
-  padding: 0.75rem 0.875rem;
-  border-bottom: 1px solid hsl(var(--bc) / 0.05);
-}
-
-.content-label {
-  display: block;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: hsl(var(--bc) / 0.6);
-  margin-bottom: 0.375rem;
+.image-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
 }
 
 </style>

@@ -105,6 +105,7 @@
           :prompt="storyboard.image_prompt"
           :storyboard-id="storyboard.id"
           @generate="handleGenerateImage"
+          @save="handleSaveStoryboard"
         />
 
         <!-- 运镜节点 -->
@@ -520,8 +521,8 @@ export default {
       this.$emit('execute-stage', { stageType, inputData });
     },
 
-    handleSaveStage({ stageType, outputData }) {
-      this.$emit('save-stage', { stageType, outputData });
+    handleSaveStage({ stageType, outputData, silent, skipRefresh }) {
+      this.$emit('save-stage', { stageType, outputData, silent, skipRefresh });
     },
 
     async handleGenerateImage({ storyboardId, prompt }) {
@@ -654,8 +655,8 @@ export default {
       }
     },
 
-    handleSaveStoryboard({ storyboardId, data }) {
-      this.$emit('save-storyboard', { storyboardId, data });
+    handleSaveStoryboard({ storyboardId, data, silent }) {
+      this.$emit('save-storyboard', { storyboardId, data, silent });
     },
 
     handleDeleteStoryboard(storyboardId) {

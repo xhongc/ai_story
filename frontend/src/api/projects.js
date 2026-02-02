@@ -187,6 +187,24 @@ export default {
   },
 
   /**
+   * 更新文案改写
+   * @param {String} projectId - 项目ID
+   * @param {Object} data - 更新数据 {rewritten_text, original_text?}
+   */
+  updateRewrite(projectId, data) {
+    return apiClient.patch(`/projects/projects/${projectId}/update_rewrite/`, data);
+  },
+
+  /**
+   * 更新分镜内容
+   * @param {String} projectId - 项目ID
+   * @param {Object} data - 更新数据 {storyboard_id, scene_description?, narration_text?, image_prompt?, duration_seconds?}
+   */
+  updateStoryboard(projectId, data) {
+    return apiClient.patch(`/projects/projects/${projectId}/update_storyboard/`, data);
+  },
+
+  /**
    * 运行完整工作流（智能跳过已完成阶段）
    * @param {String} projectId - 项目ID
    */

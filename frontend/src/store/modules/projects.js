@@ -340,6 +340,29 @@ const actions = {
     }
   },
 
+  // 更新文案改写
+  async updateRewrite({ commit }, { projectId, data }) {
+    try {
+      const result = await projectApi.updateRewrite(projectId, data);
+      return result;
+    } catch (error) {
+      console.error('更新文案改写失败:', error);
+      throw error;
+    }
+  },
+
+  // 更新分镜内容
+  async updateStoryboard({ commit }, { projectId, storyboardId, data }) {
+    try {
+      const payload = { storyboard_id: storyboardId, ...data };
+      const result = await projectApi.updateStoryboard(projectId, payload);
+      return result;
+    } catch (error) {
+      console.error('更新分镜失败:', error);
+      throw error;
+    }
+  },
+
   // 生成剪映草稿
   async generateJianyingDraft({ commit }, { projectId, options }) {
     try {

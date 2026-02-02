@@ -698,6 +698,118 @@ class ProjectViewSet(viewsets.ModelViewSet):
             }
         )
 
+    @action(detail=True, methods=["patch"])
+    def update_rewrite(self, request, pk=None):
+        """
+        更新文案改写内容
+        PATCH /api/v1/projects/projects/{id}/update_rewrite/
+        Body: {
+            "rewritten_text": "...",
+            "original_text": "..."  # 可选
+        }
+        """
+        from apps.content.models import ContentRewrite
+
+        project = self.get_object()
+        rewritten_text = request.data.get("rewritten_text", None)
+        original_text = request.data.get("original_text", None)
+
+        if rewritten_text is None:
+            return Response(
+                {"error": "缺少 rewritten_text"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        defaults = {
+            "original_text": original_text if original_text is not None else project.original_topic,
+            "rewritten_text": rewritten_text,
+        }
+
+        content_rewrite, _ = ContentRewrite.objects.update_or_create(
+            project=project,
+            defaults=defaults,
+        )
+
+        return Response(
+            {
+                "message": "文案改写已更新",
+                "rewrite": {
+                    "id": str(content_rewrite.id),
+                    "original_text": content_rewrite.original_text,
+                    "rewritten_text": content_rewrite.rewritten_text,
+                    "updated_at": content_rewrite.updated_at.isoformat() if content_rewrite.updated_at else None,
+                },
+            }
+        )
+
+    @action(detail=True, methods=["patch"])
+    def update_storyboard(self, request, pk=None):
+        """
+        更新分镜内容
+        PATCH /api/v1/projects/projects/{id}/update_storyboard/
+        Body: {
+            "storyboard_id": "...",
+            "scene_description": "...",
+            "narration_text": "...",
+            "image_prompt": "...",
+            "duration_seconds": 3.0
+        }
+        """
+        from apps.content.models import Storyboard
+
+        project = self.get_object()
+        storyboard_id = request.data.get("storyboard_id")
+
+        if not storyboard_id:
+            return Response(
+                {"error": "缺少 storyboard_id"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        storyboard = get_object_or_404(
+            Storyboard,
+            id=storyboard_id,
+            project=project,
+        )
+
+        allowed_fields = [
+            "scene_description",
+            "narration_text",
+            "image_prompt",
+            "duration_seconds",
+        ]
+
+        updates = {}
+        for field in allowed_fields:
+            if field in request.data:
+                updates[field] = request.data[field]
+
+        if not updates:
+            return Response(
+                {"error": "未提供可更新的字段"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        for field, value in updates.items():
+            setattr(storyboard, field, value)
+
+        storyboard.save()
+
+        return Response(
+            {
+                "message": "分镜已更新",
+                "storyboard": {
+                    "id": str(storyboard.id),
+                    "sequence_number": storyboard.sequence_number,
+                    "scene_description": storyboard.scene_description,
+                    "narration_text": storyboard.narration_text,
+                    "image_prompt": storyboard.image_prompt,
+                    "duration_seconds": storyboard.duration_seconds,
+                    "updated_at": storyboard.updated_at.isoformat() if storyboard.updated_at else None,
+                },
+            }
+        )
+
     @action(detail=True, methods=["post"])
     def run_pipeline(self, request, pk=None):
         """

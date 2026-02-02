@@ -27,13 +27,31 @@
     </div>
 
     <!-- 场景描述 -->
-    <div class="node-section">
-      <label class="section-label">场景描述</label>
-      <textarea
+    <div class="node-section node-section-compact">
+      <label class="section-label">场景</label>
+      <input
         v-model="sceneDescription"
+        type="text"
+        class="input input-bordered input-xs flex-1 input-sm"
+        placeholder="4字以内..."
+        maxlength="4"
+        @focus="handleFocus('scene')"
+        @blur="handleBlur('scene')"
+        @wheel.stop
+        @mousedown.stop
+      />
+    </div>
+
+    <!-- 图片提示词 -->
+    <div class="node-section">
+      <label class="section-label">图片提示词</label>
+      <textarea
+        v-model="imagePrompt"
         class="textarea textarea-bordered textarea-xs w-full"
         rows="4"
-        placeholder="场景描述..."
+        placeholder="图片生成提示词..."
+        @focus="handleFocus('imagePrompt')"
+        @blur="handleBlur('imagePrompt')"
         @wheel.stop
         @mousedown.stop
       ></textarea>
@@ -47,6 +65,8 @@
         class="textarea textarea-bordered textarea-xs w-full"
         rows="2"
         placeholder="旁白文案..."
+        @focus="handleFocus('narration')"
+        @blur="handleBlur('narration')"
         @wheel.stop
         @mousedown.stop
       ></textarea>
@@ -74,9 +94,42 @@ export default {
   },
   data() {
     return {
-      sceneDescription: this.storyboard.generation_metadata.raw_scene_data.visual_prompt || '',
-      narrationText: this.storyboard.generation_metadata.raw_scene_data.narration || ''
+      sceneDescription: this.storyboard.scene_description || '',
+      imagePrompt: this.storyboard.image_prompt || '',
+      narrationText: this.storyboard.narration_text || '',
+      isEditingScene: false,
+      isEditingImagePrompt: false,
+      isEditingNarration: false
     };
+  },
+  watch: {
+    'storyboard.scene_description': {
+      immediate: true,
+      handler(newVal) {
+        if (!this.isEditingScene) {
+          this.sceneDescription = newVal || '';
+          this.lastSavedScene = this.sceneDescription;
+        }
+      }
+    },
+    'storyboard.image_prompt': {
+      immediate: true,
+      handler(newVal) {
+        if (!this.isEditingImagePrompt) {
+          this.imagePrompt = newVal || '';
+          this.lastSavedImagePrompt = this.imagePrompt;
+        }
+      }
+    },
+    'storyboard.narration_text': {
+      immediate: true,
+      handler(newVal) {
+        if (!this.isEditingNarration) {
+          this.narrationText = newVal || '';
+          this.lastSavedNarration = this.narrationText;
+        }
+      }
+    }
   },
   computed: {
     nodeStyle() {
@@ -102,9 +155,53 @@ export default {
         storyboardId: this.storyboard.id,
         data: {
           scene_description: this.sceneDescription,
+          image_prompt: this.imagePrompt,
           narration_text: this.narrationText
-        }
+        },
+        silent: false
       });
+      this.lastSavedScene = this.sceneDescription;
+      this.lastSavedImagePrompt = this.imagePrompt;
+      this.lastSavedNarration = this.narrationText;
+    },
+    handleFocus(field) {
+      if (field === 'scene') {
+        this.isEditingScene = true;
+      } else if (field === 'imagePrompt') {
+        this.isEditingImagePrompt = true;
+      } else if (field === 'narration') {
+        this.isEditingNarration = true;
+      }
+    },
+    handleBlur(field) {
+      if (field === 'scene') {
+        this.isEditingScene = false;
+      } else if (field === 'imagePrompt') {
+        this.isEditingImagePrompt = false;
+      } else if (field === 'narration') {
+        this.isEditingNarration = false;
+      }
+      this.handleAutoSave();
+    },
+    handleAutoSave() {
+      const sceneChanged = this.sceneDescription !== this.lastSavedScene;
+      const imagePromptChanged = this.imagePrompt !== this.lastSavedImagePrompt;
+      const narrationChanged = this.narrationText !== this.lastSavedNarration;
+      if (!sceneChanged && !imagePromptChanged && !narrationChanged) {
+        return;
+      }
+      this.$emit('save', {
+        storyboardId: this.storyboard.id,
+        data: {
+          scene_description: this.sceneDescription,
+          image_prompt: this.imagePrompt,
+          narration_text: this.narrationText
+        },
+        silent: true
+      });
+      this.lastSavedScene = this.sceneDescription;
+      this.lastSavedImagePrompt = this.imagePrompt;
+      this.lastSavedNarration = this.narrationText;
     }
   }
 };
@@ -176,8 +273,21 @@ export default {
 }
 
 .node-section {
-  padding: 0.75rem 0.875rem;
+  padding: 0.15rem 0.875rem;
   border-bottom: 1px solid hsl(var(--bc) / 0.05);
+}
+
+.node-section-compact {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.875rem;
+}
+
+.node-section-compact .section-label {
+  margin-bottom: 0;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .section-label {

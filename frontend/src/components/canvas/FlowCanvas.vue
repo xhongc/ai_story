@@ -66,6 +66,7 @@ export default {
       startTranslateY: 0,
       minScale: 0.3,
       maxScale: 2,
+      lastFitSignature: null,
     };
   },
   computed: {
@@ -80,6 +81,7 @@ export default {
     // 初始化视图：自动适配所有节点
     this.$nextTick(() => {
       this.fitAllNodes();
+      this.lastFitSignature = this.getLayoutSignature();
     });
   },
   watch: {
@@ -87,6 +89,11 @@ export default {
     nodes: {
       deep: true,
       handler() {
+        const nextSignature = this.getLayoutSignature();
+        if (nextSignature === this.lastFitSignature) {
+          return;
+        }
+        this.lastFitSignature = nextSignature;
         this.$nextTick(() => {
           this.fitAllNodes();
         });
@@ -163,6 +170,21 @@ export default {
         this.translateY = 100;
         this.scale = 1;
       }
+    },
+
+    getLayoutSignature() {
+      const keys = Object.keys(this.nodes || {}).sort();
+      if (keys.length === 0) {
+        return 'empty';
+      }
+      return keys.map((key) => {
+        const node = this.nodes[key] || {};
+        const x = Number(node.x) || 0;
+        const y = Number(node.y) || 0;
+        const w = Number(node.width) || 0;
+        const h = Number(node.height) || 0;
+        return `${key}:${x},${y},${w},${h}`;
+      }).join('|');
     },
 
     // 鼠标拖动

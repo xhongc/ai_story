@@ -66,6 +66,8 @@
         rows="8"
         placeholder="改写后的文案将显示在这里..."
         :disabled="status === 'processing'"
+        @focus="handleFocus"
+        @blur="handleBlur"
         @wheel.stop
         @mousedown.stop
       ></textarea>
@@ -115,12 +117,13 @@ export default {
   },
   data() {
     return {
-      rewrittenContent: '',
       isExecuting: false,
       isSaving: false,
       isGeneratingStoryboard: false,
       sseClient: null,
-      streamingText: '' // 用于存储流式接收的文本
+      streamingText: '', // 用于存储流式接收的文本
+      lastSavedText: '',
+      isEditing: false
     };
   },
   computed: {
@@ -149,16 +152,38 @@ export default {
     }
   },
   watch: {
-    data: {
+    'data.rewritten_text': {
       immediate: true,
-      handler(newData) {
-        if (newData && newData.rewritten_content) {
-          this.rewrittenContent = newData.rewritten_content;
+      handler(newVal) {
+        if (!this.isEditing) {
+          this.lastSavedText = newVal || '';
         }
       }
     }
   },
   methods: {
+    handleFocus() {
+      this.isEditing = true;
+    },
+    handleBlur() {
+      this.isEditing = false;
+      this.handleAutoSave();
+    },
+    handleAutoSave() {
+      if (!this.data || this.status === 'processing') {
+        return;
+      }
+      const nextText = this.data.rewritten_text || '';
+      if (nextText === this.lastSavedText) {
+        return;
+      }
+      this.$emit('save', {
+        stageType: 'rewrite',
+        outputData: { rewritten_text: nextText },
+        silent: true
+      });
+      this.lastSavedText = nextText;
+    },
     async handleQuickExecute(mode='rewrite') {
       if (this.status === 'processing' || this.isExecuting) {
         return;
@@ -281,9 +306,11 @@ export default {
       try {
         await this.$emit('save', {
           stageType: 'rewrite',
-          outputData: { rewritten_content: this.rewrittenContent }
+          outputData: { rewritten_text: this.data?.rewritten_text || '' },
+          silent: false
         });
         this.$message?.success('保存成功');
+        this.lastSavedText = this.data?.rewritten_text || '';
       } catch (error) {
         this.$message?.error('保存失败');
       } finally {

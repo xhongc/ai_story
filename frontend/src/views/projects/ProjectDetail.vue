@@ -61,7 +61,15 @@ export default {
     }
   },
   methods: {
-    ...mapActions('projects', ['fetchProject', 'fetchProjectStages', 'executeStage', 'updateProject', 'updateStageData']),
+    ...mapActions('projects', [
+      'fetchProject',
+      'fetchProjectStages',
+      'executeStage',
+      'updateProject',
+      'updateStageData',
+      'updateRewrite',
+      'updateStoryboard'
+    ]),
     formatDate,
 
     async fetchData(preserveScroll = false) {
@@ -261,21 +269,40 @@ export default {
       }
     },
 
-    async handleSaveStage({ stageType, inputData, outputData, skipRefresh = false }) {
+    async handleSaveStage({ stageType, inputData, outputData, skipRefresh = false, silent = false }) {
       try {
+        if (stageType === 'rewrite') {
+          await this.updateRewrite({
+            projectId: this.project.id,
+            data: {
+              rewritten_text: outputData?.rewritten_text ?? ''
+            }
+          });
+          if (!silent) {
+            this.$message.success('保存成功');
+          }
+          if (!skipRefresh) {
+            await this.refreshCanvasData();
+          }
+          return;
+        }
+
         await this.updateStageData({
           projectId: this.project.id,
           stageName: stageType,
           data: { input_data: inputData, output_data: outputData },
         });
-        this.$message.success('保存成功');
-        // 只有在非流式生成期间才刷新数据，避免断开SSE连接
+        if (!silent) {
+          this.$message.success('保存成功');
+        }
         if (!skipRefresh) {
           await this.fetchData(true); // 保持滚动位置
         }
       } catch (error) {
         console.error('Failed to save stage:', error);
-        this.$message.error('保存失败');
+        if (!silent) {
+          this.$message.error('保存失败');
+        }
       }
     },
 
@@ -326,15 +353,22 @@ export default {
       }
     },
 
-    async handleSaveStoryboard({ storyboardId, data }) {
+    async handleSaveStoryboard({ storyboardId, data, silent = false }) {
       try {
-        // TODO: 调用保存分镜API
-        console.log('Save storyboard:', storyboardId, data);
-        this.$message.success('保存成功');
-        await this.fetchData(true);
+        await this.updateStoryboard({
+          projectId: this.project.id,
+          storyboardId,
+          data
+        });
+        if (!silent) {
+          this.$message.success('保存成功');
+        }
+        await this.refreshCanvasData();
       } catch (error) {
         console.error('Failed to save storyboard:', error);
-        this.$message.error('保存失败');
+        if (!silent) {
+          this.$message.error('保存失败');
+        }
       }
     },
 
