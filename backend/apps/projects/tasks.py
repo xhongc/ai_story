@@ -98,7 +98,7 @@ def execute_llm_stage(
                 publisher.publish_item_completed(
                     item_type='camera',
                     sequence_number=chunk.get('sequence_number', 0),
-                    metadata=chunk
+                    metadata={'sequence_number': chunk.get('sequence_number', 0)}
                 )
 
             elif chunk_type == 'stage_update':
@@ -256,7 +256,7 @@ def execute_text2image_stage(
                 publisher.publish_item_completed(
                     item_type='image',
                     sequence_number=chunk.get('sequence_number', 0),
-                    metadata=chunk
+                    metadata={'sequence_number': chunk.get('sequence_number', 0)}
                 )
 
             elif chunk_type == 'stage_update':
@@ -399,7 +399,7 @@ def execute_image2video_stage(
                 publisher.publish_item_completed(
                     item_type='video',
                     sequence_number=chunk.get('scene_number', 0),
-                    metadata=chunk
+                    metadata={'scene_number': chunk.get('scene_number', 0)}
                 )
 
             elif chunk_type == 'stage_update':

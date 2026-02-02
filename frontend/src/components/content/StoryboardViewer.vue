@@ -852,7 +852,6 @@ export default {
         })
         .on(SSE_EVENT_TYPES.TOKEN, (data) => {
           // 实时更新输出文本
-          console.log('[StageContent] 收到 token:', data);
           if (data.full_text !== undefined) {
             this.localOutputData = data.full_text;
             // 自动滚动到底部
@@ -865,19 +864,16 @@ export default {
           }
         })
         .on(SSE_EVENT_TYPES.STAGE_UPDATE, (data) => {
-          console.log('[StageContent] 阶段更新:', data);
           if (data.progress !== undefined) {
             this.streamProgress = data.progress;
           }
         })
         .on(SSE_EVENT_TYPES.PROGRESS, (data) => {
-          console.log('[StageContent] 进度更新:', data);
           if (data.progress !== undefined) {
             this.streamProgress = data.progress;
           }
         })
         .on(SSE_EVENT_TYPES.DONE, (data) => {
-          console.log('[StageContent] 生成完成:', data);
           // 更新最终输出
           if (data.full_text !== undefined) {
             this.localOutputData = data.full_text;
