@@ -34,9 +34,12 @@ docker-compose exec backend python manage.py createsuperuser
 
 ## 界面预览
 
-![视频生成](image-1.png)
-![工作流程](52ad03b84c6f74801448dca2cc40c193.png)
-![导演模式](5b2dc4d4a7983401fe39c760dd7bedd6.png)
+![视频生成](image-2.png)
+![视频生成](image-6.png)
+![视频生成](image-3.png)
+![视频生成](image-4.png)
+![视频生成](image-5.png)
+
 
 **导演模式** - 正在开发中，支持更精细的分镜和视频控制
 ![导演模式界面](image2.png)
