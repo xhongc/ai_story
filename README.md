@@ -28,9 +28,7 @@ docker-compose exec backend python manage.py createsuperuser
 
 **访问地址:**
 - 前端应用: http://localhost:3000
-- 后端管理: http://localhost:8000/admin
-
-详细的开发文档请查看 [CLAUDE.md](CLAUDE.md)
+- 后端管理: http://localhost:8010
 
 ---
 
@@ -184,4 +182,5 @@ AI分析每个场景，自动生成合适的镜头运动方案。
 ## 联系方式
 
 - 视频号：小小方圆669
+- 作者微信：charlesnowed （添加好友请备注 **AI Story**）
 - 项目地址：https://github.com/xhongc/ai_story
