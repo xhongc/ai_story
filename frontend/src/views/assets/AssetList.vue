@@ -5,7 +5,12 @@
         <h1 class="page-title">资产管理</h1>
         <p class="page-subtitle">管理全局变量与系统资源</p>
       </div>
-      <button class="primary-action" @click="handleCreate">新建资产</button>
+      <button class="primary-action" @click="handleCreate">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+        <span>新建资产</span>
+      </button>
     </div>
 
     <div class="filter-card">
@@ -46,13 +51,25 @@
 
     <LoadingContainer :loading="loading" class="loading-container">
       <div v-if="!loading && assets.length === 0" class="empty-state">
-        <div class="empty-hero">暂无资产</div>
+        <svg class="empty-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+        </svg>
+        <p class="empty-text">暂无资产</p>
         <p class="empty-hint">创建第一个资产，统一管理变量与资源</p>
         <button class="secondary-action" @click="handleCreate">新建资产</button>
       </div>
 
       <div v-else class="card-grid">
-        <article v-for="asset in assets" :key="asset.id" class="data-card">
+        <article
+          v-for="asset in assets"
+          :key="asset.id"
+          class="data-card"
+          @click="handleEdit(asset)"
+          role="button"
+          tabindex="0"
+          @keydown.enter="handleEdit(asset)"
+          @keydown.space.prevent="handleEdit(asset)"
+        >
           <div class="card-header">
             <code class="asset-key">{{ asset.key }}</code>
             <StatusBadge :status="asset.is_active ? 'active' : 'inactive'" />
@@ -65,7 +82,7 @@
                 :src="asset.image_url"
                 :alt="asset.key"
                 class="thumb"
-                @click="previewImage(asset.image_url)"
+                @click.stop="previewImage(asset.image_url)"
               />
               <span v-else class="muted">未上传</span>
             </div>
@@ -93,14 +110,7 @@
             <div class="row-actions">
               <button
                 class="ghost-action"
-                @click="handleEdit(asset)"
-                title="编辑"
-              >
-                编辑
-              </button>
-              <button
-                class="ghost-action danger"
-                @click="handleDelete(asset)"
+                @click.stop="handleDelete(asset)"
                 :disabled="asset.scope === 'system' && !isAdmin"
                 title="删除"
               >
@@ -278,6 +288,7 @@ export default {
 .page-shell {
   min-height: 100vh;
   padding: 2.5rem 3.5rem 3rem;
+  background: transparent;
 }
 
 .loading-container {
@@ -299,10 +310,11 @@ export default {
 }
 
 .page-title {
-  font-size: 2.1rem;
+  font-size: 2.2rem;
   font-weight: 600;
   color: #0f172a;
   margin: 0;
+  letter-spacing: -0.02em;
 }
 
 .page-subtitle {
@@ -312,12 +324,17 @@ export default {
 }
 
 .primary-action {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   padding: 0.75rem 1.5rem;
   border-radius: 999px;
   border: 1px solid rgba(15, 23, 42, 0.12);
   background: #ffffff;
   color: #0f172a;
+  font-size: 0.95rem;
   font-weight: 500;
+  cursor: pointer;
   transition: all 0.2s ease;
 }
 
@@ -325,6 +342,10 @@ export default {
   border-color: rgba(20, 184, 166, 0.6);
   box-shadow: 0 12px 24px rgba(20, 184, 166, 0.18);
   transform: translateY(-1px);
+}
+
+.primary-action:active {
+  transform: translateY(0);
 }
 
 .filter-card {
@@ -337,12 +358,14 @@ export default {
   border: 1px solid rgba(148, 163, 184, 0.2);
   box-shadow: 0 16px 32px rgba(15, 23, 42, 0.08);
   margin-bottom: 2.5rem;
+  backdrop-filter: blur(10px);
 }
 
 .search-box {
   position: relative;
   flex: 1;
-  min-width: 220px;
+  min-width: 280px;
+  max-width: 400px;
 }
 
 .search-icon {
@@ -353,6 +376,7 @@ export default {
   width: 1.25rem;
   height: 1.25rem;
   color: #94a3b8;
+  pointer-events: none;
 }
 
 .search-input {
@@ -361,7 +385,9 @@ export default {
   border-radius: 14px;
   border: 1px solid rgba(148, 163, 184, 0.35);
   background: rgba(255, 255, 255, 0.9);
+  font-size: 0.95rem;
   outline: none;
+  transition: all 0.2s ease;
 }
 
 .search-input:focus {
@@ -369,10 +395,15 @@ export default {
   box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.18);
 }
 
+.search-input::placeholder {
+  color: #cbd5e1;
+}
+
 .select-group {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
+  align-items: center;
 }
 
 .select-input {
@@ -382,6 +413,15 @@ export default {
   border: 1px solid rgba(148, 163, 184, 0.35);
   background: rgba(255, 255, 255, 0.9);
   color: #0f172a;
+  font-size: 0.875rem;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.select-input:focus {
+  border-color: rgba(20, 184, 166, 0.6);
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.18);
 }
 
 .card-grid {
@@ -404,13 +444,13 @@ export default {
 
 @media (min-width: 1024px) {
   .card-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
 @media (min-width: 1280px) {
   .card-grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -422,14 +462,46 @@ export default {
 
 .data-card {
   background: rgba(255, 255, 255, 0.92);
-  border-radius: 18px;
+  border-radius: 16px;
   border: 1px solid rgba(148, 163, 184, 0.2);
-  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.08);
-  padding: 1.25rem;
+  padding: 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
   min-width: 0;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+}
+
+.data-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, rgba(20, 184, 166, 0.7) 0%, rgba(14, 165, 233, 0.7) 100%);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s ease;
+}
+
+.data-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12);
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.data-card:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.18);
+  border-color: rgba(20, 184, 166, 0.6);
+}
+
+.data-card:hover::before {
+  transform: scaleX(1);
 }
 
 .card-header {
@@ -460,6 +532,54 @@ export default {
   gap: 0.5rem;
 }
 
+.badge {
+  background: rgba(148, 163, 184, 0.12);
+  border-color: rgba(148, 163, 184, 0.24);
+  color: #0f172a;
+}
+
+.badge-info {
+  background: rgba(59, 130, 246, 0.16);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: #1d4ed8;
+}
+
+.badge-success {
+  background: rgba(16, 185, 129, 0.16);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #047857;
+}
+
+.badge-warning {
+  background: rgba(245, 158, 11, 0.18);
+  border-color: rgba(245, 158, 11, 0.35);
+  color: #b45309;
+}
+
+.badge-secondary {
+  background: rgba(148, 163, 184, 0.2);
+  border-color: rgba(148, 163, 184, 0.35);
+  color: #475569;
+}
+
+.badge-accent {
+  background: rgba(14, 165, 233, 0.16);
+  border-color: rgba(14, 165, 233, 0.3);
+  color: #0284c7;
+}
+
+.badge-primary {
+  background: rgba(20, 184, 166, 0.16);
+  border-color: rgba(20, 184, 166, 0.35);
+  color: #0f766e;
+}
+
+.badge-error {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #b91c1c;
+}
+
 .pill {
   padding: 0.2rem 0.6rem;
   border-radius: 999px;
@@ -487,7 +607,7 @@ export default {
 
 .asset-key {
   font-family: 'Courier New', monospace;
-  background: rgba(148, 163, 184, 0.15);
+  background: rgba(148, 163, 184, 0.12);
   padding: 0.2rem 0.5rem;
   border-radius: 8px;
   font-size: 0.85rem;
@@ -507,11 +627,18 @@ export default {
   border-radius: 10px;
   object-fit: cover;
   cursor: pointer;
+  border: 1px solid rgba(148, 163, 184, 0.2);
 }
 
 .row-actions {
   display: flex;
   gap: 0.5rem;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.data-card:hover .row-actions {
+  opacity: 1;
 }
 
 .ghost-action {
@@ -521,10 +648,14 @@ export default {
   background: rgba(15, 23, 42, 0.04);
   color: #0f172a;
   font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .ghost-action:hover {
-  border-color: rgba(15, 23, 42, 0.1);
+  border-color: rgba(248, 113, 113, 0.35);
+  background: rgba(248, 113, 113, 0.12);
+  color: #dc2626;
 }
 
 .ghost-action.danger {
@@ -537,27 +668,48 @@ export default {
 }
 
 .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   text-align: center;
-  padding: 4rem 1rem;
+  padding: 6rem 2rem;
 }
 
-.empty-hero {
-  font-size: 1.3rem;
+.empty-icon {
+  width: 4rem;
+  height: 4rem;
+  color: #cbd5e1;
+  margin-bottom: 1.5rem;
+}
+
+.empty-text {
+  font-size: 1.25rem;
   font-weight: 600;
   color: #0f172a;
+  margin: 0 0 0.5rem 0;
 }
 
 .empty-hint {
   color: #94a3b8;
-  margin: 0.6rem 0 1.6rem;
+  margin: 0 0 2rem 0;
 }
 
 .secondary-action {
-  padding: 0.75rem 1.75rem;
+  padding: 0.875rem 2rem;
   border-radius: 999px;
   background: #0f172a;
   color: #ffffff;
   border: none;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.secondary-action:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.18);
 }
 
 @media (max-width: 768px) {
@@ -565,13 +717,23 @@ export default {
     padding: 2rem 1.5rem;
   }
 
+  .page-title {
+    font-size: 2rem;
+  }
+
   .page-header {
     flex-direction: column;
     align-items: flex-start;
+    gap: 1.5rem;
   }
 
   .primary-action {
     width: 100%;
+    justify-content: center;
+  }
+
+  .filter-card {
+    flex-direction: column;
   }
 
   .row-actions {

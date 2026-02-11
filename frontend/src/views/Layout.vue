@@ -390,6 +390,9 @@ export default {
 .drawer-content {
   position: relative;
   z-index: 1;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 @media (min-width: 1024px) {
@@ -475,7 +478,7 @@ export default {
   margin: 18px 20px 24px;
   padding: 22px;
   border-radius: 24px;
-  background: var(--surface-strong);
+  background: var(--surface);
   border: 1px solid rgba(148, 163, 184, 0.2);
   box-shadow: 0 24px 50px rgba(15, 23, 42, 0.12);
   overflow: hidden;

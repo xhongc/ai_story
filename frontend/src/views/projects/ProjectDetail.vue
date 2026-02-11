@@ -1,24 +1,26 @@
 <template>
   <div class="project-detail">
     <loading-container :loading="loading">
-      <!-- 只展示工作流画布 -->
-      <project-canvas
-        v-if="project"
-        ref="projectCanvas"
-        :project="project"
-        :stages="stages"
-        @execute-stage="handleExecuteStage"
-        @save-stage="handleSaveStage"
-        @generate-image="handleGenerateImage"
-        @generate-camera="handleGenerateCamera"
-        @generate-video="handleGenerateVideo"
-        @save-storyboard="handleSaveStoryboard"
-        @save-camera="handleSaveCamera"
-        @delete-storyboard="handleDeleteStoryboard"
-        @draft-generated="handleDraftGenerated"
-        @pipeline-started="handlePipelineStarted"
-        @storyboard-generated="handleStoryboardGenerated"
-      />
+      <div class="project-detail__canvas">
+        <!-- 只展示工作流画布 -->
+        <project-canvas
+          v-if="project"
+          ref="projectCanvas"
+          :project="project"
+          :stages="stages"
+          @execute-stage="handleExecuteStage"
+          @save-stage="handleSaveStage"
+          @generate-image="handleGenerateImage"
+          @generate-camera="handleGenerateCamera"
+          @generate-video="handleGenerateVideo"
+          @save-storyboard="handleSaveStoryboard"
+          @save-camera="handleSaveCamera"
+          @delete-storyboard="handleDeleteStoryboard"
+          @draft-generated="handleDraftGenerated"
+          @pipeline-started="handlePipelineStarted"
+          @storyboard-generated="handleStoryboardGenerated"
+        />
+      </div>
     </loading-container>
   </div>
 </template>
@@ -599,5 +601,14 @@ export default {
   width: 100%;
   max-width: 100%;
   height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.project-detail__canvas {
+  height: 100%;
+  min-height: 600px;
+  display: flex;
+  flex-direction: column;
 }
 </style>

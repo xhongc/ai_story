@@ -3,7 +3,7 @@
     <div class="page-header">
       <div class="page-header-main">
         <h1 class="page-title">提示词管理</h1>
-        <p class="page-subtitle">管理提示词集与模板</p>
+        <p class="page-subtitle">{{ total }} 个提示词集</p>
       </div>
       <button class="primary-action" @click="handleCreate">
         <span>创建提示词集</span>
@@ -23,17 +23,25 @@
           @input="handleSearch"
         />
       </div>
-      <div class="select-group">
-        <select v-model="filterStatus" class="select-input" @change="handleFilter">
-          <option value="">全部状态</option>
-          <option value="active">仅激活</option>
-          <option value="inactive">仅停用</option>
-        </select>
-        <select v-model="filterDefault" class="select-input" @change="handleFilter">
-          <option value="">全部</option>
-          <option value="true">仅默认</option>
-          <option value="false">非默认</option>
-        </select>
+      <div class="status-filters">
+        <button
+          v-for="status in statusOptions"
+          :key="status.value"
+          :class="['status-filter-btn', { active: filterStatus === status.value }]"
+          @click="handleStatusFilter(status.value)"
+        >
+          {{ status.label }}
+        </button>
+      </div>
+      <div class="status-filters">
+        <button
+          v-for="option in defaultOptions"
+          :key="option.value"
+          :class="['status-filter-btn', { active: filterDefault === option.value }]"
+          @click="handleDefaultFilter(option.value)"
+        >
+          {{ option.label }}
+        </button>
       </div>
     </div>
 
@@ -45,7 +53,15 @@
       </div>
 
       <div v-else class="card-grid">
-        <article v-for="set in promptSets" :key="set.id" class="data-card">
+        <article
+          v-for="set in promptSets"
+          :key="set.id"
+          class="data-card"
+          role="button"
+          tabindex="0"
+          @click="handleView(set)"
+          @keyup.enter="handleView(set)"
+        >
           <div class="card-top">
             <div>
               <h2 class="card-title">
@@ -70,10 +86,9 @@
 
           <div class="card-footer">
             <span class="meta-time">更新于 {{ formatDate(set.updated_at) }}</span>
-            <div class="card-actions">
-              <button class="ghost-action" @click="handleView(set)">编辑</button>
+            <div class="card-actions" @click.stop>
               <div class="dropdown dropdown-end">
-                <label tabindex="0" class="ghost-action">更多</label>
+                <label tabindex="0" class="ghost-action" @click.stop>更多</label>
                 <ul
                   tabindex="0"
                   class="dropdown-content z-[1] menu p-2 shadow-lg bg-base-100 rounded-box w-52 border border-base-300"
@@ -158,6 +173,16 @@ export default {
       cloneName: '',
       cloneTarget: null,
       searchTimer: null,
+      statusOptions: [
+        { value: '', label: '全部' },
+        { value: 'active', label: '已启用' },
+        { value: 'inactive', label: '已停用' },
+      ],
+      defaultOptions: [
+        { value: '', label: '全部' },
+        { value: 'true', label: '默认' },
+        { value: 'false', label: '非默认' },
+      ],
     };
   },
   computed: {
@@ -223,6 +248,16 @@ export default {
       this.fetchData();
     },
 
+    handleStatusFilter(status) {
+      this.filterStatus = status;
+      this.handleFilter();
+    },
+
+    handleDefaultFilter(value) {
+      this.filterDefault = value;
+      this.handleFilter();
+    },
+
     handlePageChange(page) {
       this.currentPage = page;
       this.fetchData();
@@ -233,7 +268,7 @@ export default {
     },
 
     handleView(set) {
-      this.$router.push(`/prompts/sets/${set.id}`);
+      this.$router.push(`/prompts/sets/${set.id}/edit`);
     },
 
     handleEdit(set) {
@@ -305,6 +340,7 @@ export default {
 .page-shell {
   min-height: 100vh;
   padding: 2.5rem 3.5rem 3rem;
+  background: transparent;
 }
 
 .page-header {
@@ -322,7 +358,7 @@ export default {
 }
 
 .page-title {
-  font-size: 2.1rem;
+  font-size: 2.2rem;
   font-weight: 600;
   color: #0f172a;
   margin: 0;
@@ -393,24 +429,39 @@ export default {
   box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.18);
 }
 
-.select-group {
+.status-filters {
   display: flex;
-  gap: 0.75rem;
+  gap: 0.5rem;
   flex-wrap: wrap;
 }
 
-.select-input {
-  min-width: 140px;
-  padding: 0.75rem 1rem;
-  border-radius: 14px;
+.status-filter-btn {
+  padding: 0.625rem 1.25rem;
   border: 1px solid rgba(148, 163, 184, 0.35);
   background: rgba(255, 255, 255, 0.9);
-  color: #0f172a;
+  color: #64748b;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
+
+.status-filter-btn:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.status-filter-btn.active {
+  background: rgba(20, 184, 166, 0.16);
+  color: #0f172a;
+  border-color: rgba(20, 184, 166, 0.5);
+}
+
 
 .card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 1.5rem;
 }
 
@@ -423,11 +474,39 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 0;
+}
+
+.data-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, rgba(20, 184, 166, 0.7) 0%, rgba(14, 165, 233, 0.7) 100%);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s ease;
+}
+
+.data-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12);
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.data-card:hover::before {
+  transform: scaleX(1);
 }
 
 .card-top {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 1rem;
 }
 
@@ -495,6 +574,12 @@ export default {
 .card-actions {
   display: flex;
   gap: 0.5rem;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.data-card:hover .card-actions {
+  opacity: 1;
 }
 
 .ghost-action {
@@ -508,6 +593,7 @@ export default {
 
 .ghost-action:hover {
   border-color: rgba(15, 23, 42, 0.1);
+  background: rgba(15, 23, 42, 0.08);
 }
 
 .empty-state {
@@ -572,6 +658,10 @@ export default {
     flex-direction: column;
     align-items: flex-start;
     gap: 0.75rem;
+  }
+
+  .card-actions {
+    opacity: 1;
   }
 }
 </style>

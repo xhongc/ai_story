@@ -124,6 +124,12 @@ export default {
         return;
       }
 
+      const container = wrapper.querySelector('.canvas-container');
+      if (!container) {
+        this.centerView();
+        return;
+      }
+
       // 计算所有节点的边界
       let minX = Infinity;
       let minY = Infinity;
@@ -142,8 +148,13 @@ export default {
       const contentHeight = maxY - minY;
 
       // 计算容器的宽高
-      const containerWidth = wrapper.clientWidth;
-      const containerHeight = wrapper.clientHeight;
+      const containerWidth = container.clientWidth;
+      const containerHeight = container.clientHeight;
+
+      if (containerWidth === 0 || containerHeight === 0) {
+        this.centerView();
+        return;
+      }
 
       // 计算合适的缩放比例（留出边距）
       const padding = 50; // 边距
@@ -227,6 +238,7 @@ export default {
   position: relative;
   width: 100%;
   height: 100%;
+  flex: 1;
   min-height: 600px;
   background: hsl(var(--b2));
   border-radius: 0.5rem;

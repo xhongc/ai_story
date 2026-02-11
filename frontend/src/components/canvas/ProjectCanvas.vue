@@ -435,8 +435,9 @@ export default {
 
     // 获取图片URL
     getImageUrl(storyboard) {
-      if (storyboard.image_generation.images && storyboard.image_generation.images.length > 0) {
-        return storyboard.image_generation.images[0].image_url;
+      const images = storyboard.image_generation?.images;
+      if (images && images.length > 0) {
+        return images[0].image_url;
       }
       return '';
     },
@@ -506,8 +507,9 @@ export default {
 
     // 获取视频URL
     getVideoUrl(storyboard) {
-      if (storyboard.video_generation.videos && storyboard.video_generation.videos.length > 0) {
-        return storyboard.video_generation.videos[0].video_url;
+      const videos = storyboard.video_generation?.videos;
+      if (videos && videos.length > 0) {
+        return videos[0].video_url;
       }
       return '';
     },
@@ -588,11 +590,18 @@ export default {
         this.$set(this.executingNodes.cameras, storyboardId, true);
 
         // 准备输入数据
+        const imageUrl = storyboard.image_generation?.images?.[0]?.image_url;
+        if (!imageUrl) {
+          this.$message?.warning('请先生成图片');
+          this.$set(this.executingNodes.cameras, storyboardId, false);
+          return;
+        }
+
         const inputData = {
           storyboard_ids: [storyboardId],
           scenes: [{
             scene_number: storyboard.sequence_number,
-            image_url: storyboard.image_generation.images[0].image_url,
+            image_url: imageUrl,
             movement_type: movementType || 'auto',
           }]
         };
@@ -638,11 +647,18 @@ export default {
         this.$set(this.executingNodes.videos, storyboardId, true);
 
         // 准备输入数据
+        const imageUrl = storyboard.image_generation?.images?.[0]?.image_url;
+        if (!imageUrl) {
+          this.$message?.warning('请先生成图片');
+          this.$set(this.executingNodes.videos, storyboardId, false);
+          return;
+        }
+
         const inputData = {
           storyboard_ids: [storyboardId],
           scenes: [{
             scene_number: storyboard.sequence_number,
-            image_url: storyboard.image_generation.images[0].image_url,
+            image_url: imageUrl,
             camera_movement: {
               movement_type: storyboard.camera_movement.data.movement_type,
               movement_params: storyboard.camera_movement.data.movement_params,
@@ -784,12 +800,14 @@ export default {
   height: 100%;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 .canvas-wrapper {
   flex: 1;
   min-height: 0;
   position: relative;
+  display: flex;
 }
 
 /* 项目信息节点样式 - 固定在顶部 */
