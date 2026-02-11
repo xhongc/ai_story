@@ -58,7 +58,7 @@
               <div class="space-y-3">
                 <div class="flex items-center justify-between">
                   <span class="text-sm text-base-content/60">状态</span>
-                  <StatusBadge :status="promptSet.is_active ? 'active' : 'inactive'" />
+                  <StatusBadge :status="promptSet.is_active ? '激活' : '未激活'" />
                 </div>
                 <div class="flex items-center justify-between">
                   <span class="text-sm text-base-content/60">默认</span>
@@ -114,7 +114,7 @@
                       <div class="flex items-center gap-2 mb-2">
                         <h4 class="font-semibold">{{ template.stage_type_display }}</h4>
                         <div class="badge badge-sm">v{{ template.version }}</div>
-                        <StatusBadge :status="template.is_active ? 'active' : 'inactive'" size="sm" />
+                        <StatusBadge :status="template.is_active ? '激活' : '未激活'" size="sm" />
                       </div>
                       <p class="text-sm text-base-content/60 line-clamp-2">
                         {{ template.template_content }}
@@ -123,7 +123,22 @@
                         更新于 {{ formatDate(template.updated_at) }}
                       </div>
                     </div>
-                    <div class="flex gap-2">
+                    <div class="flex items-center gap-2">
+                      <!-- 激活状态切换开关 -->
+                      <div class="form-control">
+                        <label class="label cursor-pointer gap-2">
+                          <span class="label-text text-xs">启用</span>
+                          <input
+                            type="checkbox"
+                            class="toggle toggle-primary toggle-sm"
+                            :checked="template.is_active"
+                            @change="handleToggleTemplateActive(template)"
+                            :disabled="updatingTemplateId === template.id"
+                            title="切换激活状态"
+                          />
+                        </label>
+                      </div>
+                      <div class="divider divider-horizontal mx-0"></div>
                       <button
                         class="btn btn-ghost btn-sm"
                         @click="handleEditTemplate(template)"
@@ -269,6 +284,7 @@ export default {
       cloneName: '',
       newTemplateStage: '',
       stageTypes: STAGE_TYPES,
+      updatingTemplateId: null, // 正在更新的模板ID
     };
   },
   computed: {
@@ -298,6 +314,7 @@ export default {
       'updatePromptSet',
       'deletePromptSet',
       'deletePromptTemplate',
+      'partialUpdatePromptTemplate',
     ]),
     formatDate,
 
@@ -415,6 +432,30 @@ export default {
       } catch (error) {
         console.error('删除模板失败:', error);
         alert('删除模板失败,请重试');
+      }
+    },
+
+    async handleToggleTemplateActive(template) {
+      // 防止重复点击
+      if (this.updatingTemplateId === template.id) {
+        return;
+      }
+
+      this.updatingTemplateId = template.id;
+      try {
+        // 调用 API 更新状态,Vuex 会自动更新 store 中的数据
+        await this.partialUpdatePromptTemplate({
+          id: template.id,
+          data: { is_active: !template.is_active },
+        });
+        // 不需要重新加载整个页面,Vuex mutation 已经更新了状态
+      } catch (error) {
+        console.error('更新模板激活状态失败:', error);
+        alert('更新激活状态失败,请重试');
+        // 如果失败,重新加载数据以恢复正确状态
+        await this.loadData();
+      } finally {
+        this.updatingTemplateId = null;
       }
     },
   },

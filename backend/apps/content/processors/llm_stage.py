@@ -49,17 +49,12 @@ class LLMStageProcessor(StageProcessor):
         验证是否可以执行该阶段
         检查:
         1. 项目是否存在
-        2. 是否有提示词模板
-        3. 前置阶段的输出数据是否就绪
+        2. 前置阶段的输出数据是否就绪
+
+        注意: 不再检查提示词模板，缺少模板时会在执行阶段标记为跳过
         """
         try:
             project = Project.objects.get(id=context.project_id)
-
-            # 检查是否有提示词模板
-            template = self._get_prompt_template(project)
-            if not template:
-                logger.error(f"项目 {context.project_id} 缺少 {self.stage_type} 阶段的提示词模板")
-                return False
 
             # 检查前置阶段数据
             stage = ProjectStage.objects.filter(
@@ -101,6 +96,40 @@ class LLMStageProcessor(StageProcessor):
                 project=project,
                 stage_type=self.stage_type
             )
+
+            # 检查是否有提示词模板
+            template = self._get_prompt_template(project)
+            if not template:
+                # 没有模板，标记为跳过
+                stage.status = 'skipped'
+                stage.started_at = timezone.now()
+                stage.completed_at = timezone.now()
+                stage.error_message = f'未配置{self._get_stage_display_name()}的提示词模板，已跳过该阶段'
+                stage.save()
+
+                logger.info(f"项目 {project_id} 的 {self.stage_type} 阶段因缺少提示词模板而跳过")
+
+                yield {
+                    'type': 'stage_update',
+                    'stage': {
+                        'id': str(stage.id),
+                        'status': 'skipped',
+                        'stage_type': self.stage_type,
+                        'started_at': stage.started_at.isoformat(),
+                        'completed_at': stage.completed_at.isoformat(),
+                        'error_message': stage.error_message
+                    }
+                }
+
+                yield {
+                    'type': 'skipped',
+                    'message': stage.error_message,
+                    'stage': {
+                        'id': str(stage.id),
+                        'status': 'skipped',
+                    }
+                }
+                return
 
             # 获取输入数据(从领域模型读取)
             if not input_data:

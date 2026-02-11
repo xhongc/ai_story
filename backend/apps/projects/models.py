@@ -88,6 +88,7 @@ class ProjectStage(models.Model):
         ('processing', '处理中'),
         ('completed', '已完成'),
         ('failed', '失败'),
+        ('skipped', '已跳过'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

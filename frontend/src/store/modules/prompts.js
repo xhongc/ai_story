@@ -146,6 +146,15 @@ const mutations = {
     ) {
       state.currentPromptTemplate = updatedTemplate;
     }
+    // 同时更新 currentPromptSet 中的 templates 数组
+    if (state.currentPromptSet && state.currentPromptSet.templates) {
+      const templateIndex = state.currentPromptSet.templates.findIndex(
+        (template) => template.id === updatedTemplate.id
+      );
+      if (templateIndex !== -1) {
+        state.currentPromptSet.templates.splice(templateIndex, 1, updatedTemplate);
+      }
+    }
   },
 
   REMOVE_PROMPT_TEMPLATE(state, id) {
@@ -156,6 +165,19 @@ const mutations = {
     }
     if (state.currentPromptTemplate && state.currentPromptTemplate.id === id) {
       state.currentPromptTemplate = null;
+    }
+    // 同时从 currentPromptSet 中移除
+    if (state.currentPromptSet && state.currentPromptSet.templates) {
+      const templateIndex = state.currentPromptSet.templates.findIndex(
+        (template) => template.id === id
+      );
+      if (templateIndex !== -1) {
+        state.currentPromptSet.templates.splice(templateIndex, 1);
+        // 更新模板计数
+        if (state.currentPromptSet.templates_count) {
+          state.currentPromptSet.templates_count -= 1;
+        }
+      }
     }
   },
 
@@ -384,6 +406,20 @@ const actions = {
       return response;
     } catch (error) {
       console.error('更新提示词模板失败:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * 部分更新提示词模板（用于快捷更新激活状态等）
+   */
+  async partialUpdatePromptTemplate({ commit }, { id, data }) {
+    try {
+      const response = await promptTemplateAPI.partialUpdate(id, data);
+      commit('UPDATE_PROMPT_TEMPLATE', response);
+      return response;
+    } catch (error) {
+      console.error('部分更新提示词模板失败:', error);
       throw error;
     }
   },
