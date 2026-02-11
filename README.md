@@ -34,9 +34,7 @@ docker-compose exec backend python manage.py createsuperuser
 
 ## 界面预览
 
-![项目列表](b9799fffc60dc0c08fa17cbf79a60d56.png)
-![分镜编辑](5c86a6d24297b76c71d905d543502702.png)
-![视频生成](image.png)
+![视频生成](image-1.png)
 ![工作流程](52ad03b84c6f74801448dca2cc40c193.png)
 ![导演模式](5b2dc4d4a7983401fe39c760dd7bedd6.png)
 
