@@ -1,12 +1,12 @@
 <template>
-  <div class="project-list-modern">
+  <div class="page-shell project-list">
     <!-- 顶部工具栏 -->
-    <div class="toolbar">
-      <div class="toolbar-left">
-        <h1 class="page-title">我的项目</h1>
+    <div class="page-header">
+      <div class="page-header-main">
+        <h1 class="page-title">项目管理</h1>
         <p class="page-subtitle">{{ pagination.total }} 个项目</p>
       </div>
-      <button class="btn-create" @click="handleCreate">
+      <button class="primary-action" @click="handleCreate">
         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
         </svg>
@@ -15,7 +15,7 @@
     </div>
 
     <!-- 筛选区域 -->
-    <div class="filter-bar">
+    <div class="filter-card">
       <div class="search-box">
         <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -92,7 +92,7 @@
         </svg>
         <p class="empty-text">还没有项目</p>
         <p class="empty-hint">创建你的第一个 AI 故事项目</p>
-        <button class="btn-create-empty" @click="handleCreate">
+        <button class="secondary-action" @click="handleCreate">
           开始创作
         </button>
       </div>
@@ -271,29 +271,32 @@ export default {
 <style scoped>
 /* 现代极简风格 - 项目列表 */
 
-.project-list-modern {
+.page-shell {
   min-height: 100vh;
-  padding: 3rem 4rem;
-  background: linear-gradient(to bottom, #fafafa 0%, #ffffff 100%);
+  padding: 2.5rem 3.5rem 3rem;
+  background: transparent;
 }
 
-/* 顶部工具栏 */
-.toolbar {
+.page-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 3rem;
+  align-items: center;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
 }
 
-.toolbar-left {
+.page-header-main {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
 }
 
 .page-title {
-  font-size: 2.5rem;
+  font-size: 2.2rem;
   font-weight: 600;
   color: #0f172a;
-  margin: 0 0 0.5rem 0;
+  margin: 0;
   letter-spacing: -0.02em;
 }
 
@@ -303,37 +306,43 @@ export default {
   margin: 0;
 }
 
-.btn-create {
+.primary-action {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1.5rem;
-  background: #0f172a;
-  color: white;
-  border: none;
-  border-radius: 12px;
+  background: #ffffff;
+  color: #0f172a;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 999px;
   font-size: 0.95rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.btn-create:hover {
-  background: #1e293b;
+.primary-action:hover {
+  border-color: rgba(20, 184, 166, 0.6);
+  box-shadow: 0 12px 24px rgba(20, 184, 166, 0.18);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
 }
 
-.btn-create:active {
+.primary-action:active {
   transform: translateY(0);
 }
 
 /* 筛选区域 */
-.filter-bar {
+.filter-card {
   display: flex;
   gap: 1rem;
-  margin-bottom: 3rem;
+  margin-bottom: 2.5rem;
   flex-wrap: wrap;
+  padding: 1rem 1.25rem;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(10px);
 }
 
 .search-box {
@@ -357,17 +366,17 @@ export default {
 .search-input {
   width: 100%;
   padding: 0.875rem 1rem 0.875rem 3rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 14px;
   font-size: 0.95rem;
-  background: white;
+  background: rgba(255, 255, 255, 0.9);
   transition: all 0.2s ease;
   outline: none;
 }
 
 .search-input:focus {
-  border-color: #0f172a;
-  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.05);
+  border-color: rgba(20, 184, 166, 0.6);
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.18);
 }
 
 .search-input::placeholder {
@@ -382,10 +391,10 @@ export default {
 
 .status-filter-btn {
   padding: 0.625rem 1.25rem;
-  border: 1px solid #e2e8f0;
-  background: white;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(255, 255, 255, 0.9);
   color: #64748b;
-  border-radius: 10px;
+  border-radius: 999px;
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
@@ -398,9 +407,9 @@ export default {
 }
 
 .status-filter-btn.active {
-  background: #0f172a;
-  color: white;
-  border-color: #0f172a;
+  background: rgba(20, 184, 166, 0.16);
+  color: #0f172a;
+  border-color: rgba(20, 184, 166, 0.5);
 }
 
 /* 瀑布流网格 */
@@ -413,10 +422,10 @@ export default {
 
 /* 项目卡片 */
 .project-card {
-  background: white;
+  background: rgba(255, 255, 255, 0.92);
   border-radius: 16px;
   padding: 1.5rem;
-  border: 1px solid #f1f5f9;
+  border: 1px solid rgba(148, 163, 184, 0.2);
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
@@ -430,7 +439,7 @@ export default {
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, #0f172a 0%, #475569 100%);
+  background: linear-gradient(90deg, rgba(20, 184, 166, 0.7) 0%, rgba(14, 165, 233, 0.7) 100%);
   transform: scaleX(0);
   transform-origin: left;
   transition: transform 0.3s ease;
@@ -438,8 +447,8 @@ export default {
 
 .project-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
-  border-color: #e2e8f0;
+  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12);
+  border-color: rgba(148, 163, 184, 0.35);
 }
 
 .project-card:hover::before {
@@ -524,8 +533,8 @@ export default {
 }
 
 .action-btn:hover {
-  background: #fef2f2;
-  color: #ef4444;
+  background: rgba(248, 113, 113, 0.12);
+  color: #dc2626;
 }
 
 /* 卡片内容 */
@@ -609,22 +618,21 @@ export default {
   margin: 0 0 2rem 0;
 }
 
-.btn-create-empty {
+.secondary-action {
   padding: 0.875rem 2rem;
   background: #0f172a;
-  color: white;
+  color: #ffffff;
   border: none;
-  border-radius: 12px;
+  border-radius: 999px;
   font-size: 0.95rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.btn-create-empty:hover {
-  background: #1e293b;
+.secondary-action:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.15);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.18);
 }
 
 /* 分页 */
@@ -638,8 +646,8 @@ export default {
 
 .pagination-btn {
   padding: 0.625rem;
-  background: white;
-  border: 1px solid #e2e8f0;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.35);
   border-radius: 10px;
   color: #64748b;
   cursor: pointer;
@@ -666,7 +674,7 @@ export default {
 
 /* 模态框 */
 .modal-box-modern {
-  background: white;
+  background: rgba(255, 255, 255, 0.98);
   border-radius: 20px;
   padding: 2rem;
   max-width: 400px;
@@ -727,7 +735,7 @@ export default {
 
 /* 响应式设计 */
 @media (max-width: 768px) {
-  .project-list-modern {
+  .page-shell {
     padding: 2rem 1.5rem;
   }
 
@@ -735,17 +743,17 @@ export default {
     font-size: 2rem;
   }
 
-  .toolbar {
+  .page-header {
     flex-direction: column;
     gap: 1.5rem;
   }
 
-  .btn-create {
+  .primary-action {
     width: 100%;
     justify-content: center;
   }
 
-  .filter-bar {
+  .filter-card {
     flex-direction: column;
   }
 

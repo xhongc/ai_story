@@ -1,183 +1,116 @@
 <template>
-  <div class="asset-list">
-    <!-- 页面头部 -->
-    <PageCard title="资产管理">
-      <template slot="header-right">
-        <button class="btn btn-primary btn-sm" @click="handleCreate">
-          + 新建资产
-        </button>
-      </template>
+  <div class="page-shell asset-list">
+    <div class="page-header">
+      <div class="page-header-main">
+        <h1 class="page-title">资产管理</h1>
+        <p class="page-subtitle">管理全局变量与系统资源</p>
+      </div>
+      <button class="primary-action" @click="handleCreate">新建资产</button>
+    </div>
 
-      <!-- 搜索和过滤 -->
-      <div class="mb-6 flex gap-4 flex-wrap">
-        <div class="form-control flex-1 min-w-[200px]">
-          <input
-            v-model="searchKeyword"
-            type="text"
-            placeholder="搜索资产键或描述..."
-            class="input input-bordered w-full"
-            @input="handleSearch"
-          />
-        </div>
-        <div class="form-control">
-          <select v-model="filterScope" class="select select-bordered" @change="handleFilter">
-            <option value="">全部作用域</option>
-            <option value="user">用户级</option>
-            <option value="system">系统级</option>
-          </select>
-        </div>
-        <div class="form-control">
-          <select v-model="filterType" class="select select-bordered" @change="handleFilter">
-            <option value="">全部类型</option>
-            <option value="string">字符串</option>
-            <option value="number">数字</option>
-            <option value="boolean">布尔值</option>
-            <option value="json">JSON对象</option>
-            <option value="image">图片</option>
-          </select>
-        </div>
-        <div class="form-control">
-          <select v-model="filterGroup" class="select select-bordered" @change="handleFilter">
-            <option value="">全部分组</option>
-            <option v-for="group in groups" :key="group" :value="group">
-              {{ group }}
-            </option>
-          </select>
-        </div>
+    <div class="filter-card">
+      <div class="search-box">
+        <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input
+          v-model="searchKeyword"
+          type="text"
+          placeholder="搜索资产键或描述..."
+          class="search-input"
+          @input="handleSearch"
+        />
+      </div>
+      <div class="select-group">
+        <select v-model="filterScope" class="select-input" @change="handleFilter">
+          <option value="">全部作用域</option>
+          <option value="user">用户级</option>
+          <option value="system">系统级</option>
+        </select>
+        <select v-model="filterType" class="select-input" @change="handleFilter">
+          <option value="">全部类型</option>
+          <option value="string">字符串</option>
+          <option value="number">数字</option>
+          <option value="boolean">布尔值</option>
+          <option value="json">JSON对象</option>
+          <option value="image">图片</option>
+        </select>
+        <select v-model="filterGroup" class="select-input" @change="handleFilter">
+          <option value="">全部分组</option>
+          <option v-for="group in groups" :key="group" :value="group">
+            {{ group }}
+          </option>
+        </select>
+      </div>
+    </div>
+
+    <LoadingContainer :loading="loading" class="loading-container">
+      <div v-if="!loading && assets.length === 0" class="empty-state">
+        <div class="empty-hero">暂无资产</div>
+        <p class="empty-hint">创建第一个资产，统一管理变量与资源</p>
+        <button class="secondary-action" @click="handleCreate">新建资产</button>
       </div>
 
-      <!-- Loading状态 -->
-      <LoadingContainer :loading="loading">
-        <!-- 空状态 -->
-        <div v-if="!loading && assets.length === 0" class="text-center py-12">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-16 w-16 mx-auto text-base-300"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
-            />
-          </svg>
-          <p class="mt-4 text-base-content/60">暂无资产</p>
-          <button class="btn btn-primary btn-sm mt-4" @click="handleCreate">创建第一个资产</button>
-        </div>
+      <div v-else class="card-grid">
+        <article v-for="asset in assets" :key="asset.id" class="data-card">
+          <div class="card-header">
+            <code class="asset-key">{{ asset.key }}</code>
+            <StatusBadge :status="asset.is_active ? 'active' : 'inactive'" />
+          </div>
 
-        <!-- 资产表格 -->
-        <div v-else class="overflow-x-auto">
-          <table class="table table-zebra w-full">
-            <thead>
-              <tr>
-                <th>资产键</th>
-                <th>值/预览</th>
-                <th>类型</th>
-                <th>作用域</th>
-                <th>分组</th>
-                <th>描述</th>
-                <th>状态</th>
-                <th>更新时间</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="asset in assets" :key="asset.id">
-                <td>
-                  <code class="text-sm bg-base-200 px-2 py-1 rounded">{{ asset.key }}</code>
-                </td>
-                <td>
-                  <!-- 图片类型显示缩略图 -->
-                  <div v-if="asset.variable_type === 'image'" class="flex items-center">
-                    <img
-                      v-if="asset.image_url"
-                      :src="asset.image_url"
-                      :alt="asset.key"
-                      class="w-12 h-12 object-cover rounded cursor-pointer hover:opacity-80"
-                      @click="previewImage(asset.image_url)"
-                    />
-                    <span v-else class="text-base-content/40">未上传</span>
-                  </div>
-                  <!-- 其他类型显示值 -->
-                  <div v-else class="max-w-xs truncate" :title="String(asset.value)">
-                    {{ formatValue(asset) }}
-                  </div>
-                </td>
-                <td>
-                  <span class="badge badge-sm" :class="getTypeBadgeClass(asset.variable_type)">
-                    {{ asset.variable_type_display }}
-                  </span>
-                </td>
-                <td>
-                  <span class="badge badge-sm" :class="getScopeBadgeClass(asset.scope)">
-                    {{ asset.scope_display }}
-                  </span>
-                </td>
-                <td>
-                  <span v-if="asset.group" class="badge badge-outline badge-sm">
-                    {{ asset.group }}
-                  </span>
-                  <span v-else class="text-base-content/40">-</span>
-                </td>
-                <td>
-                  <div class="max-w-xs truncate" :title="asset.description">
-                    {{ asset.description || '-' }}
-                  </div>
-                </td>
-                <td>
-                  <StatusBadge :status="asset.is_active ? 'active' : 'inactive'" />
-                </td>
-                <td class="text-sm text-base-content/60">
-                  {{ formatDate(asset.updated_at) }}
-                </td>
-                <td>
-                  <div class="flex gap-2">
-                    <button
-                      class="btn btn-ghost btn-xs"
-                      @click="handleEdit(asset)"
-                      title="编辑"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        class="h-4 w-4"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                      >
-                        <path
-                          d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"
-                        />
-                      </svg>
-                    </button>
-                    <button
-                      class="btn btn-ghost btn-xs text-error"
-                      @click="handleDelete(asset)"
-                      :disabled="asset.scope === 'system' && !isAdmin"
-                      title="删除"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        class="h-4 w-4"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                      >
-                        <path
-                          fill-rule="evenodd"
-                          d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                          clip-rule="evenodd"
-                        />
-                      </svg>
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </LoadingContainer>
-    </PageCard>
+          <div class="card-value">
+            <div v-if="asset.variable_type === 'image'" class="thumb-cell">
+              <img
+                v-if="asset.image_url"
+                :src="asset.image_url"
+                :alt="asset.key"
+                class="thumb"
+                @click="previewImage(asset.image_url)"
+              />
+              <span v-else class="muted">未上传</span>
+            </div>
+            <div v-else class="value-text" :title="String(asset.value)">
+              {{ formatValue(asset) }}
+            </div>
+          </div>
+
+          <div class="card-tags">
+            <span class="badge badge-sm" :class="getTypeBadgeClass(asset.variable_type)">
+              {{ asset.variable_type_display }}
+            </span>
+            <span class="badge badge-sm" :class="getScopeBadgeClass(asset.scope)">
+              {{ asset.scope_display }}
+            </span>
+            <span v-if="asset.group" class="pill">{{ asset.group }}</span>
+          </div>
+
+          <p class="card-desc">
+            {{ asset.description || '暂无描述' }}
+          </p>
+
+          <div class="card-meta">
+            <span class="muted">更新于 {{ formatDate(asset.updated_at) }}</span>
+            <div class="row-actions">
+              <button
+                class="ghost-action"
+                @click="handleEdit(asset)"
+                title="编辑"
+              >
+                编辑
+              </button>
+              <button
+                class="ghost-action danger"
+                @click="handleDelete(asset)"
+                :disabled="asset.scope === 'system' && !isAdmin"
+                title="删除"
+              >
+                删除
+              </button>
+            </div>
+          </div>
+        </article>
+      </div>
+    </LoadingContainer>
 
     <!-- 图片预览弹窗 -->
     <div v-if="previewImageUrl" class="modal modal-open" @click="previewImageUrl = null">
@@ -194,14 +127,12 @@
 
 <script>
 import { globalVariableAPI } from '@/api/prompts';
-import PageCard from '@/components/common/PageCard.vue';
 import LoadingContainer from '@/components/common/LoadingContainer.vue';
 import StatusBadge from '@/components/common/StatusBadge.vue';
 
 export default {
   name: 'AssetList',
   components: {
-    PageCard,
     LoadingContainer,
     StatusBadge,
   },
@@ -344,11 +275,307 @@ export default {
 </script>
 
 <style scoped>
-.asset-list {
-  padding: 1.5rem;
+.page-shell {
+  min-height: 100vh;
+  padding: 2.5rem 3.5rem 3rem;
 }
 
-code {
+.loading-container {
+  display: block;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.page-header-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.page-title {
+  font-size: 2.1rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0;
+}
+
+.page-subtitle {
+  font-size: 0.95rem;
+  color: #64748b;
+  margin: 0;
+}
+
+.primary-action {
+  padding: 0.75rem 1.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #ffffff;
+  color: #0f172a;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.primary-action:hover {
+  border-color: rgba(20, 184, 166, 0.6);
+  box-shadow: 0 12px 24px rgba(20, 184, 166, 0.18);
+  transform: translateY(-1px);
+}
+
+.filter-card {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 1rem 1.25rem;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.08);
+  margin-bottom: 2.5rem;
+}
+
+.search-box {
+  position: relative;
+  flex: 1;
+  min-width: 220px;
+}
+
+.search-icon {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1.25rem;
+  height: 1.25rem;
+  color: #94a3b8;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.875rem 1rem 0.875rem 3rem;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(255, 255, 255, 0.9);
+  outline: none;
+}
+
+.search-input:focus {
+  border-color: rgba(20, 184, 166, 0.6);
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.18);
+}
+
+.select-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.select-input {
+  min-width: 140px;
+  padding: 0.75rem 1rem;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(255, 255, 255, 0.9);
+  color: #0f172a;
+}
+
+.card-grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+
+@media (min-width: 640px) {
+  .card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 768px) {
+  .card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .card-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .card-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1536px) {
+  .card-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+.data-card {
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.08);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  min-width: 0;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.card-value {
+  min-height: 48px;
+}
+
+.value-text {
+  color: #0f172a;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.pill {
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  background: rgba(148, 163, 184, 0.16);
+  color: #0f172a;
+}
+
+.card-desc {
+  font-size: 0.85rem;
+  color: #64748b;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.asset-key {
   font-family: 'Courier New', monospace;
+  background: rgba(148, 163, 184, 0.15);
+  padding: 0.2rem 0.5rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.thumb-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  object-fit: cover;
+  cursor: pointer;
+}
+
+.row-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.ghost-action {
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: rgba(15, 23, 42, 0.04);
+  color: #0f172a;
+  font-size: 0.8rem;
+}
+
+.ghost-action:hover {
+  border-color: rgba(15, 23, 42, 0.1);
+}
+
+.ghost-action.danger {
+  color: #dc2626;
+}
+
+.muted {
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 4rem 1rem;
+}
+
+.empty-hero {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.empty-hint {
+  color: #94a3b8;
+  margin: 0.6rem 0 1.6rem;
+}
+
+.secondary-action {
+  padding: 0.75rem 1.75rem;
+  border-radius: 999px;
+  background: #0f172a;
+  color: #ffffff;
+  border: none;
+}
+
+@media (max-width: 768px) {
+  .page-shell {
+    padding: 2rem 1.5rem;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .primary-action {
+    width: 100%;
+  }
+
+  .row-actions {
+    flex-direction: column;
+  }
 }
 </style>

@@ -1,56 +1,30 @@
 <template>
-  <div class="model-list p-6">
-    <page-card title="模型管理">
-      <template slot="header-right">
-        <button class="btn btn-primary btn-sm gap-2" @click="handleCreate">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-4 w-4"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-          >
-            <path
-              fill-rule="evenodd"
-              d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
-              clip-rule="evenodd"
-            />
-          </svg>
-          添加模型
-        </button>
-      </template>
+  <div class="page-shell model-list">
+    <div class="page-header">
+      <div class="page-header-main">
+        <h1 class="page-title">模型管理</h1>
+        <p class="page-subtitle">管理模型提供商与运行状态</p>
+      </div>
+      <button class="primary-action" @click="handleCreate">添加模型</button>
+    </div>
 
-      <!-- 筛选区域 -->
-      <div class="flex flex-wrap gap-3 mb-6">
-        <div class="form-control">
-          <div class="input-group">
-            <input
-              v-model="filters.search"
-              type="text"
-              placeholder="搜索模型名称"
-              class="input input-bordered input-sm w-48"
-              @keyup.enter="handleFilter"
-            />
-            <button class="btn btn-square btn-sm" @click="handleFilter">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
-            </button>
-          </div>
-        </div>
+    <div class="filter-card">
+      <div class="search-box">
+        <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input
+          v-model="filters.search"
+          type="text"
+          placeholder="搜索模型名称"
+          class="search-input"
+          @keyup.enter="handleFilter"
+        />
+      </div>
+      <div class="select-group">
         <select
           v-model="filters.provider_type"
-          class="select select-bordered select-sm w-40"
+          class="select-input"
           @change="handleFilter"
         >
           <option value="">全部类型</option>
@@ -60,7 +34,7 @@
         </select>
         <select
           v-model="filters.is_active"
-          class="select select-bordered select-sm w-32"
+          class="select-input"
           @change="handleFilter"
         >
           <option value="">全部状态</option>
@@ -68,164 +42,80 @@
           <option value="false">未激活</option>
         </select>
       </div>
+    </div>
 
-      <!-- 模型列表 -->
-      <loading-container :loading="loading">
-        <div class="overflow-x-auto">
-          <table class="table table-zebra w-full">
-            <thead>
-              <tr>
-                <th class="w-1/6">模型名称</th>
-                <th class="w-24">类型</th>
-                <th class="w-1/6">模型</th>
-                <th class="w-20">优先级</th>
-                <th class="w-24">状态</th>
-                <th class="w-32">使用次数</th>
-                <th class="w-48">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="providers.length === 0">
-                <td colspan="8" class="text-center py-8 text-base-content/60">
-                  暂无数据
-                </td>
-              </tr>
-              <tr v-for="provider in providers" :key="provider.id">
-                <td>
-                  <div class="font-medium">{{ provider.name }}</div>
-                </td>
-                <td>
-                  <span
-                    class="badge badge-sm"
-                    :class="getProviderTypeBadgeClass(provider.provider_type)"
-                  >
-                    {{ getProviderTypeLabel(provider.provider_type) }}
-                  </span>
-                </td>
-                <td>
-                  <div class="truncate max-w-xs" :title="provider.model_name">
-                    {{ provider.model_name }}
-                  </div>
-                </td>
-                <td>
-                  <span class="badge badge-outline badge-sm">{{ provider.priority }}</span>
-                </td>
-                <td>
-                  <span
-                    class="badge badge-sm"
-                    :class="provider.is_active ? 'badge-success' : 'badge-ghost'"
-                  >
-                    {{ provider.is_active ? '已激活' : '未激活' }}
-                  </span>
-                </td>
-                <td>
-                  <div class="text-sm">
-                    <div>总计: {{ provider.total_usage_count || 0 }}</div>
-                    <div class="text-base-content/60">
-                      近7天: {{ provider.recent_usage_count || 0 }}
-                    </div>
-                  </div>
-                </td>
-                <td>
-                  <div class="flex">
-                    <button
-                      class="btn btn-xs btn-ghost"
-                      @click="handleTest(provider)"
-                      :disabled="!provider.is_active || testing"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        class="h-3 w-3"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M13 10V3L4 14h7v7l9-11h-7z"
-                        />
-                      </svg>
-                      测试
-                    </button>
-                    <button
-                      class="btn btn-xs btn-ghost"
-                      @click="handleToggleStatus(provider)"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        class="h-3 w-3"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                        />
-                      </svg>
-                      {{ provider.is_active ? '停用' : '启用' }}
-                    </button>
-                    <button class="btn btn-xs btn-ghost" @click="handleEdit(provider)">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        class="h-3 w-3"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                        />
-                      </svg>
-                      编辑
-                    </button>
-                    <button
-                      class="btn btn-xs btn-ghost text-error"
-                      @click="handleDelete(provider)"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        class="h-3 w-3"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                        />
-                      </svg>
-                      删除
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </loading-container>
-    </page-card>
+    <loading-container :loading="loading" class="loading-container">
+      <div v-if="providers.length === 0" class="empty-state">
+        <div class="empty-hero">暂无模型</div>
+        <p class="empty-hint">添加模型提供商后即可在项目中使用</p>
+        <button class="secondary-action" @click="handleCreate">添加模型</button>
+      </div>
+
+      <div v-else class="card-grid">
+        <article v-for="provider in providers" :key="provider.id" class="data-card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">{{ provider.name }}</h3>
+              <p class="card-subtitle">{{ provider.model_name }}</p>
+            </div>
+            <span
+              class="badge badge-sm"
+              :class="getProviderTypeBadgeClass(provider.provider_type)"
+            >
+              {{ getProviderTypeLabel(provider.provider_type) }}
+            </span>
+          </div>
+
+          <div class="card-body">
+            <div class="meta-row">
+              <span class="meta-label">优先级</span>
+              <span class="meta-value">{{ provider.priority }}</span>
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">状态</span>
+              <span
+                class="badge badge-sm"
+                :class="provider.is_active ? 'badge-success' : 'badge-ghost'"
+              >
+                {{ provider.is_active ? '已激活' : '未激活' }}
+              </span>
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">使用次数</span>
+              <div class="usage-cell">
+                <span>总计: {{ provider.total_usage_count || 0 }}</span>
+                <span class="muted">近7天: {{ provider.recent_usage_count || 0 }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card-actions">
+            <button
+              class="ghost-action"
+              @click="handleTest(provider)"
+              :disabled="!provider.is_active || testing"
+            >
+              测试
+            </button>
+            <button class="ghost-action" @click="handleToggleStatus(provider)">
+              {{ provider.is_active ? '停用' : '启用' }}
+            </button>
+            <button class="ghost-action" @click="handleEdit(provider)">编辑</button>
+            <button class="ghost-action danger" @click="handleDelete(provider)">删除</button>
+          </div>
+        </article>
+      </div>
+    </loading-container>
   </div>
 </template>
 
 <script>
 import { mapState, mapActions } from 'vuex'
-import PageCard from '@/components/common/PageCard.vue'
 import LoadingContainer from '@/components/common/LoadingContainer.vue'
 
 export default {
   name: 'ModelList',
   components: {
-    PageCard,
     LoadingContainer
   },
   data() {
@@ -355,3 +245,281 @@ export default {
   }
 }
 </script>
+
+<style scoped>
+.page-shell {
+  min-height: 100vh;
+  padding: 2.5rem 3.5rem 3rem;
+}
+
+.loading-container {
+  display: block;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.page-header-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.page-title {
+  font-size: 2.1rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0;
+}
+
+.page-subtitle {
+  font-size: 0.95rem;
+  color: #64748b;
+  margin: 0;
+}
+
+.primary-action {
+  padding: 0.75rem 1.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #ffffff;
+  color: #0f172a;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.primary-action:hover {
+  border-color: rgba(20, 184, 166, 0.6);
+  box-shadow: 0 12px 24px rgba(20, 184, 166, 0.18);
+  transform: translateY(-1px);
+}
+
+.filter-card {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 1rem 1.25rem;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.08);
+  margin-bottom: 2.5rem;
+}
+
+.search-box {
+  position: relative;
+  flex: 1;
+  min-width: 220px;
+}
+
+.search-icon {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1.25rem;
+  height: 1.25rem;
+  color: #94a3b8;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.875rem 1rem 0.875rem 3rem;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(255, 255, 255, 0.9);
+  outline: none;
+}
+
+.search-input:focus {
+  border-color: rgba(20, 184, 166, 0.6);
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.18);
+}
+
+.select-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.select-input {
+  min-width: 140px;
+  padding: 0.75rem 1rem;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(255, 255, 255, 0.9);
+  color: #0f172a;
+}
+
+.card-grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+
+@media (min-width: 640px) {
+  .card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 768px) {
+  .card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .card-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .card-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1536px) {
+  .card-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+.data-card {
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.08);
+  padding: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.card-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.card-subtitle {
+  margin: 0.35rem 0 0;
+  color: #64748b;
+  font-size: 0.85rem;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+.card-body {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.meta-label {
+  color: #94a3b8;
+  font-size: 0.8rem;
+}
+
+.meta-value {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.usage-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+  text-align: right;
+}
+
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ghost-action {
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: rgba(15, 23, 42, 0.04);
+  color: #0f172a;
+  font-size: 0.8rem;
+}
+
+.ghost-action:hover {
+  border-color: rgba(15, 23, 42, 0.1);
+}
+
+.ghost-action.danger {
+  color: #dc2626;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 4rem 1rem;
+}
+
+.empty-hero {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.empty-hint {
+  color: #94a3b8;
+  margin: 0.6rem 0 1.6rem;
+}
+
+.secondary-action {
+  padding: 0.75rem 1.75rem;
+  border-radius: 999px;
+  background: #0f172a;
+  color: #ffffff;
+  border: none;
+}
+
+.muted {
+  color: #94a3b8;
+}
+
+@media (max-width: 768px) {
+  .page-shell {
+    padding: 2rem 1.5rem;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .primary-action {
+    width: 100%;
+  }
+}
+</style>
