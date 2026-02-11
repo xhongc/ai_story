@@ -177,7 +177,8 @@ export default {
       // 将画布内容居中显示（默认行为）
       const wrapper = this.$refs.wrapper;
       if (wrapper) {
-        this.translateX = wrapper.clientWidth / 2 - 200;
+        const container = wrapper.querySelector('.canvas-container') || wrapper;
+        this.translateX = container.clientWidth / 2 - 200;
         this.translateY = 100;
         this.scale = 1;
       }
@@ -240,6 +241,8 @@ export default {
   height: 100%;
   flex: 1;
   min-height: 600px;
+  display: flex;
+  flex-direction: column;
   background: hsl(var(--b2));
   border-radius: 0.5rem;
   overflow: hidden;
@@ -262,6 +265,8 @@ export default {
 .canvas-container {
   width: 100%;
   height: 100%;
+  flex: 1;
+  min-height: 0;
   cursor: grab;
   position: relative;
   overflow: hidden;

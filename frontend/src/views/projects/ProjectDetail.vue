@@ -603,6 +603,8 @@ export default {
   height: 100%;
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
 .project-detail__canvas {
@@ -610,5 +612,7 @@ export default {
   min-height: 600px;
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 </style>

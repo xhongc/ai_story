@@ -393,6 +393,7 @@ export default {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  height: 100vh;
 }
 
 @media (min-width: 1024px) {
@@ -481,7 +482,15 @@ export default {
   background: var(--surface);
   border: 1px solid rgba(148, 163, 184, 0.2);
   box-shadow: 0 24px 50px rgba(15, 23, 42, 0.12);
-  overflow: hidden;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.main-surface > .project-detail {
+  flex: 1;
+  min-height: 0;
 }
 
 .mobile-drawer {

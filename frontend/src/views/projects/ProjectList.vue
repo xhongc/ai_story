@@ -272,7 +272,7 @@ export default {
 /* 现代极简风格 - 项目列表 */
 
 .page-shell {
-  min-height: 100vh;
+  min-height: 100%;
   padding: 2.5rem 3.5rem 3rem;
   background: transparent;
 }

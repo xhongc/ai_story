@@ -60,7 +60,12 @@
       </div>
 
       <div v-else class="card-grid">
-        <article v-for="provider in providers" :key="provider.id" class="data-card">
+        <article
+          v-for="provider in providers"
+          :key="provider.id"
+          class="data-card"
+          @click="handleEdit(provider)"
+        >
           <div class="card-header">
             <div>
               <h3 class="card-title">{{ provider.name }}</h3>
@@ -100,16 +105,15 @@
           <div class="card-actions">
             <button
               class="ghost-action"
-              @click="handleTest(provider)"
+              @click.stop="handleTest(provider)"
               :disabled="!provider.is_active || testing"
             >
               测试
             </button>
-            <button class="ghost-action" @click="handleToggleStatus(provider)">
+            <button class="ghost-action" @click.stop="handleToggleStatus(provider)">
               {{ provider.is_active ? '停用' : '启用' }}
             </button>
-            <button class="ghost-action" @click="handleEdit(provider)">编辑</button>
-            <button class="ghost-action danger" @click="handleDelete(provider)">删除</button>
+            <button class="ghost-action danger" @click.stop="handleDelete(provider)">删除</button>
           </div>
         </article>
       </div>
@@ -442,6 +446,7 @@ export default {
   position: relative;
   overflow: hidden;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
 }
 
 .data-card::before {
