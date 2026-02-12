@@ -1,5 +1,5 @@
 """
-生产环境配置
+开发环境配置
 """
 
 from .base import *
@@ -7,14 +7,10 @@ from .base import *
 DEBUG = False
 ALLOWED_HOSTS = ['*']
 
-# HTTPS配置
-SECURE_SSL_REDIRECT = True
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
-SECURE_HSTS_SECONDS = 31536000
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+# CORS配置 - 开发环境允许所有源
+CORS_ALLOW_ALL_ORIGINS = True
 
-# 数据库 - 生产环境配置
+# 数据库 - 开发环境使用SQLite
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
