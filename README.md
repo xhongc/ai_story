@@ -19,11 +19,8 @@ AI Story 是一个基于人工智能的故事视频自动化生成平台。只�
 # 启动所有服务
 docker-compose up -d
 
-# 初始化数据库
-docker-compose exec backend python manage.py migrate
-
 # 创建管理员账号
-docker-compose exec backend python manage.py createsuperuser
+docker-compose exec backend python backend/manage.py createsuperuser
 ```
 
 **访问地址:**

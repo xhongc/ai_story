@@ -5,8 +5,6 @@ services:
   # Redis缓存和消息队列
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
 
 
   # Django后端
@@ -14,25 +12,21 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    ports:
-      - "8010:8010"
     environment:
-      - DJANGO_SETTINGS_MODULE=config.settings.development
-      - REDIS_URL=redis://redis:6379/5
+      - DJANGO_SETTINGS_MODULE=config.settings.production
+      - REDIS_HOST=redis
     depends_on:
       - redis
 
   # Celery Worker
   celery:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile
+    image: ai_story-backend
     command: celery -A config worker -l info
     volumes:
       - ./backend:/app
     environment:
-      - DJANGO_SETTINGS_MODULE=config.settings.development
-      - REDIS_URL=redis://redis:6379/5
+      - DJANGO_SETTINGS_MODULE=config.settings.production
+      - REDIS_HOST=redis
     depends_on:
       - redis
 
@@ -42,7 +36,7 @@ services:
       context: .
       dockerfile: docker/frontend.Dockerfile
     ports:
-      - "3000:80"
+      - "3000:3000"
     depends_on:
       - backend
 

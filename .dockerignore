@@ -34,5 +34,4 @@ django.log
 .git
 .env
 /frontend/
-/dist/
 *.png

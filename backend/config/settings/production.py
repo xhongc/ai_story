@@ -5,7 +5,7 @@
 from .base import *
 
 DEBUG = False
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',')
+ALLOWED_HOSTS = ['*']
 
 # HTTPS配置
 SECURE_SSL_REDIRECT = True
@@ -27,13 +27,12 @@ LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'handlers': {
-        'file': {
-            'class': 'logging.FileHandler',
-            'filename': BASE_DIR / 'logs' / 'django.log',
+        'console': {
+            'class': 'logging.StreamHandler',
         },
     },
     'root': {
-        'handlers': ['file'],
-        'level': 'INFO',
+        'handlers': ['console'],
+        'level': 'DEBUG',
     },
 }
