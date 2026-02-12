@@ -312,10 +312,21 @@ export default {
   transition: all 0.2s ease;
 }
 
+.layout-shell.theme-dark .primary-action {
+  background: rgba(15, 23, 42, 0.9);
+  border-color: rgba(148, 163, 184, 0.25);
+  color: #e2e8f0;
+}
+
 .primary-action:hover {
   border-color: rgba(20, 184, 166, 0.6);
   box-shadow: 0 12px 24px rgba(20, 184, 166, 0.18);
   transform: translateY(-1px);
+}
+
+.layout-shell.theme-dark .primary-action:hover {
+  border-color: rgba(94, 234, 212, 0.6);
+  box-shadow: 0 12px 24px rgba(2, 6, 23, 0.55);
 }
 
 .primary-action:active {
@@ -333,6 +344,12 @@ export default {
   box-shadow: 0 16px 32px rgba(15, 23, 42, 0.08);
   margin-bottom: 2.5rem;
   backdrop-filter: blur(10px);
+}
+
+.layout-shell.theme-dark .filter-card {
+  background: rgba(15, 23, 42, 0.86);
+  border-color: rgba(148, 163, 184, 0.2);
+  box-shadow: 0 16px 32px rgba(2, 6, 23, 0.55);
 }
 
 .search-box {
@@ -353,6 +370,10 @@ export default {
   pointer-events: none;
 }
 
+.layout-shell.theme-dark .search-icon {
+  color: #94a3b8;
+}
+
 .search-input {
   width: 100%;
   padding: 0.875rem 1rem 0.875rem 3rem;
@@ -364,6 +385,12 @@ export default {
   transition: all 0.2s ease;
 }
 
+.layout-shell.theme-dark .search-input {
+  background: rgba(15, 23, 42, 0.9);
+  border-color: rgba(148, 163, 184, 0.25);
+  color: #e2e8f0;
+}
+
 .search-input:focus {
   border-color: rgba(20, 184, 166, 0.6);
   box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.18);
@@ -371,6 +398,10 @@ export default {
 
 .search-input::placeholder {
   color: #cbd5e1;
+}
+
+.layout-shell.theme-dark .search-input::placeholder {
+  color: #64748b;
 }
 
 .select-group {
@@ -391,6 +422,12 @@ export default {
   cursor: pointer;
   outline: none;
   transition: all 0.2s ease;
+}
+
+.layout-shell.theme-dark .select-input {
+  background: rgba(15, 23, 42, 0.9);
+  border-color: rgba(148, 163, 184, 0.25);
+  color: #e2e8f0;
 }
 
 .select-input:focus {
@@ -449,6 +486,11 @@ export default {
   cursor: pointer;
 }
 
+.layout-shell.theme-dark .data-card {
+  background: rgba(15, 23, 42, 0.92);
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
 .data-card::before {
   content: '';
   position: absolute;
@@ -466,6 +508,10 @@ export default {
   transform: translateY(-4px);
   box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12);
   border-color: rgba(148, 163, 184, 0.35);
+}
+
+.layout-shell.theme-dark .data-card:hover {
+  box-shadow: 0 18px 36px rgba(2, 6, 23, 0.6);
 }
 
 .data-card:hover::before {
@@ -486,12 +532,20 @@ export default {
   color: #0f172a;
 }
 
+.layout-shell.theme-dark .card-title {
+  color: #e2e8f0;
+}
+
 .card-subtitle {
   margin: 0.35rem 0 0;
   color: #64748b;
   font-size: 0.85rem;
   word-break: break-all;
   overflow-wrap: anywhere;
+}
+
+.layout-shell.theme-dark .card-subtitle {
+  color: #94a3b8;
 }
 
 .card-body {
@@ -516,6 +570,10 @@ export default {
   color: #0f172a;
 }
 
+.layout-shell.theme-dark .meta-value {
+  color: #e2e8f0;
+}
+
 .usage-cell {
   display: flex;
   flex-direction: column;
@@ -531,10 +589,20 @@ export default {
   color: #0f172a;
 }
 
+.layout-shell.theme-dark .badge {
+  background: rgba(148, 163, 184, 0.16);
+  border-color: rgba(148, 163, 184, 0.3);
+  color: #e2e8f0;
+}
+
 .badge-info {
   background: rgba(148, 163, 184, 0.16);
   border-color: rgba(148, 163, 184, 0.35);
   color: #475569;
+}
+
+.layout-shell.theme-dark .badge-info {
+  color: #bfdbfe;
 }
 
 .badge-success {
@@ -543,16 +611,28 @@ export default {
   color: #047857;
 }
 
+.layout-shell.theme-dark .badge-success {
+  color: #6ee7b7;
+}
+
 .badge-primary {
   background: rgba(20, 184, 166, 0.16);
   border-color: rgba(20, 184, 166, 0.35);
   color: #0f766e;
 }
 
+.layout-shell.theme-dark .badge-primary {
+  color: #5eead4;
+}
+
 .badge-accent {
   background: rgba(14, 165, 233, 0.16);
   border-color: rgba(14, 165, 233, 0.3);
   color: #0284c7;
+}
+
+.layout-shell.theme-dark .badge-accent {
+  color: #7dd3fc;
 }
 
 .card-actions {
@@ -578,9 +658,19 @@ export default {
   transition: all 0.2s ease;
 }
 
+.layout-shell.theme-dark .ghost-action {
+  background: rgba(148, 163, 184, 0.16);
+  color: #e2e8f0;
+}
+
 .ghost-action:hover {
   border-color: rgba(148, 163, 184, 0.2);
   background: rgba(15, 23, 42, 0.06);
+}
+
+.layout-shell.theme-dark .ghost-action:hover {
+  border-color: rgba(148, 163, 184, 0.35);
+  background: rgba(148, 163, 184, 0.22);
 }
 
 .ghost-action.danger {
@@ -609,11 +699,19 @@ export default {
   margin-bottom: 1.5rem;
 }
 
+.layout-shell.theme-dark .empty-icon {
+  color: #475569;
+}
+
 .empty-text {
   font-size: 1.25rem;
   font-weight: 600;
   color: #0f172a;
   margin: 0 0 0.5rem 0;
+}
+
+.layout-shell.theme-dark .empty-text {
+  color: #e2e8f0;
 }
 
 .empty-hint {
@@ -631,6 +729,11 @@ export default {
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
+}
+
+.layout-shell.theme-dark .secondary-action {
+  background: #e2e8f0;
+  color: #0f172a;
 }
 
 .secondary-action:hover {

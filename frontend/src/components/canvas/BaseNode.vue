@@ -97,8 +97,18 @@ export default {
   z-index: 2;
 }
 
+.layout-shell.theme-dark .flow-node {
+  background: #0f172a;
+  border-color: hsl(var(--bc) / 0.28);
+  box-shadow: 0 4px 16px rgba(2, 6, 23, 0.6);
+}
+
 .flow-node:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.layout-shell.theme-dark .flow-node:hover {
+  box-shadow: 0 6px 18px rgba(2, 6, 23, 0.75);
 }
 
 .node-clickable {
@@ -115,10 +125,18 @@ export default {
   background: #fafafa;
 }
 
+.layout-shell.theme-dark .status-pending {
+  background: #0f172a;
+}
+
 .status-processing {
   border-color: hsl(var(--in));
   background: #f0f8ff;
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.layout-shell.theme-dark .status-processing {
+  background: rgba(14, 116, 144, 0.2);
 }
 
 .status-completed {
@@ -126,9 +144,17 @@ export default {
   background: #f0fdf4;
 }
 
+.layout-shell.theme-dark .status-completed {
+  background: rgba(20, 83, 45, 0.2);
+}
+
 .status-failed {
   border-color: hsl(var(--er));
   background: #fef2f2;
+}
+
+.layout-shell.theme-dark .status-failed {
+  background: rgba(127, 29, 29, 0.2);
 }
 
 @keyframes pulse {
@@ -149,15 +175,27 @@ export default {
   border-bottom: 1px solid hsl(var(--bc) / 0.1);
 }
 
+.layout-shell.theme-dark .node-header {
+  border-bottom-color: hsl(var(--bc) / 0.2);
+}
+
 .node-icon {
   flex-shrink: 0;
   color: hsl(var(--bc) / 0.6);
+}
+
+.layout-shell.theme-dark .node-icon {
+  color: hsl(var(--bc) / 0.7);
 }
 
 .node-title {
   flex: 1;
   font-weight: 600;
   font-size: 0.875rem;
+  color: hsl(var(--bc));
+}
+
+.layout-shell.theme-dark .node-title {
   color: hsl(var(--bc));
 }
 
@@ -191,6 +229,10 @@ export default {
   overflow-y: auto;
 }
 
+.layout-shell.theme-dark .node-body {
+  color: hsl(var(--bc) / 0.85);
+}
+
 .node-body::-webkit-scrollbar {
   width: 4px;
 }
@@ -200,6 +242,10 @@ export default {
   border-radius: 2px;
 }
 
+.layout-shell.theme-dark .node-body::-webkit-scrollbar-thumb {
+  background: hsl(var(--bc) / 0.3);
+}
+
 /* 节点底部 */
 .node-footer {
   padding: 0.75rem 1rem;
@@ -207,5 +253,9 @@ export default {
   display: flex;
   gap: 0.5rem;
   justify-content: flex-end;
+}
+
+.layout-shell.theme-dark .node-footer {
+  border-top-color: hsl(var(--bc) / 0.2);
 }
 </style>

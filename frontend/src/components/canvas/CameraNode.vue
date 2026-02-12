@@ -217,8 +217,18 @@ export default {
   flex-direction: column;
 }
 
+.layout-shell.theme-dark .camera-node {
+  background: #0f172a;
+  border-color: hsl(var(--bc) / 0.28);
+  box-shadow: 0 4px 16px rgba(2, 6, 23, 0.6);
+}
+
 .camera-node:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.layout-shell.theme-dark .camera-node:hover {
+  box-shadow: 0 6px 18px rgba(2, 6, 23, 0.75);
 }
 
 .status-pending {
@@ -226,9 +236,17 @@ export default {
   background: #fafafa;
 }
 
+.layout-shell.theme-dark .status-pending {
+  background: #0f172a;
+}
+
 .status-processing {
   border-color: hsl(var(--in));
   background: #f0f8ff;
+}
+
+.layout-shell.theme-dark .status-processing {
+  background: rgba(14, 116, 144, 0.2);
 }
 
 .status-completed {
@@ -236,9 +254,17 @@ export default {
   background: #fafafa;
 }
 
+.layout-shell.theme-dark .status-completed {
+  background: #0f172a;
+}
+
 .status-failed {
   border-color: hsl(var(--er));
   background: #fef2f2;
+}
+
+.layout-shell.theme-dark .status-failed {
+  background: rgba(127, 29, 29, 0.2);
 }
 
 .node-header {
@@ -248,6 +274,11 @@ export default {
   padding: 0.625rem 0.875rem;
   border-bottom: 1px solid hsl(var(--bc) / 0.1);
   background: hsl(var(--b2) / 0.3);
+}
+
+.layout-shell.theme-dark .node-header {
+  border-bottom-color: hsl(var(--bc) / 0.2);
+  background: hsl(var(--b2) / 0.45);
 }
 
 .header-left {
@@ -281,6 +312,10 @@ export default {
   border-bottom: 1px solid hsl(var(--bc) / 0.05);
 }
 
+.layout-shell.theme-dark .node-content {
+  border-bottom-color: hsl(var(--bc) / 0.15);
+}
+
 .content-label {
   display: block;
   font-size: 0.6875rem;
@@ -292,6 +327,10 @@ export default {
 .node-description {
   padding: 0.75rem 0.875rem;
   border-bottom: 1px solid hsl(var(--bc) / 0.05);
+}
+
+.layout-shell.theme-dark .node-description {
+  border-bottom-color: hsl(var(--bc) / 0.15);
 }
 
 .description-textarea {
@@ -312,10 +351,20 @@ export default {
   transition: border-color 0.2s ease;
 }
 
+.layout-shell.theme-dark .description-textarea {
+  background: hsl(var(--b2) / 0.6);
+  border-color: hsl(var(--bc) / 0.2);
+  color: hsl(var(--bc) / 0.8);
+}
+
 .description-textarea:focus {
   outline: none;
   border-color: hsl(var(--p));
   background: hsl(var(--b1));
+}
+
+.layout-shell.theme-dark .description-textarea:focus {
+  background: hsl(var(--b2));
 }
 
 .description-textarea:disabled {

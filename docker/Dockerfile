@@ -1,25 +1,38 @@
-FROM python:3.11-slim
+FROM python:3.11-slim-bullseye AS base
 
-# 设置工作目录
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_PYTHON_DOWNLOADS=never \
+    UV_PROJECT_ENVIRONMENT=/opt/venv
+
 WORKDIR /app
 
-# 安装系统依赖
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
-    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-# 安装Python依赖
-COPY requirements.txt requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
-# 复制项目文件
-COPY . .
+FROM base AS builder
 
-# 创建必要的目录
+COPY pyproject.toml uv.lock ./
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir uv \
+    && uv sync --frozen --no-dev
+
+FROM python:3.11-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/opt/venv/bin:$PATH"
+
+WORKDIR /app
+
+COPY --from=builder /opt/venv /opt/venv
+COPY backend /app/backend
+
 RUN mkdir -p staticfiles media logs
 
-# 暴露端口
-EXPOSE 8000
+EXPOSE 8010
 
-# 启动命令
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+CMD ["gunicorn", "--chdir", "/app/backend", "config.wsgi:application", "--bind", "0.0.0.0:8010"]

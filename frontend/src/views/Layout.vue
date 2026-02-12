@@ -1,5 +1,8 @@
 <template>
-  <div class="layout-shell" :class="{ 'rail-collapsed': sidebarCollapsed }">
+  <div
+    class="layout-shell"
+    :class="{ 'rail-collapsed': sidebarCollapsed, 'theme-dark': isDark }"
+  >
     <!-- 移动端抽屉切换 -->
     <input id="main-drawer" type="checkbox" class="drawer-toggle" />
 
@@ -41,6 +44,43 @@
 
         <!-- 右侧操作按钮 -->
         <div class="topbar-actions">
+          <button
+            class="icon-button"
+            @click="handleThemeToggle"
+            :aria-label="isDark ? '切换到浅色主题' : '切换到深色主题'"
+            :title="isDark ? '切换到浅色主题' : '切换到深色主题'"
+          >
+            <svg
+              v-if="isDark"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke-width="1.5"
+              stroke="currentColor"
+              class="w-5 h-5"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M12 3v2.25m0 13.5V21m-6.364-2.636l1.591-1.591m9.546-9.546l1.591-1.591M3 12h2.25m13.5 0H21m-2.636 6.364l-1.591-1.591m-9.546-9.546l-1.591-1.591M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+              />
+            </svg>
+            <svg
+              v-else
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke-width="1.5"
+              stroke="currentColor"
+              class="w-5 h-5"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M21.752 15.002A9.718 9.718 0 0112 21.75a9.75 9.75 0 01-9.75-9.75 9.718 9.718 0 016.748-9.252.75.75 0 01.96.93 7.5 7.5 0 009.364 9.364.75.75 0 01.93.96z"
+              />
+            </svg>
+          </button>
           <button class="icon-button" @click="handleRefresh" aria-label="刷新">
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -71,25 +111,6 @@
             >
               <li class="menu-title">
                 <span>{{ username }}</span>
-              </li>
-              <li>
-                <a @click="handleProfile">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke-width="1.5"
-                    stroke="currentColor"
-                    class="w-5 h-5"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
-                    />
-                  </svg>
-                  个人资料
-                </a>
               </li>
               <li>
                 <a @click="handleLogout">
@@ -154,6 +175,8 @@
         </ul>
       </aside>
     </div>
+
+    <div class="rail-hover-zone hidden lg:block" aria-hidden="true"></div>
 
     <!-- 浮动侧边导航栏（桌面端） -->
     <nav class="floating-rail hidden lg:flex" :class="{ 'is-collapsed': sidebarCollapsed }">
@@ -303,7 +326,7 @@ export default {
   name: 'Layout',
   computed: {
     ...mapGetters('auth', ['username', 'user']),
-    ...mapGetters('ui', ['sidebarCollapsed']),
+    ...mapGetters('ui', ['sidebarCollapsed', 'isDark']),
     activeMenu() {
       const route = this.$route;
       const { path } = route;
@@ -333,9 +356,12 @@ export default {
   },
   methods: {
     ...mapActions('auth', ['logout']),
-    ...mapActions('ui', ['toggleSidebar']),
+    ...mapActions('ui', ['toggleSidebar', 'toggleTheme']),
     handleRefresh() {
       this.$router.go(0);
+    },
+    handleThemeToggle() {
+      this.toggleTheme();
     },
     handleProfile() {
       // TODO: 跳转到个人资料页面
@@ -370,10 +396,32 @@ export default {
   --surface-strong: #ffffff;
   font-family: 'Space Grotesk', 'Noto Sans SC', sans-serif;
   min-height: 100vh;
+  color: var(--ink);
   background: radial-gradient(circle at 10% 10%, rgba(148, 163, 184, 0.2), transparent 40%),
     radial-gradient(circle at 90% 15%, rgba(20, 184, 166, 0.16), transparent 45%),
     linear-gradient(120deg, #f8fafc 0%, #e2e8f0 100%);
   position: relative;
+  transition: color 200ms ease, background 260ms ease;
+}
+
+.layout-shell.theme-dark {
+  --rail-surface: rgba(15, 23, 42, 0.9);
+  --rail-border: rgba(148, 163, 184, 0.2);
+  --accent: #5eead4;
+  --accent-soft: rgba(94, 234, 212, 0.18);
+  --ink: #e2e8f0;
+  --muted: #94a3b8;
+  --surface: rgba(15, 23, 42, 0.88);
+  --surface-strong: rgba(15, 23, 42, 0.96);
+  background: radial-gradient(circle at 12% 15%, rgba(94, 234, 212, 0.16), transparent 45%),
+    radial-gradient(circle at 88% 18%, rgba(59, 130, 246, 0.2), transparent 48%),
+    linear-gradient(120deg, #0b1120 0%, #0f172a 55%, #111827 100%);
+}
+
+.layout-shell.theme-dark::before {
+  background-image: linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
+  opacity: 0.25;
 }
 
 .layout-shell::before {
@@ -394,11 +442,16 @@ export default {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  transition: padding-left 260ms ease;
 }
 
 @media (min-width: 1024px) {
   .drawer-content {
     padding-left: calc(var(--rail-collapsed-width) + var(--rail-gap));
+  }
+
+  .layout-shell.rail-collapsed .drawer-content {
+    padding-left: 0;
   }
 }
 
@@ -420,6 +473,11 @@ export default {
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
   backdrop-filter: blur(14px);
   animation: surface-rise 520ms ease;
+}
+
+.layout-shell.theme-dark .topbar {
+  border-color: rgba(148, 163, 184, 0.18);
+  box-shadow: 0 18px 45px rgba(3, 7, 18, 0.45);
 }
 
 .topbar-left {
@@ -445,6 +503,10 @@ export default {
   color: var(--ink);
 }
 
+.layout-shell.theme-dark .brand-chip {
+  background: rgba(148, 163, 184, 0.18);
+}
+
 .icon-button {
   display: inline-flex;
   align-items: center;
@@ -454,7 +516,13 @@ export default {
   border-radius: 14px;
   border: 1px solid rgba(148, 163, 184, 0.35);
   background: rgba(255, 255, 255, 0.72);
+  color: var(--ink);
   transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.layout-shell.theme-dark .icon-button {
+  border-color: rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.85);
 }
 
 .icon-button:hover {
@@ -488,6 +556,11 @@ export default {
   min-height: 0;
 }
 
+.layout-shell.theme-dark .main-surface {
+  border-color: rgba(148, 163, 184, 0.18);
+  box-shadow: 0 24px 60px rgba(3, 7, 18, 0.5);
+}
+
 .main-surface > .project-detail {
   flex: 1;
   min-height: 0;
@@ -502,11 +575,20 @@ export default {
   padding-top: 16px;
 }
 
+.layout-shell.theme-dark .mobile-drawer {
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
 .mobile-header {
   padding: 12px 18px;
   font-weight: 600;
   letter-spacing: 0.6px;
   color: #0f172a;
+}
+
+.layout-shell.theme-dark .mobile-header {
+  color: #e2e8f0;
 }
 
 .floating-rail {
@@ -527,6 +609,39 @@ export default {
   backdrop-filter: blur(18px);
   z-index: 20;
   animation: rail-fade 520ms ease;
+  transition: transform 260ms ease, opacity 260ms ease;
+}
+
+.layout-shell.theme-dark .floating-rail {
+  box-shadow: 0 22px 60px rgba(2, 6, 23, 0.55);
+}
+
+.rail-hover-zone {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 32px;
+  height: 100vh;
+  z-index: 19;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.layout-shell.rail-collapsed .rail-hover-zone {
+  pointer-events: auto;
+}
+
+.layout-shell.rail-collapsed .floating-rail {
+  transform: translate(-140%, -50%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.layout-shell.rail-collapsed .rail-hover-zone:hover ~ .floating-rail,
+.layout-shell.rail-collapsed .floating-rail:hover {
+  transform: translate(0, -50%);
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .rail-orb {
@@ -569,15 +684,29 @@ export default {
   position: relative;
 }
 
+.layout-shell.theme-dark .rail-item {
+  color: var(--ink);
+}
+
 .rail-item:hover {
   background: rgba(15, 23, 42, 0.06);
   transform: translateX(2px);
+}
+
+.layout-shell.theme-dark .rail-item:hover {
+  background: rgba(148, 163, 184, 0.14);
 }
 
 .rail-item.is-active {
   background: rgba(20, 184, 166, 0.16);
   color: #0f172a;
   box-shadow: inset 0 0 0 1px rgba(20, 184, 166, 0.4);
+}
+
+.layout-shell.theme-dark .rail-item.is-active {
+  background: rgba(94, 234, 212, 0.2);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px rgba(94, 234, 212, 0.5);
 }
 
 .rail-icon {
@@ -588,6 +717,10 @@ export default {
   align-items: center;
   justify-content: center;
   background: rgba(15, 23, 42, 0.06);
+}
+
+.layout-shell.theme-dark .rail-icon {
+  background: rgba(148, 163, 184, 0.16);
 }
 
 .rail-label {
@@ -610,13 +743,14 @@ export default {
   transition: opacity 180ms ease, transform 180ms ease;
 }
 
-.rail-item:hover .rail-label,
-.rail-item.is-active .rail-label {
-  opacity: 1;
-  transform: translate(0, -50%);
+.layout-shell.theme-dark .rail-label {
+  color: var(--ink);
+  background: rgba(15, 23, 42, 0.95);
+  border-color: rgba(148, 163, 184, 0.2);
+  box-shadow: 0 12px 28px rgba(2, 6, 23, 0.5);
 }
 
-.layout-shell:not(.rail-collapsed) .rail-label {
+.rail-item:hover .rail-label {
   opacity: 1;
   transform: translate(0, -50%);
 }
@@ -632,6 +766,12 @@ export default {
   align-items: center;
   justify-content: center;
   transition: transform 160ms ease, border-color 160ms ease;
+}
+
+.layout-shell.theme-dark .rail-toggle {
+  border-color: rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.9);
+  color: var(--ink);
 }
 
 .rail-toggle:hover {

@@ -218,8 +218,18 @@ export default {
   transition: all 0.3s ease;
 }
 
+.layout-shell.theme-dark .storyboard-node {
+  background: #0f172a;
+  border-color: hsl(var(--bc) / 0.28);
+  box-shadow: 0 4px 16px rgba(2, 6, 23, 0.6);
+}
+
 .storyboard-node:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.layout-shell.theme-dark .storyboard-node:hover {
+  box-shadow: 0 6px 18px rgba(2, 6, 23, 0.75);
 }
 
 .status-pending {
@@ -227,14 +237,26 @@ export default {
   background: #fafafa;
 }
 
+.layout-shell.theme-dark .status-pending {
+  background: #0f172a;
+}
+
 .status-processing {
   border-color: hsl(var(--wa));
   background: #fffbeb;
 }
 
+.layout-shell.theme-dark .status-processing {
+  background: rgba(120, 53, 15, 0.2);
+}
+
 .status-completed {
   border-color: hsl(var(--su));
   background: #f0fdf4;
+}
+
+.layout-shell.theme-dark .status-completed {
+  background: rgba(20, 83, 45, 0.2);
 }
 
 .node-header {
@@ -244,6 +266,11 @@ export default {
   padding: 0.625rem 0.875rem;
   border-bottom: 1px solid hsl(var(--bc) / 0.1);
   background: hsl(var(--b2) / 0.3);
+}
+
+.layout-shell.theme-dark .node-header {
+  border-bottom-color: hsl(var(--bc) / 0.2);
+  background: hsl(var(--b2) / 0.45);
 }
 
 .header-left {
@@ -272,9 +299,18 @@ export default {
   color: hsl(var(--bc) / 0.7);
 }
 
+.layout-shell.theme-dark .duration-badge {
+  background: hsl(var(--bc) / 0.2);
+  color: hsl(var(--bc) / 0.75);
+}
+
 .node-section {
   padding: 0.15rem 0.875rem;
   border-bottom: 1px solid hsl(var(--bc) / 0.05);
+}
+
+.layout-shell.theme-dark .node-section {
+  border-bottom-color: hsl(var(--bc) / 0.15);
 }
 
 .node-section-compact {

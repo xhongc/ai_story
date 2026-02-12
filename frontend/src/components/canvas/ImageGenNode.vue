@@ -168,8 +168,18 @@ export default {
   overflow: hidden;
 }
 
+.layout-shell.theme-dark .image-gen-node {
+  background: #0f172a;
+  border-color: hsl(var(--bc) / 0.28);
+  box-shadow: 0 4px 16px rgba(2, 6, 23, 0.6);
+}
+
 .image-gen-node:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.layout-shell.theme-dark .image-gen-node:hover {
+  box-shadow: 0 6px 18px rgba(2, 6, 23, 0.75);
 }
 
 .status-pending {
@@ -177,9 +187,17 @@ export default {
   background: #fafafa;
 }
 
+.layout-shell.theme-dark .status-pending {
+  background: #0f172a;
+}
+
 .status-processing {
   border-color: hsl(var(--in));
   background: #f0f8ff;
+}
+
+.layout-shell.theme-dark .status-processing {
+  background: rgba(14, 116, 144, 0.2);
 }
 
 .status-completed {
@@ -187,9 +205,17 @@ export default {
   background: #fafafa;
 }
 
+.layout-shell.theme-dark .status-completed {
+  background: #0f172a;
+}
+
 .status-failed {
   border-color: hsl(var(--er));
   background: #fef2f2;
+}
+
+.layout-shell.theme-dark .status-failed {
+  background: rgba(127, 29, 29, 0.2);
 }
 
 .node-header {
@@ -199,6 +225,11 @@ export default {
   padding: 0.625rem 0.875rem;
   border-bottom: 1px solid hsl(var(--bc) / 0.1);
   background: hsl(var(--b2) / 0.3);
+}
+
+.layout-shell.theme-dark .node-header {
+  border-bottom-color: hsl(var(--bc) / 0.2);
+  background: hsl(var(--b2) / 0.45);
 }
 
 .header-left {
@@ -236,6 +267,10 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.layout-shell.theme-dark .image-preview {
+  background: hsl(var(--b2));
 }
 
 .preview-img {

@@ -30,8 +30,14 @@ Vue.config.errorHandler = (err, vm, info) => {
 };
 
 // 创建 Vue 实例
-new Vue({
+const app = new Vue({
   router,
   store,
   render: (h) => h(App),
 }).$mount('#app');
+
+// 初始化主题
+const savedTheme = store.getters['ui/theme'];
+if (savedTheme) {
+  app.$el.setAttribute('data-theme', savedTheme);
+}

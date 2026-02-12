@@ -1,5 +1,5 @@
 <template>
-  <div class="page-shell project-list">
+  <div class="page-shell">
     <!-- 顶部工具栏 -->
     <div class="page-header">
       <div class="page-header-main">
@@ -321,10 +321,21 @@ export default {
   transition: all 0.2s ease;
 }
 
+.layout-shell.theme-dark .primary-action {
+  background: rgba(15, 23, 42, 0.9);
+  border-color: rgba(148, 163, 184, 0.25);
+  color: #e2e8f0;
+}
+
 .primary-action:hover {
   border-color: rgba(20, 184, 166, 0.6);
   box-shadow: 0 12px 24px rgba(20, 184, 166, 0.18);
   transform: translateY(-1px);
+}
+
+.layout-shell.theme-dark .primary-action:hover {
+  border-color: rgba(94, 234, 212, 0.6);
+  box-shadow: 0 12px 24px rgba(2, 6, 23, 0.55);
 }
 
 .primary-action:active {
@@ -345,6 +356,12 @@ export default {
   backdrop-filter: blur(10px);
 }
 
+.layout-shell.theme-dark .filter-card {
+  background: rgba(15, 23, 42, 0.86);
+  border-color: rgba(148, 163, 184, 0.2);
+  box-shadow: 0 16px 32px rgba(2, 6, 23, 0.55);
+}
+
 .search-box {
   position: relative;
   flex: 1;
@@ -363,6 +380,10 @@ export default {
   pointer-events: none;
 }
 
+.layout-shell.theme-dark .search-icon {
+  color: #94a3b8;
+}
+
 .search-input {
   width: 100%;
   padding: 0.875rem 1rem 0.875rem 3rem;
@@ -374,6 +395,12 @@ export default {
   outline: none;
 }
 
+.layout-shell.theme-dark .search-input {
+  background: rgba(15, 23, 42, 0.9);
+  border-color: rgba(148, 163, 184, 0.25);
+  color: #e2e8f0;
+}
+
 .search-input:focus {
   border-color: rgba(20, 184, 166, 0.6);
   box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.18);
@@ -381,6 +408,10 @@ export default {
 
 .search-input::placeholder {
   color: #cbd5e1;
+}
+
+.layout-shell.theme-dark .search-input::placeholder {
+  color: #64748b;
 }
 
 .status-filters {
@@ -401,15 +432,32 @@ export default {
   transition: all 0.2s ease;
 }
 
+.layout-shell.theme-dark .status-filter-btn {
+  background: rgba(15, 23, 42, 0.9);
+  border-color: rgba(148, 163, 184, 0.25);
+  color: #cbd5e1;
+}
+
 .status-filter-btn:hover {
   border-color: #cbd5e1;
   background: #f8fafc;
+}
+
+.layout-shell.theme-dark .status-filter-btn:hover {
+  border-color: rgba(148, 163, 184, 0.4);
+  background: rgba(30, 41, 59, 0.9);
 }
 
 .status-filter-btn.active {
   background: rgba(20, 184, 166, 0.16);
   color: #0f172a;
   border-color: rgba(20, 184, 166, 0.5);
+}
+
+.layout-shell.theme-dark .status-filter-btn.active {
+  background: rgba(94, 234, 212, 0.2);
+  color: #e2e8f0;
+  border-color: rgba(94, 234, 212, 0.5);
 }
 
 /* 瀑布流网格 */
@@ -432,6 +480,11 @@ export default {
   overflow: hidden;
 }
 
+.layout-shell.theme-dark .project-card {
+  background: rgba(15, 23, 42, 0.92);
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
 .project-card::before {
   content: '';
   position: absolute;
@@ -448,6 +501,11 @@ export default {
 .project-card:hover {
   transform: translateY(-4px);
   box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12);
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.layout-shell.theme-dark .project-card:hover {
+  box-shadow: 0 18px 36px rgba(2, 6, 23, 0.6);
   border-color: rgba(148, 163, 184, 0.35);
 }
 
@@ -511,6 +569,10 @@ export default {
   font-weight: 500;
 }
 
+.layout-shell.theme-dark .status-text {
+  color: #94a3b8;
+}
+
 .card-actions {
   display: flex;
   gap: 0.5rem;
@@ -554,6 +616,10 @@ export default {
   overflow: hidden;
 }
 
+.layout-shell.theme-dark .card-title {
+  color: #e2e8f0;
+}
+
 .card-description {
   font-size: 0.875rem;
   color: #64748b;
@@ -565,10 +631,18 @@ export default {
   overflow: hidden;
 }
 
+.layout-shell.theme-dark .card-description {
+  color: #94a3b8;
+}
+
 /* 卡片底部 */
 .card-footer {
   padding-top: 1rem;
   border-top: 1px solid #f1f5f9;
+}
+
+.layout-shell.theme-dark .card-footer {
+  border-top-color: rgba(148, 163, 184, 0.2);
 }
 
 .card-meta {
@@ -583,8 +657,16 @@ export default {
   color: #cbd5e1;
 }
 
+.layout-shell.theme-dark .meta-icon {
+  color: #64748b;
+}
+
 .meta-text {
   font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+.layout-shell.theme-dark .meta-text {
   color: #94a3b8;
 }
 
@@ -605,6 +687,10 @@ export default {
   margin-bottom: 1.5rem;
 }
 
+.layout-shell.theme-dark .empty-icon {
+  color: #475569;
+}
+
 .empty-text {
   font-size: 1.25rem;
   font-weight: 600;
@@ -612,10 +698,18 @@ export default {
   margin: 0 0 0.5rem 0;
 }
 
+.layout-shell.theme-dark .empty-text {
+  color: #e2e8f0;
+}
+
 .empty-hint {
   font-size: 0.95rem;
   color: #94a3b8;
   margin: 0 0 2rem 0;
+}
+
+.layout-shell.theme-dark .empty-hint {
+  color: #94a3b8;
 }
 
 .secondary-action {
@@ -628,6 +722,11 @@ export default {
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
+}
+
+.layout-shell.theme-dark .secondary-action {
+  background: #e2e8f0;
+  color: #0f172a;
 }
 
 .secondary-action:hover {
@@ -654,9 +753,20 @@ export default {
   transition: all 0.2s ease;
 }
 
+.layout-shell.theme-dark .pagination-btn {
+  background: rgba(15, 23, 42, 0.9);
+  border-color: rgba(148, 163, 184, 0.25);
+  color: #cbd5e1;
+}
+
 .pagination-btn:hover:not(:disabled) {
   background: #f8fafc;
   border-color: #cbd5e1;
+}
+
+.layout-shell.theme-dark .pagination-btn:hover:not(:disabled) {
+  background: rgba(30, 41, 59, 0.9);
+  border-color: rgba(148, 163, 184, 0.4);
 }
 
 .pagination-btn:disabled {
@@ -672,6 +782,10 @@ export default {
   text-align: center;
 }
 
+.layout-shell.theme-dark .pagination-info {
+  color: #94a3b8;
+}
+
 /* 模态框 */
 .modal-box-modern {
   background: rgba(255, 255, 255, 0.98);
@@ -681,6 +795,11 @@ export default {
   box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15);
 }
 
+.layout-shell.theme-dark .modal-box-modern {
+  background: rgba(15, 23, 42, 0.98);
+  box-shadow: 0 20px 40px rgba(2, 6, 23, 0.6);
+}
+
 .modal-title {
   font-size: 1.25rem;
   font-weight: 600;
@@ -688,11 +807,19 @@ export default {
   margin: 0 0 1rem 0;
 }
 
+.layout-shell.theme-dark .modal-title {
+  color: #e2e8f0;
+}
+
 .modal-text {
   font-size: 0.95rem;
   color: #64748b;
   line-height: 1.6;
   margin: 0 0 2rem 0;
+}
+
+.layout-shell.theme-dark .modal-text {
+  color: #94a3b8;
 }
 
 .modal-actions {
@@ -711,6 +838,11 @@ export default {
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
+}
+
+.layout-shell.theme-dark .btn-cancel {
+  background: rgba(30, 41, 59, 0.9);
+  color: #e2e8f0;
 }
 
 .btn-cancel:hover {

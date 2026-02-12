@@ -1,5 +1,5 @@
 <template>
-  <div class="container mx-auto px-4 py-6">
+  <div class="w-full px-4 py-6">
     <!-- 页面标题 -->
     <div class="mb-6">
       <h1 class="text-3xl font-bold">创建项目</h1>
@@ -7,7 +7,7 @@
     </div>
 
     <!-- 表单卡片 -->
-    <div class="card bg-base-100 shadow-xl max-w-3xl">
+    <div class="card bg-base-100 shadow-xl w-full">
       <div class="card-body">
         <form @submit.prevent="handleSubmit">
           <!-- 项目名称 -->
@@ -96,32 +96,6 @@
               </span>
             </label>
           </div>
-
-          <!-- 提示信息 -->
-          <div class="alert alert-info mt-6">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              class="stroke-current shrink-0 w-6 h-6"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              ></path>
-            </svg>
-            <div class="text-sm">
-              <p class="font-semibold mb-1">创建后会发生什么？</p>
-              <ul class="list-disc list-inside space-y-1 text-xs">
-                <li>系统将自动初始化5个工作流阶段</li>
-                <li>项目状态为"草稿"，可以随时编辑</li>
-                <li>你可以在项目详情页配置AI模型并开始生成</li>
-              </ul>
-            </div>
-          </div>
-
           <!-- 按钮组 -->
           <div class="card-actions justify-end mt-8">
             <button

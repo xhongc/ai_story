@@ -354,8 +354,18 @@ export default {
   transition: all 0.3s ease;
 }
 
+.layout-shell.theme-dark .rewrite-node-expanded {
+  background: #0f172a;
+  border-color: hsl(var(--bc) / 0.28);
+  box-shadow: 0 6px 20px rgba(2, 6, 23, 0.6);
+}
+
 .rewrite-node-expanded:hover {
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+.layout-shell.theme-dark .rewrite-node-expanded:hover {
+  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.75);
 }
 
 /* 状态样式 */
@@ -368,14 +378,26 @@ export default {
   background: #f0f8ff;
 }
 
+.layout-shell.theme-dark .status-processing {
+  background: rgba(14, 116, 144, 0.2);
+}
+
 .status-completed {
   border-color: hsl(var(--su));
   background: #fafafa;
 }
 
+.layout-shell.theme-dark .status-completed {
+  background: #0f172a;
+}
+
 .status-failed {
   border-color: hsl(var(--er));
   background: #fef2f2;
+}
+
+.layout-shell.theme-dark .status-failed {
+  background: rgba(127, 29, 29, 0.2);
 }
 
 /* 节点头部 */
@@ -386,6 +408,11 @@ export default {
   padding: 1rem 1.25rem;
   border-bottom: 1px solid hsl(var(--bc) / 0.1);
   background: hsl(var(--b2) / 0.5);
+}
+
+.layout-shell.theme-dark .node-header {
+  border-bottom-color: hsl(var(--bc) / 0.2);
+  background: hsl(var(--b2) / 0.6);
 }
 
 .header-left {
@@ -427,6 +454,10 @@ export default {
   color: hsl(var(--bc));
   cursor: pointer;
   transition: all 0.2s ease;
+}
+
+.layout-shell.theme-dark .icon-btn {
+  background: hsl(var(--b2) / 0.85);
 }
 
 .icon-btn:hover:not(.icon-btn-disabled) {
@@ -480,6 +511,10 @@ export default {
   border-bottom: 1px solid hsl(var(--bc) / 0.05);
 }
 
+.layout-shell.theme-dark .node-section {
+  border-bottom-color: hsl(var(--bc) / 0.15);
+}
+
 .section-label {
   display: block;
   font-size: 0.875rem;
@@ -501,6 +536,10 @@ export default {
   overflow-y: auto;
 }
 
+.layout-shell.theme-dark .original-text {
+  background: hsl(var(--b2) / 0.85);
+}
+
 .original-text::-webkit-scrollbar {
   width: 4px;
 }
@@ -508,6 +547,10 @@ export default {
 .original-text::-webkit-scrollbar-thumb {
   background: hsl(var(--bc) / 0.2);
   border-radius: 2px;
+}
+
+.layout-shell.theme-dark .original-text::-webkit-scrollbar-thumb {
+  background: hsl(var(--bc) / 0.3);
 }
 
 /* 操作按钮 */

@@ -42,7 +42,23 @@ body {
   background: #555;
 }
 
+[data-theme='dark'] ::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+
+[data-theme='dark'] ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+[data-theme='dark'] ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
 /* Element UI 覆盖 */
 .el-loading-mask {
   background-color: rgba(255, 255, 255, 0.7);
+}
+
+[data-theme='dark'] .el-loading-mask {
+  background-color: rgba(15, 23, 42, 0.7);
 }

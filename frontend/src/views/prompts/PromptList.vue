@@ -268,7 +268,7 @@ export default {
     },
 
     handleView(set) {
-      this.$router.push(`/prompts/sets/${set.id}/edit`);
+      this.$router.push(`/prompts/sets/${set.id}`);
     },
 
     handleEdit(set) {
@@ -365,10 +365,18 @@ export default {
   letter-spacing: -0.02em;
 }
 
+.layout-shell.theme-dark .page-title {
+  color: #e2e8f0;
+}
+
 .page-subtitle {
   font-size: 0.95rem;
   color: #64748b;
   margin: 0;
+}
+
+.layout-shell.theme-dark .page-subtitle {
+  color: #94a3b8;
 }
 
 .primary-action {
@@ -379,6 +387,12 @@ export default {
   color: #0f172a;
   font-weight: 500;
   transition: all 0.2s ease;
+}
+
+.layout-shell.theme-dark .primary-action {
+  background: rgba(15, 23, 42, 0.9);
+  border-color: rgba(148, 163, 184, 0.25);
+  color: #e2e8f0;
 }
 
 .primary-action:hover {
@@ -399,6 +413,12 @@ export default {
   margin-bottom: 2.5rem;
 }
 
+.layout-shell.theme-dark .filter-card {
+  background: rgba(15, 23, 42, 0.86);
+  border-color: rgba(148, 163, 184, 0.2);
+  box-shadow: 0 16px 32px rgba(2, 6, 23, 0.55);
+}
+
 .search-box {
   position: relative;
   flex: 1;
@@ -415,6 +435,10 @@ export default {
   color: #94a3b8;
 }
 
+.layout-shell.theme-dark .search-icon {
+  color: #94a3b8;
+}
+
 .search-input {
   width: 100%;
   padding: 0.875rem 1rem 0.875rem 3rem;
@@ -422,6 +446,16 @@ export default {
   border: 1px solid rgba(148, 163, 184, 0.35);
   background: rgba(255, 255, 255, 0.9);
   outline: none;
+}
+
+.layout-shell.theme-dark .search-input::placeholder {
+  color: #64748b;
+}
+
+.layout-shell.theme-dark .search-input {
+  background: rgba(15, 23, 42, 0.9);
+  border-color: rgba(148, 163, 184, 0.25);
+  color: #e2e8f0;
 }
 
 .search-input:focus {
@@ -447,15 +481,32 @@ export default {
   transition: all 0.2s ease;
 }
 
+.layout-shell.theme-dark .status-filter-btn {
+  background: rgba(15, 23, 42, 0.9);
+  border-color: rgba(148, 163, 184, 0.25);
+  color: #cbd5e1;
+}
+
 .status-filter-btn:hover {
   border-color: #cbd5e1;
   background: #f8fafc;
+}
+
+.layout-shell.theme-dark .status-filter-btn:hover {
+  border-color: rgba(148, 163, 184, 0.4);
+  background: rgba(30, 41, 59, 0.9);
 }
 
 .status-filter-btn.active {
   background: rgba(20, 184, 166, 0.16);
   color: #0f172a;
   border-color: rgba(20, 184, 166, 0.5);
+}
+
+.layout-shell.theme-dark .status-filter-btn.active {
+  background: rgba(94, 234, 212, 0.2);
+  color: #e2e8f0;
+  border-color: rgba(94, 234, 212, 0.5);
 }
 
 
@@ -466,7 +517,9 @@ export default {
 }
 
 .data-card {
-  background: rgba(255, 255, 255, 0.92);
+  background: linear-gradient(90deg, rgba(20, 184, 166, 0.7) 0%, rgba(14, 165, 233, 0.7) 100%)
+      0 0 / 0 3px no-repeat,
+    rgba(255, 255, 255, 0.92);
   border-radius: 18px;
   padding: 1.5rem;
   border: 1px solid rgba(148, 163, 184, 0.2);
@@ -475,33 +528,37 @@ export default {
   flex-direction: column;
   gap: 1.25rem;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   min-width: 0;
+  z-index: 0;
 }
 
-.data-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, rgba(20, 184, 166, 0.7) 0%, rgba(14, 165, 233, 0.7) 100%);
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 0.3s ease;
+.layout-shell.theme-dark .data-card {
+  background: linear-gradient(90deg, rgba(94, 234, 212, 0.5) 0%, rgba(56, 189, 248, 0.5) 100%)
+      0 0 / 0 3px no-repeat,
+    rgba(15, 23, 42, 0.92);
+  border-color: rgba(148, 163, 184, 0.2);
+  box-shadow: 0 16px 32px rgba(2, 6, 23, 0.55);
 }
 
 .data-card:hover {
   transform: translateY(-4px);
   box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12);
   border-color: rgba(148, 163, 184, 0.35);
+  background-size: 100% 3px, auto;
+  z-index: 5;
 }
 
-.data-card:hover::before {
-  transform: scaleX(1);
+.layout-shell.theme-dark .data-card:hover {
+  box-shadow: 0 18px 36px rgba(2, 6, 23, 0.6);
+  border-color: rgba(148, 163, 184, 0.35);
 }
+
+.data-card:focus-within {
+  z-index: 5;
+}
+
 
 .card-top {
   display: flex;
@@ -520,10 +577,18 @@ export default {
   margin: 0;
 }
 
+.layout-shell.theme-dark .card-title {
+  color: #e2e8f0;
+}
+
 .card-desc {
   margin: 0.5rem 0 0;
   color: #64748b;
   font-size: 0.9rem;
+}
+
+.layout-shell.theme-dark .card-desc {
+  color: #94a3b8;
 }
 
 .pill {
@@ -534,6 +599,11 @@ export default {
   color: #0f172a;
 }
 
+.layout-shell.theme-dark .pill {
+  background: rgba(94, 234, 212, 0.22);
+  color: #e2e8f0;
+}
+
 .card-meta {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -541,6 +611,10 @@ export default {
   background: rgba(148, 163, 184, 0.1);
   border-radius: 14px;
   padding: 0.75rem 1rem;
+}
+
+.layout-shell.theme-dark .card-meta {
+  background: rgba(30, 41, 59, 0.6);
 }
 
 .meta-item {
@@ -558,6 +632,10 @@ export default {
   font-size: 0.95rem;
   color: #0f172a;
   font-weight: 600;
+}
+
+.layout-shell.theme-dark .meta-value {
+  color: #e2e8f0;
 }
 
 .card-footer {
@@ -591,9 +669,19 @@ export default {
   font-size: 0.85rem;
 }
 
+.layout-shell.theme-dark .ghost-action {
+  background: rgba(148, 163, 184, 0.16);
+  color: #e2e8f0;
+}
+
 .ghost-action:hover {
   border-color: rgba(15, 23, 42, 0.1);
   background: rgba(15, 23, 42, 0.08);
+}
+
+.layout-shell.theme-dark .ghost-action:hover {
+  border-color: rgba(148, 163, 184, 0.35);
+  background: rgba(148, 163, 184, 0.22);
 }
 
 .empty-state {
@@ -607,6 +695,10 @@ export default {
   color: #0f172a;
 }
 
+.layout-shell.theme-dark .empty-hero {
+  color: #e2e8f0;
+}
+
 .empty-hint {
   color: #94a3b8;
   margin: 0.6rem 0 1.6rem;
@@ -618,6 +710,11 @@ export default {
   background: #0f172a;
   color: #ffffff;
   border: none;
+}
+
+.layout-shell.theme-dark .secondary-action {
+  background: #e2e8f0;
+  color: #0f172a;
 }
 
 .pagination {
@@ -635,9 +732,19 @@ export default {
   background: rgba(255, 255, 255, 0.9);
 }
 
+.layout-shell.theme-dark .pagination-btn {
+  background: rgba(15, 23, 42, 0.9);
+  border-color: rgba(148, 163, 184, 0.25);
+  color: #cbd5e1;
+}
+
 .pagination-info {
   font-size: 0.9rem;
   color: #64748b;
+}
+
+.layout-shell.theme-dark .pagination-info {
+  color: #94a3b8;
 }
 
 @media (max-width: 768px) {

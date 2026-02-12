@@ -278,6 +278,18 @@ export default {
   background-size: 20px 20px;
 }
 
+.layout-shell.theme-dark .canvas-controls {
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: 0 4px 12px rgba(2, 6, 23, 0.6);
+}
+
+.layout-shell.theme-dark .canvas-container {
+  background-color: #0b1120;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.16) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.16) 1px, transparent 1px);
+}
+
 .canvas-container:active {
   cursor: grabbing;
 }
