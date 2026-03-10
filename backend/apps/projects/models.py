@@ -10,6 +10,39 @@ from django.contrib.auth import get_user_model
 User = get_user_model()
 
 
+class Series(models.Model):
+    """
+    作品/系列聚合根
+    职责: 管理顶层作品信息,组织多个分集项目
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField('作品名称', max_length=255)
+    description = models.TextField('作品描述', blank=True)
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        verbose_name='创建者',
+        related_name='series_projects'
+    )
+
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
+
+    class Meta:
+        db_table = 'series'
+        verbose_name = '作品'
+        verbose_name_plural = '作品'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', '-created_at']),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
 class Project(models.Model):
     """
     项目聚合根
@@ -27,6 +60,18 @@ class Project(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField('项目名称', max_length=255)
     description = models.TextField('项目描述', blank=True)
+
+    series = models.ForeignKey(
+        Series,
+        on_delete=models.CASCADE,
+        related_name='episodes',
+        verbose_name='所属作品',
+        null=True,
+        blank=True
+    )
+    episode_number = models.IntegerField('分集序号', null=True, blank=True)
+    episode_title = models.CharField('分集标题', max_length=255, blank=True, default='')
+    sort_order = models.IntegerField('排序值', default=0)
 
     # 业务字段
     original_topic = models.TextField('原始主题')
@@ -63,6 +108,7 @@ class Project(models.Model):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['user', 'status', '-created_at']),
+            models.Index(fields=['series', 'sort_order', 'episode_number']),
         ]
 
     def __str__(self):

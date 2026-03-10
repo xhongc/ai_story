@@ -1,84 +1,59 @@
 <template>
-  <div class="page-shell project-episode-list">
+  <div class="page-shell project-series-detail">
     <div class="page-header">
       <div class="page-header-main">
-        <h1 class="page-title">分集列表</h1>
-        <p class="page-subtitle">{{ pagination.total }} 个分集</p>
+        <button class="back-link" @click="$router.push({ name: 'SeriesList' })">← 返回作品列表</button>
+        <h1 class="page-title">{{ currentSeries?.name || '作品详情' }}</h1>
+        <p class="page-subtitle">{{ currentSeries?.description || '管理作品下的全部分集' }}</p>
       </div>
-      <button class="primary-action" @click="goSeriesList">
-        <span>返回作品管理</span>
+      <button class="primary-action" @click="goCreateEpisode">
+        <span>创建分集</span>
       </button>
     </div>
 
-    <div class="filter-card">
-      <div class="search-box">
-        <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-        <input
-          v-model="filters.search"
-          type="text"
-          placeholder="搜索分集..."
-          class="search-input"
-          @keyup.enter="handleFilter"
-        >
-      </div>
-
-      <div class="status-filters">
-        <button
-          v-for="status in statusOptions"
-          :key="status.value"
-          :class="['status-filter-btn', { active: filters.status === status.value }]"
-          @click="handleStatusFilter(status.value)"
-        >
-          {{ status.label }}
-        </button>
-      </div>
-    </div>
-
     <LoadingContainer :loading="loading">
-      <div v-if="!loading && projects.length === 0" class="empty-state">
-        <div class="empty-hero">暂无分集</div>
-        <p class="empty-hint">请先在作品管理里创建作品，然后在作品下创建分集。</p>
-        <button class="secondary-action" @click="goSeriesList">去作品管理</button>
+      <div v-if="!loading && episodes.length === 0" class="empty-state">
+        <div class="empty-hero">这个作品还没有分集</div>
+        <p class="empty-hint">先创建第一集，再进入分集详情继续生成文案、分镜和视频。</p>
+        <button class="secondary-action" @click="goCreateEpisode">创建第一集</button>
       </div>
 
       <div v-else class="card-grid">
         <article
-          v-for="project in projects"
-          :key="project.id"
+          v-for="episode in episodes"
+          :key="episode.id"
           class="data-card"
           role="button"
           tabindex="0"
-          @click="handleView(project.id)"
-          @keyup.enter="handleView(project.id)"
+          @click="goEpisode(episode.id)"
+          @keyup.enter="goEpisode(episode.id)"
         >
           <div class="card-top">
             <div>
               <h2 class="card-title">
-                {{ project.display_name || project.name }}
-                <span class="pill">第{{ project.episode_number || '-' }}集</span>
+                {{ episode.display_name || episode.name }}
+                <span class="pill">第{{ episode.episode_number || '-' }}集</span>
               </h2>
-              <p class="card-desc">{{ project.series_name || '未归属作品' }}</p>
+              <p class="card-desc">{{ episode.description || '暂无分集描述' }}</p>
             </div>
-            <span class="status-pill">{{ project.status_display }}</span>
+            <span class="status-pill">{{ episode.status_display }}</span>
           </div>
 
           <div class="card-meta">
             <div class="meta-item">
               <span class="meta-label">阶段进度</span>
-              <span class="meta-value">{{ project.completed_stages_count }}/{{ project.stages_count }}</span>
+              <span class="meta-value">{{ episode.completed_stages_count }}/{{ episode.stages_count }}</span>
             </div>
             <div class="meta-item">
-              <span class="meta-label">创建时间</span>
-              <span class="meta-value">{{ formatDate(project.created_at) }}</span>
+              <span class="meta-label">所属作品</span>
+              <span class="meta-value">{{ currentSeries?.name || '-' }}</span>
             </div>
           </div>
 
           <div class="card-footer">
-            <span class="meta-time">更新于 {{ formatDate(project.updated_at) }}</span>
+            <span class="meta-time">更新于 {{ formatDate(episode.updated_at) }}</span>
             <div class="card-actions">
-              <button class="ghost-action" @click.stop="handleView(project.id)">进入分集</button>
+              <button class="ghost-action" @click.stop="goEpisode(episode.id)">进入分集</button>
             </div>
           </div>
         </article>
@@ -88,64 +63,46 @@
 </template>
 
 <script>
-import { mapState, mapActions } from 'vuex';
+import { mapActions, mapState } from 'vuex';
 import LoadingContainer from '@/components/common/LoadingContainer.vue';
 import { formatDate } from '@/utils/helpers';
 
 export default {
-  name: 'ProjectList',
+  name: 'SeriesDetail',
   components: { LoadingContainer },
   data() {
     return {
       loading: false,
-      filters: {
-        search: '',
-        status: '',
-      },
-      statusOptions: [
-        { value: '', label: '全部' },
-        { value: 'draft', label: '草稿' },
-        { value: 'processing', label: '处理中' },
-        { value: 'completed', label: '已完成' },
-        { value: 'failed', label: '失败' },
-        { value: 'paused', label: '已暂停' },
-      ],
     };
   },
   computed: {
-    ...mapState('projects', ['projects', 'pagination']),
+    ...mapState('projects', ['currentSeries']),
+    episodes() {
+      return this.currentSeries?.episodes || [];
+    },
   },
   created() {
     this.fetchData();
   },
   methods: {
-    ...mapActions('projects', ['fetchProjects']),
+    ...mapActions('projects', ['fetchSeriesDetail']),
     formatDate,
     async fetchData() {
       this.loading = true;
       try {
-        await this.fetchProjects({
-          page: this.pagination.page,
-          page_size: this.pagination.pageSize,
-          search: this.filters.search,
-          status: this.filters.status,
-        });
+        await this.fetchSeriesDetail(this.$route.params.id);
       } finally {
         this.loading = false;
       }
     },
-    handleFilter() {
-      this.fetchData();
+    goCreateEpisode() {
+      this.$router.push({
+        name: 'ProjectCreate',
+        query: { series_id: this.$route.params.id },
+      });
     },
-    handleStatusFilter(status) {
-      this.filters.status = status;
-      this.fetchData();
-    },
-    handleView(id) {
+    goEpisode(id) {
       this.$router.push({ name: 'ProjectDetail', params: { id } });
-    },
-    goSeriesList() {
-      this.$router.push({ name: 'SeriesList' });
     },
   },
 };
@@ -169,6 +126,15 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+}
+
+.back-link {
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  color: #64748b;
+  cursor: pointer;
 }
 
 .page-title {
@@ -219,106 +185,6 @@ export default {
 .layout-shell.theme-dark .primary-action:hover {
   border-color: rgba(94, 234, 212, 0.6);
   box-shadow: 0 12px 24px rgba(2, 6, 23, 0.55);
-}
-
-.filter-card {
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 2.5rem;
-  flex-wrap: wrap;
-  padding: 1rem 1.25rem;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.86);
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.08);
-  backdrop-filter: blur(10px);
-}
-
-.layout-shell.theme-dark .filter-card {
-  background: rgba(15, 23, 42, 0.86);
-  border-color: rgba(148, 163, 184, 0.2);
-  box-shadow: 0 16px 32px rgba(2, 6, 23, 0.55);
-}
-
-.search-box {
-  position: relative;
-  flex: 1;
-  min-width: 280px;
-  max-width: 420px;
-}
-
-.search-icon {
-  position: absolute;
-  left: 1rem;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 1.25rem;
-  height: 1.25rem;
-  color: #94a3b8;
-  pointer-events: none;
-}
-
-.search-input {
-  width: 100%;
-  padding: 0.875rem 1rem 0.875rem 3rem;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  border-radius: 14px;
-  font-size: 0.95rem;
-  background: rgba(255, 255, 255, 0.9);
-  transition: all 0.2s ease;
-  outline: none;
-}
-
-.layout-shell.theme-dark .search-input {
-  background: rgba(15, 23, 42, 0.9);
-  border-color: rgba(148, 163, 184, 0.25);
-  color: #e2e8f0;
-}
-
-.search-input:focus {
-  border-color: rgba(20, 184, 166, 0.6);
-  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.18);
-}
-
-.status-filters {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.status-filter-btn {
-  padding: 0.625rem 1.25rem;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  background: rgba(255, 255, 255, 0.9);
-  color: #64748b;
-  border-radius: 999px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.layout-shell.theme-dark .status-filter-btn {
-  background: rgba(15, 23, 42, 0.9);
-  border-color: rgba(148, 163, 184, 0.25);
-  color: #cbd5e1;
-}
-
-.status-filter-btn:hover {
-  border-color: #cbd5e1;
-  background: #f8fafc;
-}
-
-.status-filter-btn.active {
-  background: rgba(20, 184, 166, 0.16);
-  color: #0f172a;
-  border-color: rgba(20, 184, 166, 0.5);
-}
-
-.layout-shell.theme-dark .status-filter-btn.active {
-  background: rgba(94, 234, 212, 0.2);
-  color: #e2e8f0;
-  border-color: rgba(94, 234, 212, 0.5);
 }
 
 .card-grid {
@@ -382,6 +248,7 @@ export default {
   margin: 0.5rem 0 0;
   color: #64748b;
   font-size: 0.9rem;
+  line-height: 1.65;
 }
 
 .layout-shell.theme-dark .card-desc {

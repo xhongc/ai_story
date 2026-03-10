@@ -150,9 +150,9 @@
         <ul class="menu p-3">
           <li>
             <router-link
-              to="/projects"
-              :class="{ 'active': activeMenu === '/projects' }"
-            >项目管理</router-link>
+              to="/series"
+              :class="{ 'active': activeMenu === '/series' || activeMenu.startsWith('/series/') }"
+            >作品管理</router-link>
           </li>
           <li>
             <router-link
@@ -186,9 +186,9 @@
       <ul class="rail-menu">
         <li>
           <router-link
-            to="/projects"
+            to="/series"
             class="rail-item"
-            :class="{ 'is-active': activeMenu === '/projects' }"
+            :class="{ 'is-active': activeMenu === '/series' || activeMenu.startsWith('/series/') }"
             :data-tip="sidebarCollapsed ? '项目管理' : ''"
             style="--rail-index: 0"
           >
@@ -208,7 +208,7 @@
                 />
               </svg>
             </span>
-            <span class="rail-label">项目管理</span>
+            <span class="rail-label">作品管理</span>
           </router-link>
         </li>
         <li>

@@ -17,7 +17,7 @@ from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Project, ProjectModelConfig, ProjectStage
+from .models import Project, ProjectModelConfig, ProjectStage, Series
 from .serializers import (
     ProjectCreateSerializer,
     ProjectDetailSerializer,
@@ -26,10 +26,41 @@ from .serializers import (
     ProjectStageSerializer,
     ProjectTemplateSerializer,
     ProjectUpdateSerializer,
+    SeriesCreateSerializer,
+    SeriesDetailSerializer,
+    SeriesListSerializer,
+    SeriesUpdateSerializer,
     StageExecuteSerializer,
     StageRetrySerializer,
 )
 from .utils import get_stage_template_states, is_stage_template_enabled
+
+
+class SeriesViewSet(viewsets.ModelViewSet):
+    """作品管理 ViewSet"""
+
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    search_fields = ["name", "description"]
+    ordering_fields = ["created_at", "updated_at", "name"]
+    ordering = ["-created_at"]
+
+    def get_queryset(self):
+        return Series.objects.filter(user=self.request.user).prefetch_related('episodes__stages')
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return SeriesListSerializer
+        if self.action == 'retrieve':
+            return SeriesDetailSerializer
+        if self.action == 'create':
+            return SeriesCreateSerializer
+        if self.action in ['update', 'partial_update']:
+            return SeriesUpdateSerializer
+        return SeriesDetailSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
 
 
 class ProjectViewSet(viewsets.ModelViewSet):
@@ -41,18 +72,24 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ["status", "prompt_template_set"]
+    filterset_fields = ["status", "prompt_template_set", "series"]
     search_fields = ["name", "description", "original_topic"]
     ordering_fields = ["created_at", "updated_at", "name"]
     ordering = ["-created_at"]
 
     def get_queryset(self):
         """只返回当前用户的项目"""
-        return (
+        queryset = (
             Project.objects.filter(user=self.request.user)
-            .select_related("user", "prompt_template_set")
+            .select_related("user", "prompt_template_set", "series")
             .prefetch_related("stages")
         )
+
+        series_id = self.request.query_params.get('series') or self.request.query_params.get('series_id')
+        if series_id:
+            queryset = queryset.filter(series_id=series_id)
+
+        return queryset
 
     def get_serializer_class(self):
         """根据动作选择序列化器"""

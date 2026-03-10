@@ -1,151 +1,154 @@
 <template>
-  <div class="page-shell project-episode-list">
+  <div class="page-shell project-series-list">
     <div class="page-header">
       <div class="page-header-main">
-        <h1 class="page-title">分集列表</h1>
-        <p class="page-subtitle">{{ pagination.total }} 个分集</p>
+        <h1 class="page-title">作品管理</h1>
+        <p class="page-subtitle">{{ seriesList.length }} 个作品</p>
       </div>
-      <button class="primary-action" @click="goSeriesList">
-        <span>返回作品管理</span>
+      <button class="primary-action" @click="openCreateModal">
+        <span>创建作品</span>
       </button>
     </div>
 
-    <div class="filter-card">
-      <div class="search-box">
-        <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-        <input
-          v-model="filters.search"
-          type="text"
-          placeholder="搜索分集..."
-          class="search-input"
-          @keyup.enter="handleFilter"
-        >
-      </div>
-
-      <div class="status-filters">
-        <button
-          v-for="status in statusOptions"
-          :key="status.value"
-          :class="['status-filter-btn', { active: filters.status === status.value }]"
-          @click="handleStatusFilter(status.value)"
-        >
-          {{ status.label }}
-        </button>
-      </div>
-    </div>
-
     <LoadingContainer :loading="loading">
-      <div v-if="!loading && projects.length === 0" class="empty-state">
-        <div class="empty-hero">暂无分集</div>
-        <p class="empty-hint">请先在作品管理里创建作品，然后在作品下创建分集。</p>
-        <button class="secondary-action" @click="goSeriesList">去作品管理</button>
+      <div v-if="!loading && seriesList.length === 0" class="empty-state">
+        <div class="empty-hero">暂无作品</div>
+        <p class="empty-hint">创建一个作品后，就可以在作品下持续生产多集内容</p>
+        <button class="secondary-action" @click="openCreateModal">创建作品</button>
       </div>
 
       <div v-else class="card-grid">
         <article
-          v-for="project in projects"
-          :key="project.id"
+          v-for="series in seriesList"
+          :key="series.id"
           class="data-card"
           role="button"
           tabindex="0"
-          @click="handleView(project.id)"
-          @keyup.enter="handleView(project.id)"
+          @click="handleView(series.id)"
+          @keyup.enter="handleView(series.id)"
         >
           <div class="card-top">
             <div>
-              <h2 class="card-title">
-                {{ project.display_name || project.name }}
-                <span class="pill">第{{ project.episode_number || '-' }}集</span>
-              </h2>
-              <p class="card-desc">{{ project.series_name || '未归属作品' }}</p>
+              <h2 class="card-title">{{ series.name }}</h2>
+              <p class="card-desc">{{ series.description || '暂无作品描述' }}</p>
             </div>
-            <span class="status-pill">{{ project.status_display }}</span>
+            <span class="pill">作品</span>
           </div>
 
           <div class="card-meta">
             <div class="meta-item">
-              <span class="meta-label">阶段进度</span>
-              <span class="meta-value">{{ project.completed_stages_count }}/{{ project.stages_count }}</span>
+              <span class="meta-label">分集数</span>
+              <span class="meta-value">{{ series.episodes_count || 0 }}</span>
             </div>
             <div class="meta-item">
-              <span class="meta-label">创建时间</span>
-              <span class="meta-value">{{ formatDate(project.created_at) }}</span>
+              <span class="meta-label">已完成</span>
+              <span class="meta-value">{{ series.completed_episodes_count || 0 }}</span>
             </div>
           </div>
 
           <div class="card-footer">
-            <span class="meta-time">更新于 {{ formatDate(project.updated_at) }}</span>
+            <span class="meta-time">更新于 {{ formatDate(series.updated_at) }}</span>
             <div class="card-actions">
-              <button class="ghost-action" @click.stop="handleView(project.id)">进入分集</button>
+              <button class="ghost-action" @click.stop="handleView(series.id)">查看详情</button>
             </div>
           </div>
         </article>
       </div>
     </LoadingContainer>
+
+    <dialog ref="createModal" class="modal">
+      <div class="modal-box form-modal-box">
+        <h3 class="font-bold text-lg">创建作品</h3>
+        <p class="form-hint">作品作为顶层容器，下面可以继续创建多个分集。</p>
+        <div class="form-control mt-4">
+          <label class="label">
+            <span class="label-text">作品名称</span>
+          </label>
+          <input
+            v-model="form.name"
+            type="text"
+            placeholder="例如：西游记"
+            class="input input-bordered w-full"
+          >
+        </div>
+        <div class="form-control mt-4">
+          <label class="label">
+            <span class="label-text">作品描述</span>
+          </label>
+          <textarea
+            v-model="form.description"
+            rows="4"
+            placeholder="可选，描述作品定位或创作方向"
+            class="textarea textarea-bordered w-full"
+          ></textarea>
+        </div>
+        <div class="modal-action">
+          <button class="btn" @click="closeCreateModal">取消</button>
+          <button class="btn btn-primary" @click="submitCreate">创建</button>
+        </div>
+      </div>
+      <form method="dialog" class="modal-backdrop">
+        <button @click="closeCreateModal">关闭</button>
+      </form>
+    </dialog>
   </div>
 </template>
 
 <script>
-import { mapState, mapActions } from 'vuex';
+import { mapActions, mapState } from 'vuex';
 import LoadingContainer from '@/components/common/LoadingContainer.vue';
 import { formatDate } from '@/utils/helpers';
 
 export default {
-  name: 'ProjectList',
+  name: 'SeriesList',
   components: { LoadingContainer },
   data() {
     return {
       loading: false,
-      filters: {
-        search: '',
-        status: '',
+      form: {
+        name: '',
+        description: '',
       },
-      statusOptions: [
-        { value: '', label: '全部' },
-        { value: 'draft', label: '草稿' },
-        { value: 'processing', label: '处理中' },
-        { value: 'completed', label: '已完成' },
-        { value: 'failed', label: '失败' },
-        { value: 'paused', label: '已暂停' },
-      ],
     };
   },
   computed: {
-    ...mapState('projects', ['projects', 'pagination']),
+    ...mapState('projects', ['seriesList']),
   },
   created() {
     this.fetchData();
   },
   methods: {
-    ...mapActions('projects', ['fetchProjects']),
+    ...mapActions('projects', ['fetchSeries', 'createSeries']),
     formatDate,
     async fetchData() {
       this.loading = true;
       try {
-        await this.fetchProjects({
-          page: this.pagination.page,
-          page_size: this.pagination.pageSize,
-          search: this.filters.search,
-          status: this.filters.status,
-        });
+        await this.fetchSeries();
       } finally {
         this.loading = false;
       }
     },
-    handleFilter() {
-      this.fetchData();
-    },
-    handleStatusFilter(status) {
-      this.filters.status = status;
-      this.fetchData();
-    },
     handleView(id) {
-      this.$router.push({ name: 'ProjectDetail', params: { id } });
+      this.$router.push({ name: 'SeriesDetail', params: { id } });
     },
-    goSeriesList() {
-      this.$router.push({ name: 'SeriesList' });
+    openCreateModal() {
+      this.$refs.createModal.showModal();
+    },
+    closeCreateModal() {
+      this.$refs.createModal.close();
+      this.form = { name: '', description: '' };
+    },
+    async submitCreate() {
+      if (!this.form.name.trim()) {
+        alert('请输入作品名称');
+        return;
+      }
+      const series = await this.createSeries({
+        name: this.form.name.trim(),
+        description: this.form.description.trim(),
+      });
+      this.closeCreateModal();
+      this.$router.push({ name: 'SeriesDetail', params: { id: series.id } });
     },
   },
 };
@@ -221,106 +224,6 @@ export default {
   box-shadow: 0 12px 24px rgba(2, 6, 23, 0.55);
 }
 
-.filter-card {
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 2.5rem;
-  flex-wrap: wrap;
-  padding: 1rem 1.25rem;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.86);
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.08);
-  backdrop-filter: blur(10px);
-}
-
-.layout-shell.theme-dark .filter-card {
-  background: rgba(15, 23, 42, 0.86);
-  border-color: rgba(148, 163, 184, 0.2);
-  box-shadow: 0 16px 32px rgba(2, 6, 23, 0.55);
-}
-
-.search-box {
-  position: relative;
-  flex: 1;
-  min-width: 280px;
-  max-width: 420px;
-}
-
-.search-icon {
-  position: absolute;
-  left: 1rem;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 1.25rem;
-  height: 1.25rem;
-  color: #94a3b8;
-  pointer-events: none;
-}
-
-.search-input {
-  width: 100%;
-  padding: 0.875rem 1rem 0.875rem 3rem;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  border-radius: 14px;
-  font-size: 0.95rem;
-  background: rgba(255, 255, 255, 0.9);
-  transition: all 0.2s ease;
-  outline: none;
-}
-
-.layout-shell.theme-dark .search-input {
-  background: rgba(15, 23, 42, 0.9);
-  border-color: rgba(148, 163, 184, 0.25);
-  color: #e2e8f0;
-}
-
-.search-input:focus {
-  border-color: rgba(20, 184, 166, 0.6);
-  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.18);
-}
-
-.status-filters {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.status-filter-btn {
-  padding: 0.625rem 1.25rem;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  background: rgba(255, 255, 255, 0.9);
-  color: #64748b;
-  border-radius: 999px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.layout-shell.theme-dark .status-filter-btn {
-  background: rgba(15, 23, 42, 0.9);
-  border-color: rgba(148, 163, 184, 0.25);
-  color: #cbd5e1;
-}
-
-.status-filter-btn:hover {
-  border-color: #cbd5e1;
-  background: #f8fafc;
-}
-
-.status-filter-btn.active {
-  background: rgba(20, 184, 166, 0.16);
-  color: #0f172a;
-  border-color: rgba(20, 184, 166, 0.5);
-}
-
-.layout-shell.theme-dark .status-filter-btn.active {
-  background: rgba(94, 234, 212, 0.2);
-  color: #e2e8f0;
-  border-color: rgba(94, 234, 212, 0.5);
-}
-
 .card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -338,7 +241,11 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  position: relative;
+  overflow: visible;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 0;
+  z-index: 0;
 }
 
 .layout-shell.theme-dark .data-card {
@@ -354,6 +261,11 @@ export default {
   box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12);
   border-color: rgba(148, 163, 184, 0.35);
   background-size: 100% 3px, auto;
+  z-index: 5;
+}
+
+.layout-shell.theme-dark .data-card:hover {
+  box-shadow: 0 18px 36px rgba(2, 6, 23, 0.6);
 }
 
 .card-top {
@@ -367,10 +279,6 @@ export default {
   font-size: 1.1rem;
   font-weight: 600;
   color: #0f172a;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
   margin: 0;
 }
 
@@ -382,36 +290,23 @@ export default {
   margin: 0.5rem 0 0;
   color: #64748b;
   font-size: 0.9rem;
+  line-height: 1.65;
 }
 
 .layout-shell.theme-dark .card-desc {
   color: #94a3b8;
 }
 
-.pill,
-.status-pill {
+.pill {
   padding: 0.2rem 0.6rem;
   border-radius: 999px;
   font-size: 0.75rem;
-}
-
-.pill {
   background: rgba(20, 184, 166, 0.16);
   color: #0f172a;
 }
 
-.status-pill {
-  background: rgba(148, 163, 184, 0.14);
-  color: #334155;
-}
-
 .layout-shell.theme-dark .pill {
   background: rgba(94, 234, 212, 0.22);
-  color: #e2e8f0;
-}
-
-.layout-shell.theme-dark .status-pill {
-  background: rgba(148, 163, 184, 0.2);
   color: #e2e8f0;
 }
 
@@ -485,6 +380,16 @@ export default {
   color: #e2e8f0;
 }
 
+.ghost-action:hover {
+  border-color: rgba(15, 23, 42, 0.1);
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.layout-shell.theme-dark .ghost-action:hover {
+  border-color: rgba(148, 163, 184, 0.35);
+  background: rgba(148, 163, 184, 0.22);
+}
+
 .empty-state {
   text-align: center;
   padding: 4rem 1rem;
@@ -516,6 +421,16 @@ export default {
 .layout-shell.theme-dark .secondary-action {
   background: #e2e8f0;
   color: #0f172a;
+}
+
+.form-modal-box {
+  border-radius: 20px;
+}
+
+.form-hint {
+  margin-top: 0.5rem;
+  color: #64748b;
+  font-size: 0.9rem;
 }
 
 @media (max-width: 768px) {

@@ -8,7 +8,7 @@ from rest_framework import serializers
 
 from apps.content.models import ContentRewrite
 from apps.projects.utils import parse_storyboard_json
-from .models import Project, ProjectStage, ProjectModelConfig
+from .models import Project, ProjectStage, ProjectModelConfig, Series
 
 
 class ProjectStageSerializer(serializers.ModelSerializer):
@@ -17,7 +17,6 @@ class ProjectStageSerializer(serializers.ModelSerializer):
     stage_type_display = serializers.CharField(source='get_stage_type_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
 
-    # 添加领域模型数据字段
     domain_data = serializers.SerializerMethodField()
 
     class Meta:
@@ -27,7 +26,7 @@ class ProjectStageSerializer(serializers.ModelSerializer):
             'status', 'status_display', 'input_data', 'output_data',
             'retry_count', 'max_retries', 'error_message',
             'started_at', 'completed_at', 'created_at',
-            'domain_data'  # 新增字段
+            'domain_data'
         ]
         read_only_fields = ['id', 'created_at', 'started_at', 'completed_at']
 
@@ -45,7 +44,6 @@ class ProjectStageSerializer(serializers.ModelSerializer):
 
         try:
             if stage_type == 'rewrite':
-                # 返回文案改写数据
                 try:
                     rewrite = ContentRewrite.objects.select_related('model_provider').get(project=project)
                     return {
@@ -63,7 +61,6 @@ class ProjectStageSerializer(serializers.ModelSerializer):
                         'updated_at': rewrite.updated_at.isoformat() if rewrite.updated_at else None,
                     }
                 except ContentRewrite.DoesNotExist:
-                    # 返回空的结构化数据
                     return {
                         'id': None,
                         'original_text': None,
@@ -76,7 +73,6 @@ class ProjectStageSerializer(serializers.ModelSerializer):
                     }
 
             elif stage_type == 'storyboard':
-                # 返回分镜列表数据
                 storyboards = Storyboard.objects.filter(
                     project=project
                 ).select_related('model_provider').order_by('sequence_number')
@@ -106,7 +102,6 @@ class ProjectStageSerializer(serializers.ModelSerializer):
                 }
 
             elif stage_type == 'image_generation':
-                # 返回生成的图片数据
                 storyboards = Storyboard.objects.filter(project=project).order_by('sequence_number')
 
                 result = []
@@ -140,16 +135,10 @@ class ProjectStageSerializer(serializers.ModelSerializer):
                             for img in images
                         ]
                     })
-
-                return {
-                    'count': len(result),
-                    'storyboards': result
-                }
+                return {'storyboards': result}
 
             elif stage_type == 'camera_movement':
-                # 返回运镜数据
                 storyboards = Storyboard.objects.filter(project=project).order_by('sequence_number')
-
                 result = []
                 for sb in storyboards:
                     try:
@@ -179,52 +168,55 @@ class ProjectStageSerializer(serializers.ModelSerializer):
                             'sequence_number': sb.sequence_number,
                             'camera_movement': None
                         })
-
-                return {
-                    'count': len(result),
-                    'storyboards': result
-                }
+                return {'storyboards': result}
 
             elif stage_type == 'video_generation':
-                # 返回生成的视频数据
-                # TODO: 实现视频数据序列化
-                return None
+                from apps.content.models import GeneratedVideo
+                storyboards = Storyboard.objects.filter(project=project).order_by('sequence_number')
+                result = []
+                for sb in storyboards:
+                    videos = GeneratedVideo.objects.filter(
+                        storyboard=sb
+                    ).select_related('model_provider', 'image', 'camera_movement').order_by('-created_at')
+                    result.append({
+                        'storyboard_id': str(sb.id),
+                        'sequence_number': sb.sequence_number,
+                        'videos': [
+                            {
+                                'id': str(video.id),
+                                'video_url': video.video_url,
+                                'thumbnail_url': video.thumbnail_url,
+                                'duration': video.duration,
+                                'width': video.width,
+                                'height': video.height,
+                                'fps': video.fps,
+                                'file_size': video.file_size,
+                                'status': video.status,
+                                'status_display': video.get_status_display(),
+                                'image_id': str(video.image.id) if video.image else None,
+                                'camera_movement_id': str(video.camera_movement.id) if video.camera_movement else None,
+                                'model_provider': {
+                                    'id': str(video.model_provider.id) if video.model_provider else None,
+                                    'name': video.model_provider.name if video.model_provider else None,
+                                    'model_name': video.model_provider.model_name if video.model_provider else None,
+                                } if video.model_provider else None,
+                                'generation_params': video.generation_params,
+                                'retry_count': video.retry_count,
+                                'created_at': video.created_at.isoformat() if video.created_at else None,
+                            }
+                            for video in videos
+                        ]
+                    })
+                return {'storyboards': result}
 
-            else:
-                return None
-
-        except Exception as e:
-            # 记录错误但不中断序列化
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"获取阶段 {stage_type} 的领域数据失败: {str(e)}", exc_info=True)
-            return None
-
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        stage_type = data.get("stage_type")
-        if stage_type == "storyboard":
-            try:
-                data["output_data"]["human_text"] = parse_storyboard_json(data["output_data"].get("storyboard_text", ""))
-            except Exception:
-                pass
-        elif stage_type == "image_generation":
-            try:
-                data["input_data"]["human_text"] = parse_storyboard_json(data["input_data"].get("storyboard_text", ""))
-            except Exception:
-                pass
-        return data
+            return instance.output_data or {}
+        except Exception:
+            return instance.output_data or {}
 
 
 class ProjectModelConfigSerializer(serializers.ModelSerializer):
     """项目模型配置序列化器"""
 
-    load_balance_strategy_display = serializers.CharField(
-        source='get_load_balance_strategy_display',
-        read_only=True
-    )
-
-    # 显示模型提供商名称列表
     rewrite_providers_names = serializers.SerializerMethodField()
     storyboard_providers_names = serializers.SerializerMethodField()
     image_providers_names = serializers.SerializerMethodField()
@@ -234,7 +226,7 @@ class ProjectModelConfigSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProjectModelConfig
         fields = [
-            'id', 'project', 'load_balance_strategy', 'load_balance_strategy_display',
+            'id', 'project', 'load_balance_strategy',
             'rewrite_providers', 'rewrite_providers_names',
             'storyboard_providers', 'storyboard_providers_names',
             'image_providers', 'image_providers_names',
@@ -266,15 +258,16 @@ class ProjectListSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     user_name = serializers.CharField(source='user.username', read_only=True)
     prompt_set_name = serializers.CharField(source='prompt_template_set.name', read_only=True)
-
-    # 统计信息
+    series_name = serializers.CharField(source='series.name', read_only=True)
+    display_name = serializers.SerializerMethodField()
     stages_count = serializers.SerializerMethodField()
     completed_stages_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
         fields = [
-            'id', 'name', 'description', 'original_topic',
+            'id', 'name', 'display_name', 'description', 'original_topic',
+            'series', 'series_name', 'episode_number', 'episode_title', 'sort_order',
             'status', 'status_display', 'user', 'user_name',
             'prompt_template_set', 'prompt_set_name',
             'stages_count', 'completed_stages_count',
@@ -288,6 +281,11 @@ class ProjectListSerializer(serializers.ModelSerializer):
     def get_completed_stages_count(self, obj):
         return obj.stages.filter(status='completed').count()
 
+    def get_display_name(self, obj):
+        if obj.episode_title:
+            return obj.episode_title
+        return obj.name
+
 
 class ProjectDetailSerializer(serializers.ModelSerializer):
     """项目详情序列化器 - 包含完整信息"""
@@ -295,12 +293,12 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     user_name = serializers.CharField(source='user.username', read_only=True)
     prompt_set_name = serializers.CharField(source='prompt_template_set.name', read_only=True)
+    series_name = serializers.CharField(source='series.name', read_only=True)
+    display_name = serializers.SerializerMethodField()
 
-    # 嵌套序列化
     stages = ProjectStageSerializer(many=True, read_only=True)
     model_config = ProjectModelConfigSerializer(read_only=True)
 
-    # 统计信息
     total_stages = serializers.SerializerMethodField()
     completed_stages = serializers.SerializerMethodField()
     failed_stages = serializers.SerializerMethodField()
@@ -309,7 +307,8 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
         fields = [
-            'id', 'name', 'description', 'original_topic',
+            'id', 'name', 'display_name', 'description', 'original_topic',
+            'series', 'series_name', 'episode_number', 'episode_title', 'sort_order',
             'status', 'status_display', 'user', 'user_name',
             'prompt_template_set', 'prompt_set_name',
             'stages', 'model_config',
@@ -334,6 +333,11 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
         completed = obj.stages.filter(status='completed').count()
         return round((completed / total) * 100, 2)
 
+    def get_display_name(self, obj):
+        if obj.episode_title:
+            return obj.episode_title
+        return obj.name
+
 
 class ProjectCreateSerializer(serializers.ModelSerializer):
     """项目创建序列化器"""
@@ -341,27 +345,39 @@ class ProjectCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
         fields = [
-            'id', 'name', 'description', 'original_topic',
-            'prompt_template_set'
+            'id', 'series', 'name', 'description', 'episode_number', 'episode_title',
+            'sort_order', 'original_topic', 'prompt_template_set'
         ]
         read_only_fields = ['id']
 
     def validate_original_topic(self, value):
-        """验证原始主题不能为空"""
         if not value or not value.strip():
-            raise serializers.ValidationError("原始主题不能为空")
+            raise serializers.ValidationError('原始主题不能为空')
         return value.strip()
 
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        series = attrs.get('series')
+        episode_number = attrs.get('episode_number')
+        episode_title = attrs.get('episode_title', '')
+
+        if series and not attrs.get('name'):
+            if episode_title:
+                attrs['name'] = episode_title.strip()
+            elif episode_number:
+                attrs['name'] = f'第{episode_number}集'
+
+        if series and attrs.get('sort_order', 0) == 0 and episode_number:
+            attrs['sort_order'] = episode_number
+
+        return attrs
+
     def create(self, validated_data):
-        """创建项目并初始化阶段"""
-        # 从请求中获取用户
         user = self.context['request'].user
         validated_data['user'] = user
 
-        # 创建项目
         project = Project.objects.create(**validated_data)
 
-        # 初始化5个阶段(只创建阶段记录,不初始化 input_data/output_data)
         stage_types = ['rewrite', 'storyboard', 'image_generation', 'camera_movement', 'video_generation']
         for stage_type in stage_types:
             ProjectStage.objects.create(
@@ -370,10 +386,8 @@ class ProjectCreateSerializer(serializers.ModelSerializer):
                 status='pending'
             )
 
-        # 创建默认模型配置
         ProjectModelConfig.objects.create(project=project)
 
-        # 创建 ContentRewrite，使用原始文案初始化
         ContentRewrite.objects.create(
             project=project,
             original_text=project.original_topic
@@ -387,21 +401,90 @@ class ProjectUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Project
-        fields = ['name', 'description', 'original_topic', 'prompt_template_set', 'status']
+        fields = [
+            'name', 'description', 'original_topic', 'prompt_template_set', 'status',
+            'series', 'episode_number', 'episode_title', 'sort_order'
+        ]
 
     def validate_status(self, value):
-        """验证状态转换的合法性"""
         instance = self.instance
         if instance:
-            # 已完成的项目不能修改为其他状态
             if instance.status == 'completed' and value != 'completed':
-                raise serializers.ValidationError("已完成的项目不能修改状态")
+                raise serializers.ValidationError('已完成的项目不能修改状态')
 
-            # 只有暂停和草稿状态可以恢复处理
             if value == 'processing' and instance.status not in ['paused', 'draft']:
-                raise serializers.ValidationError(f"项目状态为 {instance.get_status_display()} 时不能开始处理")
+                raise serializers.ValidationError(f'项目状态为 {instance.get_status_display()} 时不能开始处理')
 
         return value
+
+
+class SeriesListSerializer(serializers.ModelSerializer):
+    """作品列表序列化器"""
+
+    user_name = serializers.CharField(source='user.username', read_only=True)
+    episodes_count = serializers.SerializerMethodField()
+    completed_episodes_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Series
+        fields = [
+            'id', 'name', 'description', 'user', 'user_name',
+            'episodes_count', 'completed_episodes_count',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'user', 'created_at', 'updated_at']
+
+    def get_episodes_count(self, obj):
+        return obj.episodes.count()
+
+    def get_completed_episodes_count(self, obj):
+        return obj.episodes.filter(status='completed').count()
+
+
+class SeriesDetailSerializer(serializers.ModelSerializer):
+    """作品详情序列化器"""
+
+    user_name = serializers.CharField(source='user.username', read_only=True)
+    episodes = serializers.SerializerMethodField()
+    episodes_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Series
+        fields = [
+            'id', 'name', 'description', 'user', 'user_name',
+            'episodes_count', 'episodes',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'user', 'created_at', 'updated_at']
+
+    def get_episodes(self, obj):
+        episodes = obj.episodes.all().select_related('user', 'prompt_template_set', 'series').prefetch_related('stages').order_by('sort_order', 'episode_number', 'created_at')
+        return ProjectListSerializer(episodes, many=True).data
+
+    def get_episodes_count(self, obj):
+        return obj.episodes.count()
+
+
+class SeriesCreateSerializer(serializers.ModelSerializer):
+    """作品创建序列化器"""
+
+    class Meta:
+        model = Series
+        fields = ['id', 'name', 'description']
+        read_only_fields = ['id']
+
+    def validate_name(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError('作品名称不能为空')
+        return value.strip()
+
+
+class SeriesUpdateSerializer(serializers.ModelSerializer):
+    """作品更新序列化器"""
+
+    class Meta:
+        model = Series
+        fields = ['name', 'description']
 
 
 class StageRetrySerializer(serializers.Serializer):
@@ -412,20 +495,18 @@ class StageRetrySerializer(serializers.Serializer):
     )
 
     def validate_stage_name(self, value):
-        """验证阶段是否存在且可重试"""
         project_id = self.context.get('project_id')
         if not project_id:
-            raise serializers.ValidationError("缺少项目ID")
+            raise serializers.ValidationError('缺少项目ID')
 
         try:
             stage = ProjectStage.objects.get(project_id=project_id, stage_type=value)
         except ProjectStage.DoesNotExist:
-            raise serializers.ValidationError(f"阶段 {value} 不存在")
+            raise serializers.ValidationError(f'阶段 {value} 不存在')
 
-        # 检查重试次数
         if stage.retry_count >= stage.max_retries:
             raise serializers.ValidationError(
-                f"阶段 {value} 已达到最大重试次数 ({stage.max_retries})"
+                f'阶段 {value} 已达到最大重试次数 ({stage.max_retries})'
             )
 
         return value
@@ -440,24 +521,21 @@ class StageExecuteSerializer(serializers.Serializer):
     input_data = serializers.JSONField(required=False, default=dict)
 
     def validate(self, attrs):
-        """验证阶段执行的前置条件"""
         project_id = self.context.get('project_id')
         stage_name = attrs['stage_name']
 
         if not project_id:
-            raise serializers.ValidationError("缺少项目ID")
+            raise serializers.ValidationError('缺少项目ID')
 
         try:
-            project = Project.objects.get(id=project_id)
+            Project.objects.get(id=project_id)
         except Project.DoesNotExist:
-            raise serializers.ValidationError("项目不存在")
+            raise serializers.ValidationError('项目不存在')
 
-        # 检查阶段是否存在
         try:
-            stage = ProjectStage.objects.get(project_id=project_id, stage_type=stage_name)
+            ProjectStage.objects.get(project_id=project_id, stage_type=stage_name)
         except ProjectStage.DoesNotExist:
-            raise serializers.ValidationError(f"阶段 {stage_name} 不存在")
-
+            raise serializers.ValidationError(f'阶段 {stage_name} 不存在')
 
         return attrs
 
@@ -469,7 +547,6 @@ class ProjectTemplateSerializer(serializers.Serializer):
     include_model_config = serializers.BooleanField(default=True)
 
     def validate_template_name(self, value):
-        """验证模板名称"""
         if not value or not value.strip():
-            raise serializers.ValidationError("模板名称不能为空")
+            raise serializers.ValidationError('模板名称不能为空')
         return value.strip()
