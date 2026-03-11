@@ -4,7 +4,6 @@
     :class="`status-${effectiveStatus}`"
     :style="nodeStyle"
   >
-    <!-- 节点头部 -->
     <div class="node-header">
       <div class="header-left">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -13,15 +12,13 @@
         <h3 class="node-title">文案改写</h3>
       </div>
       <div class="header-right">
-        <!-- 操作图标按钮 -->
         <div class="action-icons">
-          <!-- 运行改写图标 -->
           <button
             class="icon-btn"
             :class="{ 'icon-btn-disabled': status === 'processing' || isExecuting || isGeneratingStoryboard }"
             :disabled="status === 'processing' || isExecuting || isGeneratingStoryboard"
-            @click.stop="handleQuickExecute('rewrite')"
             title="运行改写"
+            @click.stop="handleQuickExecute('rewrite')"
           >
             <span v-if="isExecuting && !isGeneratingStoryboard" class="loading loading-spinner loading-xs"></span>
             <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -30,13 +27,12 @@
             </svg>
           </button>
 
-          <!-- 生成分镜图标 -->
           <button
             class="icon-btn"
             :class="{ 'icon-btn-disabled': status === 'processing' || isGeneratingStoryboard || isExecuting }"
             :disabled="status === 'processing' || isGeneratingStoryboard || isExecuting"
-            @click.stop="handleGenerateStoryboard('storyboard')"
             title="生成分镜"
+            @click.stop="handleGenerateStoryboard('storyboard')"
           >
             <span v-if="isGeneratingStoryboard" class="loading loading-spinner loading-xs"></span>
             <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -47,7 +43,6 @@
       </div>
     </div>
 
-    <!-- 原始文案 -->
     <div class="node-section">
       <label class="section-label">原始文案</label>
       <div
@@ -57,23 +52,44 @@
       >{{ data.original_text || '暂无原始文案' }}</div>
     </div>
 
-    <!-- 改写后文案 -->
     <div class="node-section">
       <label class="section-label">改写后文案</label>
-      <textarea
-        v-model="data.rewritten_text"
-        class="textarea textarea-bordered w-full"
-        rows="8"
-        placeholder="改写后的文案将显示在这里..."
-        :disabled="status === 'processing'"
-        @focus="handleFocus"
-        @blur="handleBlur"
-        @wheel.stop
-        @mousedown.stop
-      ></textarea>
+      <div class="textarea-autocomplete-wrap">
+        <textarea
+          ref="rewriteTextarea"
+          v-model="localText"
+          class="textarea textarea-bordered w-full"
+          rows="8"
+          placeholder="改写后的文案将显示在这里..."
+          :disabled="status === 'processing'"
+          @focus="handleFocus"
+          @blur="handleBlur"
+          @input="handleTextInput"
+          @click="handleCursorChange"
+          @keyup="handleCursorChange"
+          @keydown.down.prevent="navigateAutocomplete(1)"
+          @keydown.up.prevent="navigateAutocomplete(-1)"
+          @keydown.enter.exact.prevent="confirmAutocomplete"
+          @keydown.esc.prevent="closeAutocomplete"
+          @wheel.stop
+          @mousedown.stop
+        ></textarea>
+        <div v-if="showAutocomplete && filteredAssetOptions.length" class="asset-autocomplete prevent-canvas-wheel">
+          <button
+            v-for="(asset, index) in filteredAssetOptions"
+            :key="asset.id"
+            type="button"
+            class="asset-autocomplete-item"
+            :class="{ active: highlightedAssetIndex === index }"
+            @mousedown.prevent="selectAutocomplete(asset.key)"
+          >
+            <code>{{ asset.key }}</code>
+            <span>{{ asset.group || asset.variable_type_display }}</span>
+          </button>
+        </div>
+      </div>
     </div>
 
-    <!-- 元数据信息 -->
     <div v-if="data && data.model_provider" class="node-metadata">
       <div class="metadata-item">
         <span class="metadata-label">使用模型:</span>
@@ -106,6 +122,10 @@ export default {
       type: Object,
       default: null
     },
+    assetOptions: {
+      type: Array,
+      default: () => []
+    },
     originalTopic: {
       type: String,
       default: ''
@@ -121,9 +141,14 @@ export default {
       isSaving: false,
       isGeneratingStoryboard: false,
       sseClient: null,
-      streamingText: '', // 用于存储流式接收的文本
+      streamingText: '',
+      localText: this.data?.rewritten_text || '',
       lastSavedText: '',
-      isEditing: false
+      isEditing: false,
+      showAutocomplete: false,
+      autocompleteStart: -1,
+      autocompleteQuery: '',
+      highlightedAssetIndex: 0,
     };
   },
   computed: {
@@ -134,7 +159,6 @@ export default {
         top: `${this.position.y}px`,
       };
     },
-    // 计算有效状态：如果正在执行改写或生成分镜，显示processing状态
     effectiveStatus() {
       if (this.isExecuting || this.isGeneratingStoryboard) {
         return 'processing';
@@ -149,6 +173,17 @@ export default {
         failed: '失败'
       };
       return statusMap[this.status] || '未知';
+    },
+    filteredAssetOptions() {
+      const keyword = this.autocompleteQuery.trim().toLowerCase();
+      if (!keyword) {
+        return this.assetOptions;
+      }
+      return this.assetOptions.filter((asset) => {
+        const key = (asset.key || '').toLowerCase();
+        const group = (asset.group || '').toLowerCase();
+        return key.includes(keyword) || group.includes(keyword);
+      });
     }
   },
   watch: {
@@ -156,8 +191,14 @@ export default {
       immediate: true,
       handler(newVal) {
         if (!this.isEditing) {
+          this.localText = newVal || '';
           this.lastSavedText = newVal || '';
         }
+      }
+    },
+    assetOptions() {
+      if (this.highlightedAssetIndex >= this.filteredAssetOptions.length) {
+        this.highlightedAssetIndex = 0;
       }
     }
   },
@@ -168,12 +209,84 @@ export default {
     handleBlur() {
       this.isEditing = false;
       this.handleAutoSave();
+      setTimeout(() => {
+        this.closeAutocomplete();
+      }, 120);
     },
-    handleAutoSave() {
-      if (!this.data || this.status === 'processing') {
+    handleTextInput(event) {
+      this.updateAutocomplete(event.target);
+    },
+    handleCursorChange() {
+      this.updateAutocomplete(this.$refs.rewriteTextarea);
+    },
+    updateAutocomplete(textarea) {
+      if (!textarea) {
         return;
       }
-      const nextText = this.data.rewritten_text || '';
+      const cursor = textarea.selectionStart || 0;
+      const textBeforeCursor = this.localText.slice(0, cursor);
+      const openIndex = textBeforeCursor.lastIndexOf('{{');
+      const closeIndex = textBeforeCursor.lastIndexOf('}}');
+      if (openIndex === -1 || closeIndex > openIndex) {
+        this.closeAutocomplete();
+        return;
+      }
+
+      const rawQuery = textBeforeCursor.slice(openIndex + 2);
+      if (/[^\sa-zA-Z0-9_]/.test(rawQuery)) {
+        this.closeAutocomplete();
+        return;
+      }
+
+      this.autocompleteStart = openIndex;
+      this.autocompleteQuery = rawQuery.trimStart();
+      this.highlightedAssetIndex = 0;
+      this.showAutocomplete = this.assetOptions.length > 0;
+    },
+    closeAutocomplete() {
+      this.showAutocomplete = false;
+      this.autocompleteStart = -1;
+      this.autocompleteQuery = '';
+      this.highlightedAssetIndex = 0;
+    },
+    navigateAutocomplete(step) {
+      if (!this.showAutocomplete || !this.filteredAssetOptions.length) {
+        return;
+      }
+      const total = this.filteredAssetOptions.length;
+      this.highlightedAssetIndex = (this.highlightedAssetIndex + step + total) % total;
+    },
+    confirmAutocomplete() {
+      if (!this.showAutocomplete || !this.filteredAssetOptions.length) {
+        return;
+      }
+      const target = this.filteredAssetOptions[this.highlightedAssetIndex];
+      if (target) {
+        this.selectAutocomplete(target.key);
+      }
+    },
+    selectAutocomplete(assetKey) {
+      const textarea = this.$refs.rewriteTextarea;
+      if (!textarea || this.autocompleteStart === -1) {
+        return;
+      }
+      const cursor = textarea.selectionStart || 0;
+      const token = `{{ ${assetKey} }}`;
+      const nextValue = `${this.localText.slice(0, this.autocompleteStart)}${token}${this.localText.slice(cursor)}`;
+      this.localText = nextValue;
+      this.closeAutocomplete();
+      this.$nextTick(() => {
+        const nextCursor = this.autocompleteStart + token.length;
+        textarea.focus();
+        textarea.setSelectionRange(nextCursor, nextCursor);
+      });
+      this.handleAutoSave();
+    },
+    handleAutoSave() {
+      if (this.status === 'processing') {
+        return;
+      }
+      const nextText = this.localText || '';
       if (nextText === this.lastSavedText) {
         return;
       }
@@ -184,100 +297,81 @@ export default {
       });
       this.lastSavedText = nextText;
     },
-    async handleQuickExecute(mode='rewrite') {
+    async handleQuickExecute(mode = 'rewrite') {
       if (this.status === 'processing' || this.isExecuting) {
         return;
       }
       await this.handleExecute(mode);
     },
-
-    async handleGenerateStoryboard(mode='storyboard') {
+    async handleGenerateStoryboard(mode = 'storyboard') {
       if (this.status === 'processing' || this.isGeneratingStoryboard) {
         return;
       }
       await this.handleExecute(mode);
     },
-
     async handleExecute(mode) {
       console.log('handleExecute', mode);
       this.isExecuting = true;
       if (mode === 'storyboard') {
         this.isGeneratingStoryboard = true;
       }
-      this.streamingText = ''; // 清空之前的流式文本
+      this.streamingText = '';
 
       try {
-        // 使用API方法发送POST请求启动任务
         await projectsAPI.executeStage(
           this.projectId,
           mode,
           { original_topic: this.originalTopic },
-          true // 启用SSE流式输出
+          true
         );
 
-        // 断开已有的SSE连接
         if (this.sseClient) {
           this.sseClient.disconnect();
           this.sseClient = null;
         }
 
-        // 使用sseService创建SSE客户端连接
         this.sseClient = createProjectStageSSE(this.projectId, mode, {
           autoReconnect: false
         });
 
-        // 监听SSE事件
         this.sseClient
           .on('open', () => {
             console.log('[RewriteNode] SSE连接已建立');
           })
           .on('token', (data) => {
-            // 流式token，追加到文本
             if (data.content) {
               this.streamingText += data.content;
-              // 实时更新到data中，触发textarea更新
-              if (this.data) {
-                this.$set(this.data, 'rewritten_text', this.streamingText);
-              }
+              this.localText = this.streamingText;
             }
           })
           .on('done', (data) => {
-            // 生成完成
             console.log('[RewriteNode] 生成完成, mode:', mode);
             this.isExecuting = false;
             this.isGeneratingStoryboard = false;
 
-            // 使用完整文本（如果有）
             if (data.full_text) {
               this.streamingText = data.full_text;
-              if (this.data) {
-                this.$set(this.data, 'rewritten_text', this.streamingText);
-              }
+              this.localText = this.streamingText;
             }
 
-            // 根据模式显示不同的成功消息
             if (mode === 'storyboard') {
               this.$message?.success('分镜生成完成');
-              // 触发刷新事件，通知父组件更新画布
               this.$emit('storyboard-generated');
             } else {
               this.$message?.success('文案改写完成');
             }
 
-            // 关闭SSE连接
             if (this.sseClient) {
               this.sseClient.disconnect();
               this.sseClient = null;
             }
           })
           .on('error', (data) => {
-            // 生成失败
             console.error('[RewriteNode] 生成失败:', data.error);
             this.isExecuting = false;
             this.isGeneratingStoryboard = false;
             this.$message?.error(data.error?.message || '生成失败');
 
-            // 关闭SSE连接
             if (this.sseClient) {
               this.sseClient.disconnect();
               this.sseClient = null;
@@ -286,55 +380,48 @@ export default {
           .on('close', () => {
             console.log('[RewriteNode] SSE连接已关闭');
           });
-
       } catch (error) {
         console.error('执行失败:', error);
         this.$message?.error('执行失败: ' + error.message);
         this.isExecuting = false;
         this.isGeneratingStoryboard = false;
 
-        // 清理SSE连接
         if (this.sseClient) {
           this.sseClient.disconnect();
           this.sseClient = null;
         }
       }
     },
-
     async handleSave() {
       this.isSaving = true;
       try {
         await this.$emit('save', {
           stageType: 'rewrite',
-          outputData: { rewritten_text: this.data?.rewritten_text || '' },
+          outputData: { rewritten_text: this.localText || '' },
           silent: false
         });
         this.$message?.success('保存成功');
-        this.lastSavedText = this.data?.rewritten_text || '';
+        this.lastSavedText = this.localText || '';
       } catch (error) {
         this.$message?.error('保存失败');
       } finally {
         this.isSaving = false;
       }
     },
-
     async handleRetry() {
       await this.handleExecute();
     },
-
     async handleReset() {
       if (confirm('确定要重新生成吗？这将覆盖当前内容。')) {
         await this.handleExecute();
       }
     },
-
     formatDate(dateStr) {
       if (!dateStr) return 'N/A';
       return new Date(dateStr).toLocaleString('zh-CN');
     }
   },
   beforeDestroy() {
-    // 组件销毁前清理SSE连接
     if (this.sseClient) {
       this.sseClient.disconnect();
       this.sseClient = null;
@@ -368,7 +455,6 @@ export default {
   box-shadow: 0 8px 24px rgba(2, 6, 23, 0.75);
 }
 
-/* 状态样式 */
 .status-pending {
   border-color: hsl(var(--bc) / 0.3);
 }
@@ -400,7 +486,6 @@ export default {
   background: rgba(127, 29, 29, 0.2);
 }
 
-/* 节点头部 */
 .node-header {
   display: flex;
   align-items: center;
@@ -434,7 +519,6 @@ export default {
   gap: 0.75rem;
 }
 
-/* 操作图标按钮 */
 .action-icons {
   display: flex;
   align-items: center;
@@ -505,7 +589,6 @@ export default {
   color: hsl(var(--bc) / 0.6);
 }
 
-/* 节点内容区 */
 .node-section {
   padding: 1rem 1.25rem;
   border-bottom: 1px solid hsl(var(--bc) / 0.05);
@@ -553,7 +636,56 @@ export default {
   background: hsl(var(--bc) / 0.3);
 }
 
-/* 操作按钮 */
+.textarea-autocomplete-wrap {
+  position: relative;
+}
+
+.asset-autocomplete {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0.75rem;
+  display: grid;
+  gap: 0.45rem;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 0.7rem;
+  border-radius: 1rem;
+  border: 1px solid hsl(var(--bc) / 0.08);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.16);
+  backdrop-filter: blur(10px);
+  z-index: 20;
+}
+
+.layout-shell.theme-dark .asset-autocomplete {
+  background: rgba(15, 23, 42, 0.96);
+  box-shadow: 0 16px 32px rgba(2, 6, 23, 0.62);
+}
+
+.asset-autocomplete-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.85rem;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.72);
+  color: hsl(var(--bc));
+  transition: all 0.2s ease;
+}
+
+.layout-shell.theme-dark .asset-autocomplete-item {
+  background: rgba(15, 23, 42, 0.85);
+}
+
+.asset-autocomplete-item:hover,
+.asset-autocomplete-item.active {
+  border-color: rgba(14, 165, 233, 0.28);
+  transform: translateY(-1px);
+}
+
 .node-actions {
   display: flex;
   gap: 0.5rem;
@@ -561,7 +693,6 @@ export default {
   border-bottom: 1px solid hsl(var(--bc) / 0.05);
 }
 
-/* 元数据 */
 .node-metadata {
   padding: 0.75rem 1.25rem;
   display: flex;

@@ -442,16 +442,9 @@ class Text2ImageStageProcessor(StageProcessor):
         获取全局变量
         包括用户级和系统级变量
         """
-        from apps.prompts.models import GlobalVariable
+        from apps.projects.asset_context import build_project_asset_context
 
-        # 获取项目创建者的全局变量
-        user = project.user
-        variables = GlobalVariable.get_variables_for_user(
-            user=user,
-            include_system=True
-        )
-
-        return variables
+        return build_project_asset_context(project)
 
     def _get_global_variables_sync(self, project: Project) -> Dict[str, Any]:
         """

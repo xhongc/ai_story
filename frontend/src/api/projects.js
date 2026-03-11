@@ -32,6 +32,20 @@ export default {
     return apiClient.get(`/projects/projects/${id}/`);
   },
 
+  getAvailableAssets(projectId) {
+    return apiClient.get(`/projects/projects/${projectId}/available_assets/`);
+  },
+
+  getAssetBindings(projectId) {
+    return apiClient.get(`/projects/projects/${projectId}/asset_bindings/`);
+  },
+
+  updateAssetBindings(projectId, assetIds = []) {
+    return apiClient.patch(`/projects/projects/${projectId}/asset_bindings/`, {
+      asset_ids: assetIds,
+    });
+  },
+
   createProject(data) {
     return apiClient.post('/projects/projects/', data);
   },

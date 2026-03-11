@@ -75,6 +75,21 @@
           <span class="meta-value">{{ project.prompt_set_name }}</span>
         </div>
 
+        <div class="ui-chip-block ui-action-chip">
+          <button
+            ref="assetDrawerToggle"
+            class="btn btn-ghost btn-sm gap-2"
+            :class="{ loading: loadingAssets || savingAssetBindings }"
+            :disabled="loadingAssets || savingAssetBindings"
+            @click.stop="toggleAssetDrawer"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+            </svg>
+            资产 {{ boundAssets.length }}
+          </button>
+        </div>
+
         <div v-if="project.jianying_draft_path" class="draft-info ui-chip-block">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -158,6 +173,47 @@
           />
         </div>
       </div>
+
+      <transition name="episode-dropdown">
+        <div
+          v-if="showAssetDrawer"
+          ref="assetDrawer"
+          class="asset-drawer-card prevent-canvas-wheel"
+          @click.stop
+        >
+          <div class="asset-drawer-header">
+            <div>
+              <div class="asset-drawer-title">资产变量</div>
+              <div class="asset-drawer-subtitle">绑定后在节点输入 `{{` 即可联想选择变量</div>
+            </div>
+            <button class="btn btn-ghost btn-xs" @click.stop="showAssetDrawer = false">关闭</button>
+          </div>
+
+          <div v-if="loadingAssets" class="asset-drawer-empty">正在加载可用变量...</div>
+          <div v-else-if="!availableAssets.length" class="asset-drawer-empty">暂无可绑定变量</div>
+          <div v-else class="asset-drawer-list">
+            <label
+              v-for="asset in availableAssets"
+              :key="asset.id"
+              class="asset-drawer-item"
+            >
+              <input
+                :checked="selectedAssetIds.includes(asset.id)"
+                type="checkbox"
+                class="checkbox checkbox-sm"
+                @change.stop="handleAssetBindingToggle(asset.id)"
+              >
+              <div class="asset-drawer-meta">
+                <div class="asset-drawer-key-row">
+                  <code class="asset-drawer-key">{{ asset.key }}</code>
+                  <span v-if="asset.group" class="asset-drawer-group">{{ asset.group }}</span>
+                </div>
+                <div class="asset-drawer-type">{{ asset.variable_type_display }} · {{ asset.scope_display }}</div>
+              </div>
+            </label>
+          </div>
+        </div>
+      </transition>
     </div>
 
     <div class="canvas-wrapper">
@@ -172,6 +228,7 @@
         :status="rewriteStage ? rewriteStage.status : 'pending'"
         :position="nodePositions.rewrite"
         :data="rewriteStage ? rewriteStage.domain_data : null"
+        :asset-options="boundAssets"
         :original-topic="project.original_topic"
         :project-id="project.id"
         @execute="handleExecuteStage"
@@ -188,6 +245,7 @@
           :storyboard="storyboard"
           :index="index"
           :position="calculateStoryboardPosition(index)"
+          :asset-options="boundAssets"
           @save="handleSaveStoryboard"
         />
 
@@ -257,6 +315,7 @@ import CameraNode from './CameraNode.vue';
 import VideoGenNode from './VideoGenNode.vue';
 import StatusBadge from '@/components/common/StatusBadge.vue';
 import JianyingDraftButton from '@/components/projects/JianyingDraftButton.vue';
+import projectsAPI from '@/api/projects';
 import { formatDate } from '@/utils/helpers';
 
 export default {
@@ -307,6 +366,11 @@ export default {
       isResumingPipeline: false,
       pipelineTaskId: null,
       pipelineChannel: null,
+      loadingAssets: false,
+      savingAssetBindings: false,
+      showAssetDrawer: false,
+      availableAssets: [],
+      selectedAssetIds: [],
       showEpisodeMenu: false,
       switchingEpisodeId: null,
       episodeSearch: '',
@@ -386,6 +450,10 @@ export default {
     },
     storyboards() {
       return this.storyboardStage?.domain_data?.storyboards || [];
+    },
+    boundAssets() {
+      const selectedIds = new Set(this.selectedAssetIds);
+      return this.availableAssets.filter(asset => selectedIds.has(asset.id));
     },
     connections() {
       const conns = [];
@@ -504,6 +572,7 @@ export default {
   },
   mounted() {
     document.addEventListener('click', this.handleDocumentClick);
+    this.loadProjectAssets();
     // 调试信息
     console.log('[ProjectCanvas] Mounted');
     console.log('[ProjectCanvas] Project:', this.project);
@@ -514,9 +583,13 @@ export default {
   watch: {
     '$route.params.id'() {
       this.showEpisodeMenu = false;
+      this.showAssetDrawer = false;
       this.switchingEpisodeId = null;
       this.episodeSearch = '';
       this.highlightedEpisodeIndex = 0;
+      this.availableAssets = [];
+      this.selectedAssetIds = [];
+      this.loadProjectAssets();
     },
     showEpisodeMenu(isOpen) {
       if (isOpen) {
@@ -553,6 +626,17 @@ export default {
             this.$set(this.executingNodes.videos, storyboard.id, false);
           }
         });
+      }
+    },
+    'project.asset_bindings': {
+      immediate: true,
+      handler(bindings) {
+        if (!Array.isArray(bindings)) {
+          return;
+        }
+        this.selectedAssetIds = bindings
+          .map(binding => binding?.asset?.id)
+          .filter(Boolean);
       }
     },
     // 监听项目状态变化，重置运行流程按钮状态
@@ -603,11 +687,71 @@ export default {
       this.handleEpisodeSwitch(target.id);
     },
     handleDocumentClick(event) {
-      if (!this.showEpisodeMenu) {
+      const target = event.target;
+
+      if (this.showEpisodeMenu && !this.$el.contains(target)) {
+        this.closeEpisodeMenu();
+      }
+
+      if (this.showAssetDrawer) {
+        const drawer = this.$refs.assetDrawer;
+        const toggle = this.$refs.assetDrawerToggle;
+        const clickedInsideDrawer = drawer && drawer.contains(target);
+        const clickedToggle = toggle && toggle.contains(target);
+        if (!clickedInsideDrawer && !clickedToggle) {
+          this.showAssetDrawer = false;
+        }
+      }
+    },
+    toggleAssetDrawer() {
+      this.showAssetDrawer = !this.showAssetDrawer;
+      if (this.showAssetDrawer && !this.availableAssets.length) {
+        this.loadProjectAssets();
+      }
+    },
+    async loadProjectAssets() {
+      if (!this.project?.id) {
         return;
       }
-      if (!this.$el.contains(event.target)) {
-        this.closeEpisodeMenu();
+
+      this.loadingAssets = true;
+      try {
+        const [availableResponse, bindingResponse] = await Promise.all([
+          projectsAPI.getAvailableAssets(this.project.id),
+          projectsAPI.getAssetBindings(this.project.id),
+        ]);
+        this.availableAssets = availableResponse.results || [];
+        this.selectedAssetIds = (bindingResponse.results || [])
+          .map(binding => binding?.asset?.id)
+          .filter(Boolean);
+      } catch (error) {
+        console.error('[ProjectCanvas] 加载资产变量失败:', error);
+        this.$message?.error('加载资产变量失败');
+      } finally {
+        this.loadingAssets = false;
+      }
+    },
+    async handleAssetBindingToggle(assetId) {
+      const selectedIds = new Set(this.selectedAssetIds);
+      if (selectedIds.has(assetId)) {
+        selectedIds.delete(assetId);
+      } else {
+        selectedIds.add(assetId);
+      }
+
+      const nextIds = Array.from(selectedIds);
+      const previousIds = [...this.selectedAssetIds];
+      this.selectedAssetIds = nextIds;
+      this.savingAssetBindings = true;
+      try {
+        await projectsAPI.updateAssetBindings(this.project.id, nextIds);
+        this.$emit('asset-bindings-updated');
+      } catch (error) {
+        console.error('[ProjectCanvas] 更新资产变量绑定失败:', error);
+        this.selectedAssetIds = previousIds;
+        this.$message?.error('更新资产变量失败');
+      } finally {
+        this.savingAssetBindings = false;
       }
     },
     handleEpisodeSwitch(episodeId) {
@@ -1373,6 +1517,133 @@ export default {
   text-align: center;
 }
 
+.asset-drawer-card {
+  position: absolute;
+  top: calc(100% + 0.75rem);
+  right: 0;
+  width: 360px;
+  max-height: 420px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 0.85rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(12px);
+  z-index: 260;
+  pointer-events: auto;
+}
+
+.layout-shell.theme-dark .asset-drawer-card {
+  background: rgba(15, 23, 42, 0.96);
+  border-color: rgba(148, 163, 184, 0.2);
+  box-shadow: 0 20px 40px rgba(2, 6, 23, 0.72);
+}
+
+.asset-drawer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.asset-drawer-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.layout-shell.theme-dark .asset-drawer-title {
+  color: #e2e8f0;
+}
+
+.asset-drawer-subtitle {
+  margin-top: 0.2rem;
+  font-size: 0.76rem;
+  color: #64748b;
+}
+
+.asset-drawer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  overflow-y: auto;
+  padding-right: 0.15rem;
+}
+
+.asset-drawer-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem 0.8rem;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.layout-shell.theme-dark .asset-drawer-item {
+  background: rgba(15, 23, 42, 0.84);
+  border-color: rgba(148, 163, 184, 0.18);
+}
+
+.asset-drawer-item:hover {
+  border-color: rgba(20, 184, 166, 0.28);
+  box-shadow: 0 10px 22px rgba(20, 184, 166, 0.1);
+  transform: translateY(-1px);
+}
+
+.asset-drawer-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.asset-drawer-key-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.asset-drawer-key {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.layout-shell.theme-dark .asset-drawer-key {
+  color: #e2e8f0;
+}
+
+.asset-drawer-group {
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(20, 184, 166, 0.12);
+  color: #0f766e;
+  font-size: 0.68rem;
+}
+
+.layout-shell.theme-dark .asset-drawer-group {
+  color: #99f6e4;
+}
+
+.asset-drawer-type,
+.asset-drawer-empty {
+  font-size: 0.76rem;
+  color: #64748b;
+}
+
+.asset-drawer-empty {
+  padding: 1rem 0.25rem 0.5rem;
+  text-align: center;
+}
+
 .meta-item {
   display: flex;
   align-items: center;
@@ -1482,6 +1753,11 @@ export default {
 
   .episode-dropdown {
     width: min(340px, calc(100vw - 2.5rem));
+  }
+
+  .asset-drawer-card {
+    width: min(360px, calc(100vw - 2.5rem));
+    right: 0;
   }
 }
 </style>

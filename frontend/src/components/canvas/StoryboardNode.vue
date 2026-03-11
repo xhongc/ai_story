@@ -4,7 +4,6 @@
     :class="`status-${overallStatus}`"
     :style="nodeStyle"
   >
-    <!-- 节点头部 -->
     <div class="node-header">
       <div class="header-left">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -16,8 +15,8 @@
         <span class="duration-badge">{{ storyboard.duration_seconds || 3 }}s</span>
         <button
           class="btn btn-circle btn-xs btn-ghost"
-          @click="handleSave"
           title="保存修改"
+          @click="handleSave"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -26,7 +25,6 @@
       </div>
     </div>
 
-    <!-- 场景描述 -->
     <div class="node-section node-section-compact">
       <label class="section-label">场景</label>
       <input
@@ -39,39 +37,82 @@
         @blur="handleBlur('scene')"
         @wheel.stop
         @mousedown.stop
-      />
+      >
     </div>
 
-    <!-- 图片提示词 -->
     <div class="node-section">
       <label class="section-label">图片提示词</label>
-      <textarea
-        v-model="imagePrompt"
-        class="textarea textarea-bordered textarea-xs w-full"
-        rows="4"
-        placeholder="图片生成提示词..."
-        @focus="handleFocus('imagePrompt')"
-        @blur="handleBlur('imagePrompt')"
-        @wheel.stop
-        @mousedown.stop
-      ></textarea>
+      <div class="textarea-autocomplete-wrap">
+        <textarea
+          ref="imagePromptTextarea"
+          v-model="imagePrompt"
+          class="textarea textarea-bordered textarea-xs w-full"
+          rows="4"
+          placeholder="图片生成提示词..."
+          @focus="handleFocus('imagePrompt')"
+          @blur="handleBlur('imagePrompt')"
+          @input="handleAutocompleteInput('imagePrompt', $event)"
+          @click="handleCursorChange('imagePrompt')"
+          @keyup="handleCursorChange('imagePrompt')"
+          @keydown.down.prevent="navigateAutocomplete('imagePrompt', 1)"
+          @keydown.up.prevent="navigateAutocomplete('imagePrompt', -1)"
+          @keydown.enter.exact.prevent="confirmAutocomplete('imagePrompt')"
+          @keydown.esc.prevent="closeAutocomplete('imagePrompt')"
+          @wheel.stop
+          @mousedown.stop
+        ></textarea>
+        <div v-if="showImagePromptAutocomplete && filteredImagePromptAssets.length" class="asset-autocomplete prevent-canvas-wheel">
+          <button
+            v-for="(asset, index) in filteredImagePromptAssets"
+            :key="`img-${asset.id}`"
+            type="button"
+            class="asset-autocomplete-item"
+            :class="{ active: highlightedImagePromptIndex === index }"
+            @mousedown.prevent="selectAutocomplete('imagePrompt', asset.key)"
+          >
+            <code>{{ asset.key }}</code>
+            <span>{{ asset.group || asset.variable_type_display }}</span>
+          </button>
+        </div>
+      </div>
     </div>
 
-    <!-- 旁白文案 -->
     <div class="node-section">
       <label class="section-label">旁白文案</label>
-      <textarea
-        v-model="narrationText"
-        class="textarea textarea-bordered textarea-xs w-full"
-        rows="2"
-        placeholder="旁白文案..."
-        @focus="handleFocus('narration')"
-        @blur="handleBlur('narration')"
-        @wheel.stop
-        @mousedown.stop
-      ></textarea>
+      <div class="textarea-autocomplete-wrap">
+        <textarea
+          ref="narrationTextarea"
+          v-model="narrationText"
+          class="textarea textarea-bordered textarea-xs w-full"
+          rows="2"
+          placeholder="旁白文案..."
+          @focus="handleFocus('narration')"
+          @blur="handleBlur('narration')"
+          @input="handleAutocompleteInput('narration', $event)"
+          @click="handleCursorChange('narration')"
+          @keyup="handleCursorChange('narration')"
+          @keydown.down.prevent="navigateAutocomplete('narration', 1)"
+          @keydown.up.prevent="navigateAutocomplete('narration', -1)"
+          @keydown.enter.exact.prevent="confirmAutocomplete('narration')"
+          @keydown.esc.prevent="closeAutocomplete('narration')"
+          @wheel.stop
+          @mousedown.stop
+        ></textarea>
+        <div v-if="showNarrationAutocomplete && filteredNarrationAssets.length" class="asset-autocomplete prevent-canvas-wheel">
+          <button
+            v-for="(asset, index) in filteredNarrationAssets"
+            :key="`nar-${asset.id}`"
+            type="button"
+            class="asset-autocomplete-item"
+            :class="{ active: highlightedNarrationIndex === index }"
+            @mousedown.prevent="selectAutocomplete('narration', asset.key)"
+          >
+            <code>{{ asset.key }}</code>
+            <span>{{ asset.group || asset.variable_type_display }}</span>
+          </button>
+        </div>
+      </div>
     </div>
-
   </div>
 </template>
 
@@ -90,6 +131,10 @@ export default {
     position: {
       type: Object,
       default: () => ({ x: 0, y: 0 })
+    },
+    assetOptions: {
+      type: Array,
+      default: () => []
     }
   },
   data() {
@@ -99,7 +144,15 @@ export default {
       narrationText: this.storyboard.narration_text || '',
       isEditingScene: false,
       isEditingImagePrompt: false,
-      isEditingNarration: false
+      isEditingNarration: false,
+      showImagePromptAutocomplete: false,
+      imagePromptAutocompleteStart: -1,
+      imagePromptQuery: '',
+      highlightedImagePromptIndex: 0,
+      showNarrationAutocomplete: false,
+      narrationAutocompleteStart: -1,
+      narrationQuery: '',
+      highlightedNarrationIndex: 0,
     };
   },
   watch: {
@@ -140,13 +193,34 @@ export default {
       };
     },
     overallStatus() {
-      // 根据关联的图片、运镜、视频状态判断
       if (this.storyboard.videos && this.storyboard.videos.length > 0) {
         return 'completed';
       } else if (this.storyboard.images && this.storyboard.images.length > 0) {
         return 'processing';
       }
       return 'pending';
+    },
+    filteredImagePromptAssets() {
+      const keyword = this.imagePromptQuery.trim().toLowerCase();
+      if (!keyword) {
+        return this.assetOptions;
+      }
+      return this.assetOptions.filter((asset) => {
+        const key = (asset.key || '').toLowerCase();
+        const group = (asset.group || '').toLowerCase();
+        return key.includes(keyword) || group.includes(keyword);
+      });
+    },
+    filteredNarrationAssets() {
+      const keyword = this.narrationQuery.trim().toLowerCase();
+      if (!keyword) {
+        return this.assetOptions;
+      }
+      return this.assetOptions.filter((asset) => {
+        const key = (asset.key || '').toLowerCase();
+        const group = (asset.group || '').toLowerCase();
+        return key.includes(keyword) || group.includes(keyword);
+      });
     }
   },
   methods: {
@@ -178,9 +252,108 @@ export default {
         this.isEditingScene = false;
       } else if (field === 'imagePrompt') {
         this.isEditingImagePrompt = false;
+        setTimeout(() => this.closeAutocomplete('imagePrompt'), 120);
       } else if (field === 'narration') {
         this.isEditingNarration = false;
+        setTimeout(() => this.closeAutocomplete('narration'), 120);
       }
+      this.handleAutoSave();
+    },
+    handleAutocompleteInput(target, event) {
+      this.updateAutocomplete(target, event.target);
+    },
+    handleCursorChange(target) {
+      const refName = target === 'imagePrompt' ? 'imagePromptTextarea' : 'narrationTextarea';
+      this.updateAutocomplete(target, this.$refs[refName]);
+    },
+    updateAutocomplete(target, textarea) {
+      if (!textarea) {
+        return;
+      }
+      const value = target === 'imagePrompt' ? this.imagePrompt : this.narrationText;
+      const cursor = textarea.selectionStart || 0;
+      const textBeforeCursor = value.slice(0, cursor);
+      const openIndex = textBeforeCursor.lastIndexOf('{{');
+      const closeIndex = textBeforeCursor.lastIndexOf('}}');
+      if (openIndex === -1 || closeIndex > openIndex) {
+        this.closeAutocomplete(target);
+        return;
+      }
+
+      const rawQuery = textBeforeCursor.slice(openIndex + 2);
+      if (/[^\sa-zA-Z0-9_]/.test(rawQuery)) {
+        this.closeAutocomplete(target);
+        return;
+      }
+
+      if (target === 'imagePrompt') {
+        this.imagePromptAutocompleteStart = openIndex;
+        this.imagePromptQuery = rawQuery.trimStart();
+        this.highlightedImagePromptIndex = 0;
+        this.showImagePromptAutocomplete = this.assetOptions.length > 0;
+      } else {
+        this.narrationAutocompleteStart = openIndex;
+        this.narrationQuery = rawQuery.trimStart();
+        this.highlightedNarrationIndex = 0;
+        this.showNarrationAutocomplete = this.assetOptions.length > 0;
+      }
+    },
+    closeAutocomplete(target) {
+      if (target === 'imagePrompt') {
+        this.showImagePromptAutocomplete = false;
+        this.imagePromptAutocompleteStart = -1;
+        this.imagePromptQuery = '';
+        this.highlightedImagePromptIndex = 0;
+        return;
+      }
+      this.showNarrationAutocomplete = false;
+      this.narrationAutocompleteStart = -1;
+      this.narrationQuery = '';
+      this.highlightedNarrationIndex = 0;
+    },
+    navigateAutocomplete(target, step) {
+      const list = target === 'imagePrompt' ? this.filteredImagePromptAssets : this.filteredNarrationAssets;
+      const visible = target === 'imagePrompt' ? this.showImagePromptAutocomplete : this.showNarrationAutocomplete;
+      if (!visible || !list.length) {
+        return;
+      }
+      const total = list.length;
+      if (target === 'imagePrompt') {
+        this.highlightedImagePromptIndex = (this.highlightedImagePromptIndex + step + total) % total;
+      } else {
+        this.highlightedNarrationIndex = (this.highlightedNarrationIndex + step + total) % total;
+      }
+    },
+    confirmAutocomplete(target) {
+      const list = target === 'imagePrompt' ? this.filteredImagePromptAssets : this.filteredNarrationAssets;
+      const index = target === 'imagePrompt' ? this.highlightedImagePromptIndex : this.highlightedNarrationIndex;
+      const item = list[index];
+      if (item) {
+        this.selectAutocomplete(target, item.key);
+      }
+    },
+    selectAutocomplete(target, assetKey) {
+      const isImagePrompt = target === 'imagePrompt';
+      const textarea = this.$refs[isImagePrompt ? 'imagePromptTextarea' : 'narrationTextarea'];
+      const value = isImagePrompt ? this.imagePrompt : this.narrationText;
+      const startIndex = isImagePrompt ? this.imagePromptAutocompleteStart : this.narrationAutocompleteStart;
+      if (!textarea || startIndex === -1) {
+        return;
+      }
+      const cursor = textarea.selectionStart || 0;
+      const token = `{{ ${assetKey} }}`;
+      const nextValue = `${value.slice(0, startIndex)}${token}${value.slice(cursor)}`;
+      if (isImagePrompt) {
+        this.imagePrompt = nextValue;
+      } else {
+        this.narrationText = nextValue;
+      }
+      this.closeAutocomplete(target);
+      this.$nextTick(() => {
+        const nextCursor = startIndex + token.length;
+        textarea.focus();
+        textarea.setSelectionRange(nextCursor, nextCursor);
+      });
       this.handleAutoSave();
     },
     handleAutoSave() {
@@ -334,4 +507,53 @@ export default {
   margin-bottom: 0.375rem;
 }
 
+.textarea-autocomplete-wrap {
+  position: relative;
+}
+
+.asset-autocomplete {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0.4rem;
+  display: grid;
+  gap: 0.35rem;
+  max-height: 180px;
+  overflow-y: auto;
+  padding: 0.55rem;
+  border-radius: 0.85rem;
+  border: 1px solid hsl(var(--bc) / 0.08);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.16);
+  backdrop-filter: blur(8px);
+  z-index: 20;
+}
+
+.layout-shell.theme-dark .asset-autocomplete {
+  background: rgba(15, 23, 42, 0.96);
+  box-shadow: 0 16px 28px rgba(2, 6, 23, 0.62);
+}
+
+.asset-autocomplete-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.75rem;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.72);
+  color: hsl(var(--bc));
+  transition: all 0.2s ease;
+}
+
+.layout-shell.theme-dark .asset-autocomplete-item {
+  background: rgba(15, 23, 42, 0.85);
+}
+
+.asset-autocomplete-item:hover,
+.asset-autocomplete-item.active {
+  border-color: rgba(14, 165, 233, 0.28);
+  transform: translateY(-1px);
+}
 </style>

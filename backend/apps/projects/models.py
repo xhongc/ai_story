@@ -248,3 +248,39 @@ class ProjectModelConfig(models.Model):
 
     def __str__(self):
         return f'{self.project.name} - 模型配置'
+
+
+class ProjectAssetBinding(models.Model):
+    """
+    项目资产绑定
+    职责: 管理项目在画布和模板中显式使用的资产集合
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name='asset_bindings',
+        verbose_name='项目'
+    )
+    asset = models.ForeignKey(
+        'prompts.GlobalVariable',
+        on_delete=models.CASCADE,
+        related_name='project_bindings',
+        verbose_name='资产'
+    )
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
+
+    class Meta:
+        db_table = 'project_asset_bindings'
+        verbose_name = '项目资产绑定'
+        verbose_name_plural = '项目资产绑定'
+        ordering = ['created_at']
+        unique_together = [('project', 'asset')]
+        indexes = [
+            models.Index(fields=['project', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f'{self.project.name} - {self.asset.key}'

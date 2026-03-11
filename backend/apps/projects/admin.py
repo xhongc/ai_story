@@ -1,6 +1,6 @@
 """项目管理Admin配置"""
 from django.contrib import admin
-from .models import Project, ProjectStage, ProjectModelConfig
+from .models import Project, ProjectStage, ProjectModelConfig, ProjectAssetBinding
 
 
 @admin.register(Project)
@@ -19,3 +19,10 @@ class ProjectStageAdmin(admin.ModelAdmin):
 @admin.register(ProjectModelConfig)
 class ProjectModelConfigAdmin(admin.ModelAdmin):
     list_display = ['project', 'load_balance_strategy', 'created_at']
+
+
+@admin.register(ProjectAssetBinding)
+class ProjectAssetBindingAdmin(admin.ModelAdmin):
+    list_display = ['project', 'asset', 'created_at']
+    list_filter = ['created_at']
+    search_fields = ['project__name', 'asset__key']

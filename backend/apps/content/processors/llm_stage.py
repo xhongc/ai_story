@@ -385,32 +385,15 @@ class LLMStageProcessor(StageProcessor):
         获取全局变量
         包括用户级和系统级变量
         """
-        from apps.prompts.models import GlobalVariable
+        from apps.projects.asset_context import build_project_asset_context
 
-        # 获取项目创建者的全局变量
-        user = project.user
-        variables = GlobalVariable.get_variables_for_user(
-            user=user,
-            include_system=True
-        )
-
-        return variables
+        return build_project_asset_context(project)
 
     def _get_global_variables_sync(self, project: Project) -> Dict[str, Any]:
         """
         同步获取全局变量（用于非异步上下文）
         """
-        import asyncio
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # 如果事件循环正在运行，创建新任务
-                return asyncio.create_task(self._get_global_variables(project))
-            else:
-                return loop.run_until_complete(self._get_global_variables(project))
-        except RuntimeError:
-            # 没有事件循环，创建新的
-            return asyncio.run(self._get_global_variables(project))
+        return self._get_global_variables(project)
 
     def _build_prompt(self, project: Project, input_data: Dict[str, Any]) -> str:
         """

@@ -21,6 +21,7 @@
           @pipeline-started="handlePipelineStarted"
           @pipeline-paused="handlePipelinePaused"
           @storyboard-generated="handleStoryboardGenerated"
+          @asset-bindings-updated="handleAssetBindingsUpdated"
         />
       </div>
     </loading-container>
@@ -560,6 +561,15 @@ export default {
         console.log('[ProjectDetail] 画布数据已刷新，分镜数量:', this.storyboards.length);
       } catch (error) {
         console.error('[ProjectDetail] 刷新画布数据失败:', error);
+      }
+    },
+
+    async handleAssetBindingsUpdated() {
+      try {
+        const projectId = this.$route.params.id;
+        this.project = await this.fetchProject(projectId);
+      } catch (error) {
+        console.error('[ProjectDetail] 刷新项目资产绑定失败:', error);
       }
     },
 

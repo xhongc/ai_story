@@ -632,8 +632,12 @@ class Image2VideoStageProcessor(StageProcessor):
         base64_image = self.image_to_base64(image_path)
         storyboard_copy["url"] = base64_image
         try:
+            from apps.projects.asset_context import build_project_asset_context
+
+            asset_context = build_project_asset_context(project)
             # 准备模板变量
             template_vars = {
+                **asset_context,
                 'project': {
                     'name': project.name,
                     'description': project.description,

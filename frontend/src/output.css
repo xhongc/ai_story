@@ -1202,6 +1202,13 @@ html {
   background-color: var(--fallback-bc,oklch(var(--bc)/0.1));
 }
 
+.drawer {
+  position: relative;
+  display: grid;
+  grid-auto-columns: max-content auto;
+  width: 100%;
+}
+
 .drawer-content {
   grid-column-start: 2;
   grid-row-start: 1;
@@ -2146,6 +2153,23 @@ html {
   border-color: transparent;
   --tw-bg-opacity: 1;
   background-color: var(--fallback-b1,oklch(var(--b1)/var(--tw-bg-opacity)));
+}
+
+.\!textarea {
+  min-height: 3rem !important;
+  flex-shrink: 1 !important;
+  padding-left: 1rem !important;
+  padding-right: 1rem !important;
+  padding-top: 0.5rem !important;
+  padding-bottom: 0.5rem !important;
+  font-size: 0.875rem !important;
+  line-height: 1.25rem !important;
+  line-height: 2 !important;
+  border-radius: var(--rounded-btn, 0.5rem) !important;
+  border-width: 1px !important;
+  border-color: transparent !important;
+  --tw-bg-opacity: 1 !important;
+  background-color: var(--fallback-b1,oklch(var(--b1)/var(--tw-bg-opacity))) !important;
 }
 
 .toggle {
@@ -3688,6 +3712,15 @@ details.collapse summary::-webkit-details-marker {
   outline-color: var(--fallback-bc,oklch(var(--bc)/0.2));
 }
 
+.\!textarea:focus {
+  box-shadow: none !important;
+  border-color: var(--fallback-bc,oklch(var(--bc)/0.2)) !important;
+  outline-style: solid !important;
+  outline-width: 2px !important;
+  outline-offset: 2px !important;
+  outline-color: var(--fallback-bc,oklch(var(--bc)/0.2)) !important;
+}
+
 .textarea-info {
   --tw-border-opacity: 1;
   border-color: var(--fallback-in,oklch(var(--in)/var(--tw-border-opacity)));
@@ -3721,6 +3754,17 @@ details.collapse summary::-webkit-details-marker {
   color: var(--fallback-bc,oklch(var(--bc)/0.4));
 }
 
+
+  .\!textarea:disabled,
+  .\!textarea[disabled] {
+  cursor: not-allowed !important;
+  --tw-border-opacity: 1 !important;
+  border-color: var(--fallback-b2,oklch(var(--b2)/var(--tw-border-opacity))) !important;
+  --tw-bg-opacity: 1 !important;
+  background-color: var(--fallback-b2,oklch(var(--b2)/var(--tw-bg-opacity))) !important;
+  color: var(--fallback-bc,oklch(var(--bc)/0.4)) !important;
+}
+
 .textarea-disabled::-moz-placeholder, .textarea:disabled::-moz-placeholder, .textarea[disabled]::-moz-placeholder {
   color: var(--fallback-bc,oklch(var(--bc)/var(--tw-placeholder-opacity)));
   --tw-placeholder-opacity: 0.2;
@@ -3731,6 +3775,18 @@ details.collapse summary::-webkit-details-marker {
   .textarea[disabled]::placeholder {
   color: var(--fallback-bc,oklch(var(--bc)/var(--tw-placeholder-opacity)));
   --tw-placeholder-opacity: 0.2;
+}
+
+.\!textarea:disabled::-moz-placeholder, .\!textarea[disabled]::-moz-placeholder {
+  color: var(--fallback-bc,oklch(var(--bc)/var(--tw-placeholder-opacity))) !important;
+  --tw-placeholder-opacity: 0.2 !important;
+}
+
+
+  .\!textarea:disabled::placeholder,
+  .\!textarea[disabled]::placeholder {
+  color: var(--fallback-bc,oklch(var(--bc)/var(--tw-placeholder-opacity))) !important;
+  --tw-placeholder-opacity: 0.2 !important;
 }
 
 @keyframes toast-pop {
@@ -4320,6 +4376,10 @@ html:has(.drawer-toggle:checked) {
 
 .visible {
   visibility: visible;
+}
+
+.\!visible {
+  visibility: visible !important;
 }
 
 .collapse {

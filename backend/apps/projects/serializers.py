@@ -7,8 +7,9 @@
 from rest_framework import serializers
 
 from apps.content.models import ContentRewrite
+from apps.prompts.serializers import GlobalVariableListSerializer
 from apps.projects.utils import parse_storyboard_json
-from .models import Project, ProjectStage, ProjectModelConfig, Series
+from .models import Project, ProjectStage, ProjectModelConfig, ProjectAssetBinding, Series
 
 
 class ProjectStageSerializer(serializers.ModelSerializer):
@@ -252,6 +253,28 @@ class ProjectModelConfigSerializer(serializers.ModelSerializer):
         return [p.name for p in obj.video_providers.all()]
 
 
+class ProjectAssetBindingSerializer(serializers.ModelSerializer):
+    """项目资产绑定序列化器"""
+
+    asset = GlobalVariableListSerializer(read_only=True)
+    asset_id = serializers.UUIDField(write_only=True, required=False)
+
+    class Meta:
+        model = ProjectAssetBinding
+        fields = ['id', 'project', 'asset', 'asset_id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'project', 'created_at', 'updated_at']
+
+
+class ProjectAssetBindingUpdateSerializer(serializers.Serializer):
+    """项目资产绑定更新序列化器"""
+
+    asset_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        allow_empty=True,
+        help_text='项目绑定的资产ID列表'
+    )
+
+
 class ProjectListSerializer(serializers.ModelSerializer):
     """项目列表序列化器 - 轻量级"""
 
@@ -298,6 +321,7 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
 
     stages = ProjectStageSerializer(many=True, read_only=True)
     model_config = ProjectModelConfigSerializer(read_only=True)
+    asset_bindings = ProjectAssetBindingSerializer(many=True, read_only=True)
 
     total_stages = serializers.SerializerMethodField()
     completed_stages = serializers.SerializerMethodField()
@@ -311,7 +335,7 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
             'series', 'series_name', 'episode_number', 'episode_title', 'sort_order',
             'status', 'status_display', 'user', 'user_name',
             'prompt_template_set', 'prompt_set_name',
-            'stages', 'model_config',
+            'stages', 'model_config', 'asset_bindings',
             'total_stages', 'completed_stages', 'failed_stages', 'progress_percentage',
             'created_at', 'updated_at', 'completed_at'
         ]

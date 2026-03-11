@@ -8,6 +8,7 @@
 from celery.result import AsyncResult
 from django.core.cache import cache
 from django.conf import settings
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
@@ -17,8 +18,12 @@ from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Project, ProjectModelConfig, ProjectStage, Series
+from apps.prompts.models import GlobalVariable
+from apps.prompts.serializers import GlobalVariableListSerializer
+from .models import Project, ProjectAssetBinding, ProjectModelConfig, ProjectStage, Series
 from .serializers import (
+    ProjectAssetBindingSerializer,
+    ProjectAssetBindingUpdateSerializer,
     ProjectCreateSerializer,
     ProjectDetailSerializer,
     ProjectListSerializer,
@@ -97,7 +102,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         queryset = (
             Project.objects.filter(user=self.request.user)
             .select_related("user", "prompt_template_set", "series")
-            .prefetch_related("stages")
+            .prefetch_related("stages", "asset_bindings__asset")
         )
 
         series_id = self.request.query_params.get('series') or self.request.query_params.get('series_id')
@@ -108,6 +113,10 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
     def get_serializer_class(self):
         """根据动作选择序列化器"""
+        if self.action == 'asset_bindings':
+            if self.request.method.lower() == 'get':
+                return ProjectAssetBindingSerializer
+            return ProjectAssetBindingUpdateSerializer
         if self.action == "list":
             return ProjectListSerializer
         elif self.action == "retrieve":
@@ -117,6 +126,12 @@ class ProjectViewSet(viewsets.ModelViewSet):
         elif self.action in ["update", "partial_update"]:
             return ProjectUpdateSerializer
         return ProjectDetailSerializer
+
+    def _get_accessible_assets(self, user):
+        return GlobalVariable.objects.filter(
+            Q(created_by=user, scope='user', is_active=True) |
+            Q(scope='system', is_active=True)
+        ).order_by('group', 'key')
 
     def perform_create(self, serializer):
         """创建项目时自动设置当前用户"""
@@ -140,6 +155,71 @@ class ProjectViewSet(viewsets.ModelViewSet):
     def partial_update(self, request, *args, **kwargs):
         kwargs['partial'] = True
         return self.update(request, *args, **kwargs)
+
+    @action(detail=True, methods=['get'])
+    def available_assets(self, request, pk=None):
+        """获取当前项目可用的资产列表。"""
+        project = self.get_object()
+        queryset = self._get_accessible_assets(request.user)
+        serializer = GlobalVariableListSerializer(
+            queryset,
+            many=True,
+            context=self.get_serializer_context()
+        )
+        bound_asset_ids = {str(asset_id) for asset_id in project.asset_bindings.values_list('asset_id', flat=True)}
+        results = []
+        for item in serializer.data:
+            entry = dict(item)
+            entry['is_bound'] = entry.get('id') in bound_asset_ids
+            results.append(entry)
+        return Response({'results': results, 'count': len(results)})
+
+    @action(detail=True, methods=['get', 'patch'])
+    def asset_bindings(self, request, pk=None):
+        """获取或更新项目资产绑定。"""
+        project = self.get_object()
+
+        if request.method.lower() == 'get':
+            bindings = project.asset_bindings.select_related('asset').all()
+            serializer = ProjectAssetBindingSerializer(
+                bindings,
+                many=True,
+                context=self.get_serializer_context()
+            )
+            return Response({'results': serializer.data, 'count': len(serializer.data)})
+
+        serializer = ProjectAssetBindingUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        asset_ids = serializer.validated_data.get('asset_ids', [])
+
+        accessible_assets = self._get_accessible_assets(request.user).filter(id__in=asset_ids)
+        accessible_asset_map = {str(asset.id): asset for asset in accessible_assets}
+        missing_ids = [str(asset_id) for asset_id in asset_ids if str(asset_id) not in accessible_asset_map]
+        if missing_ids:
+            return Response(
+                {'error': '存在不可访问的资产', 'asset_ids': missing_ids},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        project.asset_bindings.exclude(asset_id__in=asset_ids).delete()
+        existing_ids = {str(asset_id) for asset_id in project.asset_bindings.values_list('asset_id', flat=True)}
+        new_bindings = []
+        for asset_id in asset_ids:
+            asset_id_str = str(asset_id)
+            if asset_id_str in existing_ids:
+                continue
+            new_bindings.append(ProjectAssetBinding(project=project, asset=accessible_asset_map[asset_id_str]))
+
+        if new_bindings:
+            ProjectAssetBinding.objects.bulk_create(new_bindings)
+
+        bindings = project.asset_bindings.select_related('asset').all()
+        response_serializer = ProjectAssetBindingSerializer(
+            bindings,
+            many=True,
+            context=self.get_serializer_context()
+        )
+        return Response({'results': response_serializer.data, 'count': len(response_serializer.data)})
 
     def _project_task_cache_key(self, project_id):
         return f"project_active_tasks:{project_id}"
