@@ -7,7 +7,7 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="form-control">
               <label class="label">
-                <span class="label-text">模型名称 <span class="text-error">*</span></span>
+                <span class="label-text">模型别名 <span class="text-error">*</span></span>
               </label>
               <input
                 v-model="formData.name"
@@ -341,7 +341,7 @@ export default {
         api_key: '',
         model_name: '',
         executor_class: '',
-        max_tokens: 2000,
+        max_tokens: 4096,
         temperature: 0.7,
         top_p: 1.0,
         timeout: 60,
