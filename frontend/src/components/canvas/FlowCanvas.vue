@@ -224,8 +224,22 @@ export default {
       this.isDragging = false;
     },
 
+    shouldIgnoreWheel(target) {
+      if (!(target instanceof Element)) {
+        return false;
+      }
+
+      return Boolean(
+        target.closest('input, textarea, select, option, [contenteditable="true"], .prevent-canvas-wheel')
+      );
+    },
+
     // 鼠标滚轮缩放
     handleWheel(e) {
+      if (this.shouldIgnoreWheel(e.target)) {
+        return;
+      }
+
       e.preventDefault();
       const delta = e.deltaY > 0 ? 0.98 : 1.02;
       this.setScale(this.scale * delta);
