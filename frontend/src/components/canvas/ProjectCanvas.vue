@@ -85,12 +85,12 @@
         <div class="ui-chip-block ui-action-chip">
           <button
             class="btn btn-ghost btn-sm gap-2"
-            :class="{ loading: isRunningPipeline }"
-            :disabled="isRunningPipeline"
-            @click="handleRunPipeline"
+            :class="{ loading: isPipelineActionLoading }"
+            :disabled="isPipelineActionLoading"
+            @click="handlePipelineAction"
           >
             <svg
-              v-if="!isRunningPipeline"
+              v-if="!isPipelineActionLoading && pipelineActionType === 'run'"
               xmlns="http://www.w3.org/2000/svg"
               class="h-4 w-4"
               fill="none"
@@ -110,7 +110,43 @@
                 d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
               />
             </svg>
-            {{ isRunningPipeline ? '运行中...' : '运行流程' }}
+            <svg
+              v-else-if="!isPipelineActionLoading && pipelineActionType === 'pause'"
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M10 9v6m4-6v6m5-3a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <svg
+              v-else-if="!isPipelineActionLoading && pipelineActionType === 'resume'"
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+              />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            {{ pipelineActionLabel }}
           </button>
         </div>
 
@@ -267,6 +303,8 @@ export default {
       },
       // 运行流程状态
       isRunningPipeline: false,
+      isPausingPipeline: false,
+      isResumingPipeline: false,
       pipelineTaskId: null,
       pipelineChannel: null,
       showEpisodeMenu: false,
@@ -297,6 +335,36 @@ export default {
         const seriesName = episode.series_name || '';
         return label.toLowerCase().includes(keyword) || seriesName.toLowerCase().includes(keyword);
       });
+    },
+    pipelineActionType() {
+      if (this.project?.status === 'processing') {
+        return 'pause';
+      }
+      if (this.project?.status === 'paused') {
+        return 'resume';
+      }
+      return 'run';
+    },
+    pipelineActionLabel() {
+      if (this.isPausingPipeline) {
+        return '暂停中...';
+      }
+      if (this.isResumingPipeline) {
+        return '恢复中...';
+      }
+      if (this.isRunningPipeline) {
+        return '启动中...';
+      }
+      if (this.pipelineActionType === 'pause') {
+        return '暂停流程';
+      }
+      if (this.pipelineActionType === 'resume') {
+        return '恢复流程';
+      }
+      return '运行流程';
+    },
+    isPipelineActionLoading() {
+      return this.isRunningPipeline || this.isPausingPipeline || this.isResumingPipeline;
     },
     // 节点位置配置（固定位置，由 FlowCanvas 自动居中）
     nodePositions() {
@@ -492,9 +560,14 @@ export default {
       handler(newStatus, oldStatus) {
         console.log('[ProjectCanvas] Project status changed:', oldStatus, '->', newStatus);
 
-        // 如果项目状态变为 completed 或 failed，重置运行流程按钮
-        if (this.isRunningPipeline && (newStatus === 'completed' || newStatus === 'failed')) {
+        // 如果项目状态变更为稳定态，重置流程操作按钮
+        if (['completed', 'failed', 'paused', 'processing', 'draft'].includes(newStatus)) {
           this.isRunningPipeline = false;
+          this.isPausingPipeline = false;
+          this.isResumingPipeline = false;
+        }
+
+        if (this.isRunningPipeline && (newStatus === 'completed' || newStatus === 'failed' || newStatus === 'paused')) {
           this.pipelineTaskId = null;
           this.pipelineChannel = null;
         }
@@ -916,6 +989,68 @@ export default {
         this.$message?.error(error.response?.data?.error || error.message || '启动工作流失败');
         this.isRunningPipeline = false;
       }
+    },
+
+    async handlePausePipeline() {
+      console.log('[ProjectCanvas] 暂停完整流程');
+
+      try {
+        this.isPausingPipeline = true;
+
+        const response = await this.$store.dispatch('projects/pauseProject', this.project.id);
+
+        this.isRunningPipeline = false;
+        this.pipelineTaskId = null;
+        this.pipelineChannel = null;
+
+        this.$emit('pipeline-paused', response);
+        this.$message?.success(response.message || '工作流已暂停');
+      } catch (error) {
+        console.error('[ProjectCanvas] 暂停工作流失败:', error);
+        this.$message?.error(error.response?.data?.error || error.message || '暂停工作流失败');
+      } finally {
+        this.isPausingPipeline = false;
+      }
+    },
+
+    async handleResumePipeline() {
+      console.log('[ProjectCanvas] 恢复完整流程');
+
+      try {
+        this.isResumingPipeline = true;
+
+        const response = await this.$store.dispatch('projects/resumeProject', this.project.id);
+
+        this.pipelineTaskId = response.task_id;
+        this.pipelineChannel = response.channel;
+
+        this.$emit('pipeline-started', {
+          taskId: this.pipelineTaskId,
+          channel: this.pipelineChannel,
+          resumed: true
+        });
+
+        this.$message?.success(response.message || '工作流已恢复');
+      } catch (error) {
+        console.error('[ProjectCanvas] 恢复工作流失败:', error);
+        this.$message?.error(error.response?.data?.error || error.message || '恢复工作流失败');
+      } finally {
+        this.isResumingPipeline = false;
+      }
+    },
+
+    handlePipelineAction() {
+      if (this.pipelineActionType === 'pause') {
+        this.handlePausePipeline();
+        return;
+      }
+
+      if (this.pipelineActionType === 'resume') {
+        this.handleResumePipeline();
+        return;
+      }
+
+      this.handleRunPipeline();
     },
 
     /**

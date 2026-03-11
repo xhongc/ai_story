@@ -596,6 +596,12 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
         revoked_task_ids = self._revoke_project_tasks(project.id)
 
+        project.stages.filter(status='processing').update(
+            status='pending',
+            completed_at=None,
+            error_message=''
+        )
+
         project.status = "paused"
         project.save()
 

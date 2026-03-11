@@ -4,9 +4,9 @@
 遵循单一职责原则(SRP)
 """
 
-from email import message
 import logging
 from typing import Dict, Any
+from celery.exceptions import TaskRevokedError
 from django.core.cache import cache
 from django.utils import timezone
 
@@ -78,6 +78,22 @@ def _is_image_generation_complete(project: Project) -> bool:
     ).values('storyboard_id').distinct().count()
 
     return completed_storyboards >= total_storyboards
+
+
+def _mark_stage_paused(project_id: str, stage_name: str) -> None:
+    ProjectStage.objects.filter(
+        project_id=project_id,
+        stage_type=stage_name,
+        status='processing'
+    ).update(
+        status='pending',
+        completed_at=None,
+        error_message=''
+    )
+
+
+def _is_project_paused(project_id: str) -> bool:
+    return Project.objects.filter(id=project_id, status='paused').exists()
 
 
 @app.task(
@@ -223,7 +239,17 @@ def execute_llm_stage(
         publisher.publish_error(error_msg)
         return {'success': False, 'error': error_msg}
 
+    except TaskRevokedError:
+        logger.info(f"LLM阶段任务已撤销: {stage_name}, 项目: {project_id}, 任务ID: {task_id}")
+        _mark_stage_paused(project_id, stage_name)
+        return {'success': False, 'paused': True, 'error': '任务已暂停'}
+
     except Exception as e:
+        if _is_project_paused(project_id):
+            logger.info(f"LLM阶段任务因项目暂停中断: {stage_name}, 项目: {project_id}, 任务ID: {task_id}")
+            _mark_stage_paused(project_id, stage_name)
+            return {'success': False, 'paused': True, 'error': '任务已暂停'}
+
         error_msg = f'任务执行失败: {str(e)}'
         logger.exception(error_msg)
 
@@ -405,7 +431,17 @@ def execute_text2image_stage(
             'channel': channel
         }
 
+    except TaskRevokedError:
+        logger.info(f"文生图任务已撤销, 项目: {project_id}, 任务ID: {task_id}")
+        _mark_stage_paused(project_id, stage_name)
+        return {'success': False, 'paused': True, 'error': '任务已暂停'}
+
     except Exception as e:
+        if _is_project_paused(project_id):
+            logger.info(f"文生图任务因项目暂停中断, 项目: {project_id}, 任务ID: {task_id}")
+            _mark_stage_paused(project_id, stage_name)
+            return {'success': False, 'paused': True, 'error': '任务已暂停'}
+
         error_msg = f'文生图任务失败: {str(e)}'
         logger.exception(error_msg)
 
@@ -556,7 +592,17 @@ def execute_image2video_stage(
             'channel': channel
         }
 
+    except TaskRevokedError:
+        logger.info(f"图生视频任务已撤销, 项目: {project_id}, 任务ID: {task_id}")
+        _mark_stage_paused(project_id, stage_name)
+        return {'success': False, 'paused': True, 'error': '任务已暂停'}
+
     except Exception as e:
+        if _is_project_paused(project_id):
+            logger.info(f"图生视频任务因项目暂停中断, 项目: {project_id}, 任务ID: {task_id}")
+            _mark_stage_paused(project_id, stage_name)
+            return {'success': False, 'paused': True, 'error': '任务已暂停'}
+
         error_msg = f'图生视频任务失败: {str(e)}'
         logger.exception(error_msg)
 
@@ -842,6 +888,16 @@ def run_full_pipeline_task(
                     )
 
                 # 检查执行结果
+                if result.get('paused'):
+                    logger.info(f"阶段 {stage_name} 因项目暂停中断")
+                    return {
+                        'success': False,
+                        'paused': True,
+                        'task_id': task_id,
+                        'channel': channel,
+                        'completed_stages': completed_stages,
+                        'skipped_stages': skipped_stages
+                    }
                 if result.get('success'):
                     completed_stages.append(stage_name)
                     logger.info(f"阶段 {stage_name} 执行成功")
@@ -892,7 +948,29 @@ def run_full_pipeline_task(
         publisher.publish_error(error_msg)
         return {'success': False, 'error': error_msg}
 
+    except TaskRevokedError:
+        logger.info(f"完整工作流任务已撤销, 项目: {project_id}, 任务ID: {task_id}")
+        return {
+            'success': False,
+            'paused': True,
+            'task_id': task_id,
+            'channel': channel,
+            'completed_stages': completed_stages,
+            'skipped_stages': skipped_stages
+        }
+
     except Exception as e:
+        if _is_project_paused(project_id):
+            logger.info(f"完整工作流因项目暂停结束, 项目: {project_id}, 任务ID: {task_id}")
+            return {
+                'success': False,
+                'paused': True,
+                'task_id': task_id,
+                'channel': channel,
+                'completed_stages': completed_stages,
+                'skipped_stages': skipped_stages
+            }
+
         error_msg = f'工作流执行失败: {str(e)}'
         logger.exception(error_msg)
 

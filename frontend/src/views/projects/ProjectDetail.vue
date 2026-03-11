@@ -19,6 +19,7 @@
           @delete-storyboard="handleDeleteStoryboard"
           @draft-generated="handleDraftGenerated"
           @pipeline-started="handlePipelineStarted"
+          @pipeline-paused="handlePipelinePaused"
           @storyboard-generated="handleStoryboardGenerated"
         />
       </div>
@@ -40,7 +41,8 @@ export default {
     ProjectCanvas,
   },
   beforeRouteLeave(to, from, next) {
-    this.disconnectAllSSE();
+    this.sseRecoveryEnabled = false;
+    this.disconnectAllSSE({ clearMarkers: true });
     next();
   },
   data() {
@@ -55,19 +57,22 @@ export default {
       pipelineSSEClient: null,
       // 单阶段 SSE 客户端
       stageSSEClient: null,
+      sseRecoveryEnabled: true,
     };
+  },
+  watch: {
+    '$route.params.id'(newId, oldId) {
+      this.sseRecoveryEnabled = true;
+      this.disconnectAllSSE({ projectId: oldId, clearMarkers: true });
+      this.fetchData();
+    },
   },
   created() {
     this.fetchData();
   },
-  watch: {
-    '$route.params.id'() {
-      this.disconnectAllSSE();
-      this.fetchData();
-    },
-  },
   beforeDestroy() {
-    this.disconnectAllSSE();
+    this.sseRecoveryEnabled = false;
+    this.disconnectAllSSE({ clearMarkers: true });
   },
   methods: {
     ...mapActions('projects', [
@@ -83,12 +88,12 @@ export default {
     ]),
     formatDate,
 
-    getPipelineSSEStorageKey() {
-      return `project_active_pipeline_sse:${this.$route.params.id}`;
+    getPipelineSSEStorageKey(projectId = this.project?.id || this.$route.params.id) {
+      return `project_active_pipeline_sse:${projectId}`;
     },
 
-    getStageSSEStorageKey() {
-      return `project_active_stage_sse:${this.$route.params.id}`;
+    getStageSSEStorageKey(projectId = this.project?.id || this.$route.params.id) {
+      return `project_active_stage_sse:${projectId}`;
     },
 
     markPipelineSSEActive() {
@@ -96,8 +101,8 @@ export default {
       sessionStorage.removeItem(this.getStageSSEStorageKey());
     },
 
-    clearPipelineSSEMarker() {
-      sessionStorage.removeItem(this.getPipelineSSEStorageKey());
+    clearPipelineSSEMarker(projectId) {
+      sessionStorage.removeItem(this.getPipelineSSEStorageKey(projectId));
     },
 
     markStageSSEActive(stageName) {
@@ -105,16 +110,16 @@ export default {
       sessionStorage.removeItem(this.getPipelineSSEStorageKey());
     },
 
-    clearStageSSEMarker() {
-      sessionStorage.removeItem(this.getStageSSEStorageKey());
+    clearStageSSEMarker(projectId) {
+      sessionStorage.removeItem(this.getStageSSEStorageKey(projectId));
     },
 
-    getMarkedStageSSE() {
-      return sessionStorage.getItem(this.getStageSSEStorageKey());
+    getMarkedStageSSE(projectId) {
+      return sessionStorage.getItem(this.getStageSSEStorageKey(projectId));
     },
 
-    hasMarkedPipelineSSE() {
-      return sessionStorage.getItem(this.getPipelineSSEStorageKey()) === '1';
+    hasMarkedPipelineSSE(projectId) {
+      return sessionStorage.getItem(this.getPipelineSSEStorageKey(projectId)) === '1';
     },
 
     async fetchData(preserveScroll = false) {
@@ -141,7 +146,9 @@ export default {
 
         // 获取分镜数据（必须在stages加载后）
         this.fetchStoryboardsFromStages();
-        this.restoreSSEIfNeeded();
+        if (this.sseRecoveryEnabled) {
+          this.restoreSSEIfNeeded();
+        }
 
         // 恢复滚动位置
         if (preserveScroll) {
@@ -157,7 +164,7 @@ export default {
       }
     },
 
-    disconnectAllSSE() {
+    disconnectAllSSE({ projectId = this.project?.id || this.$route.params.id, clearMarkers = false } = {}) {
       if (this.pipelineSSEClient) {
         this.pipelineSSEClient.disconnect();
         this.pipelineSSEClient = null;
@@ -166,6 +173,11 @@ export default {
         this.stageSSEClient.disconnect();
         this.stageSSEClient = null;
       }
+
+      if (clearMarkers && projectId) {
+        this.clearPipelineSSEMarker(projectId);
+        this.clearStageSSEMarker(projectId);
+      }
     },
 
     hasRunningStage() {
@@ -173,7 +185,7 @@ export default {
     },
 
     restoreSSEIfNeeded() {
-      if (!this.project?.id) {
+      if (!this.project?.id || !this.sseRecoveryEnabled) {
         return;
       }
 
@@ -182,9 +194,9 @@ export default {
       }
 
       const processingStages = this.stages.filter(stage => stage.status === 'processing');
-      const markedStageName = this.getMarkedStageSSE();
+      const markedStageName = this.getMarkedStageSSE(this.project.id);
 
-      if (this.hasMarkedPipelineSSE()) {
+      if (this.hasMarkedPipelineSSE(this.project.id)) {
         console.log('[ProjectDetail] 恢复项目级 SSE 连接');
         this.connectProjectSSE();
         return;
@@ -319,6 +331,10 @@ export default {
      * 连接单阶段 SSE 监听任务完成
      */
     connectStageSSE(stageName) {
+      if (!this.sseRecoveryEnabled) {
+        return;
+      }
+
       // 断开之前的连接
       if (this.stageSSEClient) {
         this.stageSSEClient.disconnect();
@@ -553,7 +569,19 @@ export default {
       this.connectProjectSSE();
     },
 
+    async handlePipelinePaused() {
+      console.log('[ProjectDetail] Pipeline paused');
+
+      this.disconnectAllSSE({ clearMarkers: true });
+      this.$refs.projectCanvas?.resetAllLoading();
+      await this.refreshCanvasData();
+    },
+
     connectProjectSSE() {
+      if (!this.sseRecoveryEnabled) {
+        return;
+      }
+
       if (!this.project?.id) {
         return;
       }
