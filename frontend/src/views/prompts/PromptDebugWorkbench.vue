@@ -105,7 +105,15 @@
             </div>
           </div>
           <div v-if="debugRuns.length" class="history-list">
-            <article v-for="run in debugRuns" :key="run.id" class="history-item" @click="selectRun(run)">
+            <article
+              v-for="run in debugRuns"
+              :key="run.id"
+              :class="['history-item', { active: run.id === selectedRunId }]"
+              role="button"
+              tabindex="0"
+              @click="selectRun(run)"
+              @keyup.enter="selectRun(run)"
+            >
               <div class="card-meta">
                 <div class="meta-item">
                   <span class="meta-label">状态</span>
@@ -118,7 +126,7 @@
               </div>
               <div class="card-footer">
                 <span class="meta-time">{{ formatDate(run.created_at) }}</span>
-                <span class="ghost-action">查看</span>
+                <button class="ghost-action" type="button" @click.stop="selectRun(run)">查看</button>
               </div>
             </article>
           </div>
@@ -219,6 +227,9 @@ export default {
     },
     displayRun() {
       return this.streamingRun || this.lastRun
+    },
+    selectedRunId() {
+      return this.lastRun?.id || ''
     },
     canSelectSource() {
       return ['image_generation', 'video_generation'].includes(this.session?.stage_type)
@@ -596,6 +607,63 @@ export default {
   font-weight: 600;
 }
 
+.card-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  background: rgba(148, 163, 184, 0.1);
+  border-radius: 14px;
+  padding: 0.75rem 1rem;
+}
+
+.meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.meta-label {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.meta-value {
+  font-size: 0.95rem;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.meta-time {
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+.ghost-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: rgba(15, 23, 42, 0.04);
+  color: #0f172a;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ghost-action:hover {
+  border-color: rgba(15, 23, 42, 0.1);
+  background: rgba(15, 23, 42, 0.08);
+}
+
 .field-select,
 .field-textarea {
   width: 100%;
@@ -630,6 +698,26 @@ export default {
   background: rgba(248, 250, 252, 0.85);
   border: 1px solid rgba(148, 163, 184, 0.18);
   padding: 14px;
+}
+
+.history-item {
+  cursor: pointer;
+}
+
+.history-item.active {
+  border-color: rgba(34, 211, 238, 0.35);
+  background: rgba(34, 211, 238, 0.08);
+  box-shadow: 0 12px 24px rgba(34, 211, 238, 0.12);
+}
+
+.history-item.active .meta-value,
+.history-item.active .meta-time {
+  color: #0f172a;
+}
+
+.history-item:focus-visible {
+  outline: 2px solid rgba(34, 211, 238, 0.5);
+  outline-offset: 2px;
 }
 
 .result-block pre {
@@ -690,6 +778,35 @@ export default {
   background: rgba(15, 23, 42, 0.72);
   color: #e2e8f0;
   border-color: rgba(148, 163, 184, 0.18);
+}
+
+:global(.dark) .card-meta {
+  background: rgba(30, 41, 59, 0.6);
+}
+
+:global(.dark) .meta-value {
+  color: #e2e8f0;
+}
+
+:global(.dark) .ghost-action {
+  background: rgba(148, 163, 184, 0.16);
+  color: #e2e8f0;
+}
+
+:global(.dark) .ghost-action:hover {
+  border-color: rgba(148, 163, 184, 0.35);
+  background: rgba(148, 163, 184, 0.22);
+}
+
+:global(.dark) .history-item.active {
+  border-color: rgba(103, 232, 249, 0.32);
+  background: rgba(34, 211, 238, 0.14);
+  box-shadow: 0 12px 24px rgba(34, 211, 238, 0.12);
+}
+
+:global(.dark) .history-item.active .meta-value,
+:global(.dark) .history-item.active .meta-time {
+  color: #e2e8f0;
 }
 
 :global(.dark) .field-label,
