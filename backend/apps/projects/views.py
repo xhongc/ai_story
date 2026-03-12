@@ -21,6 +21,7 @@ from rest_framework.response import Response
 from apps.prompts.models import GlobalVariable
 from apps.prompts.serializers import GlobalVariableListSerializer
 from .models import Project, ProjectAssetBinding, ProjectModelConfig, ProjectStage, Series
+from .queue_service import cancel_running_queue_task, enqueue_episode_task
 from .serializers import (
     ProjectBatchCreateSerializer,
     ProjectAssetBindingSerializer,
@@ -52,7 +53,7 @@ class SeriesViewSet(viewsets.ModelViewSet):
     ordering = ["-created_at"]
 
     def get_queryset(self):
-        return Series.objects.filter(user=self.request.user).prefetch_related('episodes__stages')
+        return Series.objects.filter(user=self.request.user).prefetch_related('episodes__stages', 'episodes__queue_tasks')
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -103,7 +104,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         queryset = (
             Project.objects.filter(user=self.request.user)
             .select_related("user", "prompt_template_set", "series")
-            .prefetch_related("stages", "asset_bindings__asset")
+            .prefetch_related("stages", "asset_bindings__asset", "queue_tasks")
         )
 
         series_id = self.request.query_params.get('series') or self.request.query_params.get('series_id')
@@ -257,6 +258,31 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
     def _clear_project_tasks(self, project_id):
         cache.delete(self._project_task_cache_key(project_id))
+
+    def _start_pipeline_directly(self, project):
+        from apps.projects.tasks import run_full_pipeline_task
+
+        if project.status != "processing":
+            project.status = "processing"
+            project.save()
+
+        task = run_full_pipeline_task.delay(
+            project_id=str(project.id),
+            user_id=self.request.user.id
+        )
+        self._register_project_task(project.id, task.id)
+
+        channel = f"ai_story:project:{project.id}:pipeline"
+
+        return Response(
+            {
+                "task_id": task.id,
+                "channel": channel,
+                "message": "工作流已启动",
+                "project_id": str(project.id),
+            },
+            status=status.HTTP_202_ACCEPTED,
+        )
 
     def _revoke_project_tasks(self, project_id):
         task_ids = self._get_project_task_ids(project_id)
@@ -700,6 +726,8 @@ class ProjectViewSet(viewsets.ModelViewSet):
             error_message=''
         )
 
+        cancel_running_queue_task(project)
+
         project.status = "paused"
         project.save()
 
@@ -717,8 +745,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
         恢复暂停的项目
         POST /api/v1/projects/{id}/resume/
         """
-        from apps.projects.tasks import run_full_pipeline_task
-
         project = self.get_object()
 
         if project.status != "paused":
@@ -726,26 +752,28 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 {"error": "只有暂停的项目才能恢复"}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        project.status = "processing"
-        project.save()
+        if not project.series_id:
+            return self._start_pipeline_directly(project)
 
-        task = run_full_pipeline_task.delay(
-            project_id=str(project.id),
-            user_id=self.request.user.id,
+        queue_result = enqueue_episode_task(
+            project=project,
+            created_by=request.user,
+            task_type='pipeline',
         )
-        self._register_project_task(project.id, task.id)
-
+        queue_task = queue_result['queue_task']
         channel = f"ai_story:project:{project.id}:pipeline"
 
         return Response(
             {
-                "message": "项目已恢复",
+                "message": "项目已恢复并重新加入队列" if not queue_result['started'] else "项目已恢复",
                 "project": ProjectDetailSerializer(project).data,
-                "task_id": task.id,
+                "task_id": queue_task.celery_task_id or None,
+                "queue_task_id": str(queue_task.id),
+                "queue_status": queue_task.status,
+                "queue_position": queue_result['queue_position'],
                 "channel": channel,
                 "project_id": str(project.id),
-            }
-            ,
+            },
             status=status.HTTP_202_ACCEPTED,
         )
 
@@ -1122,49 +1150,41 @@ class ProjectViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def run_pipeline(self, request, pk=None):
         """
-        运行完整工作流（智能跳过已完成阶段）
+        运行完整工作流（同一作品下按分集串行排队）
         POST /api/v1/projects/{id}/run_pipeline/
-
-        功能:
-        - 按顺序执行5个阶段: rewrite → storyboard → image_generation → camera_movement → video_generation
-        - 自动检测并跳过已完成的阶段
-        - 通过Redis Pub/Sub实时推送进度
-
-        返回:
-        {
-            "task_id": "celery-task-id",
-            "channel": "ai_story:project:xxx:pipeline",
-            "message": "工作流已启动",
-            "stages_to_execute": ["rewrite", "storyboard", ...]
-        }
         """
-        from apps.projects.tasks import run_full_pipeline_task
-
         project = self.get_object()
 
-        # 更新项目状态为处理中
-        if project.status != "processing":
-            project.status = "processing"
-            project.save()
+        if not project.series_id:
+            return self._start_pipeline_directly(project)
 
-        # 启动Celery任务
-        task = run_full_pipeline_task.delay(
-            project_id=str(project.id),
-            user_id=self.request.user.id
+        queue_result = enqueue_episode_task(
+            project=project,
+            created_by=request.user,
+            task_type='pipeline',
         )
-        self._register_project_task(project.id, task.id)
-
-        # 构建Redis频道名称
+        queue_task = queue_result['queue_task']
         channel = f"ai_story:project:{project.id}:pipeline"
+
+        response_status = status.HTTP_202_ACCEPTED
+        if queue_result['started']:
+            message = '工作流已启动'
+        elif queue_result['already_exists']:
+            message = '该分集已有待执行任务'
+        else:
+            message = '当前有分集正在执行，已进入等待队列'
 
         return Response(
             {
-                "task_id": task.id,
-                "channel": channel,
-                "message": "工作流已启动",
-                "project_id": str(project.id),
+                'task_id': queue_task.celery_task_id or None,
+                'queue_task_id': str(queue_task.id),
+                'queue_status': queue_task.status,
+                'queue_position': queue_result['queue_position'],
+                'channel': channel,
+                'message': message,
+                'project_id': str(project.id),
             },
-            status=status.HTTP_202_ACCEPTED,
+            status=response_status,
         )
 
     @action(detail=True, methods=["post"])

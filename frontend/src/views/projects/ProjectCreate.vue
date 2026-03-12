@@ -199,6 +199,10 @@
               </div>
             </article>
           </div>
+
+          <div class="batch-actions-bottom">
+            <button type="button" class="secondary-action" @click="addBatchEpisode">新增一集</button>
+          </div>
         </div>
 
         <div class="submit-bar">
@@ -824,6 +828,12 @@ export default {
 
 .batch-item-top {
   align-items: center;
+}
+
+.batch-actions-bottom {
+  display: flex;
+  justify-content: center;
+  margin-top: 1.25rem;
 }
 
 .submit-bar {

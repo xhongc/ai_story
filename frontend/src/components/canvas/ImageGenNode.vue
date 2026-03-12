@@ -4,7 +4,6 @@
     :class="`status-${status}`"
     :style="nodeStyle"
   >
-    <!-- 节点头部 -->
     <div class="node-header">
       <div class="header-left">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -41,7 +40,6 @@
       </div>
     </div>
 
-    <!-- 图片预览 -->
     <div class="image-preview">
       <img v-if="imageUrl" :src="imageUrl" alt="生成的图片" class="preview-img" />
       <div v-else class="image-placeholder">
@@ -50,7 +48,6 @@
         </svg>
       </div>
     </div>
-
   </div>
 </template>
 
@@ -70,6 +67,14 @@ export default {
       type: String,
       default: ''
     },
+    mediaWidth: {
+      type: Number,
+      default: 1080
+    },
+    mediaHeight: {
+      type: Number,
+      default: 1080
+    },
     prompt: {
       type: String,
       default: ''
@@ -88,11 +93,18 @@ export default {
     };
   },
   computed: {
+    previewHeight() {
+      const safeWidth = this.mediaWidth > 0 ? this.mediaWidth : 1;
+      const safeHeight = this.mediaHeight > 0 ? this.mediaHeight : 1;
+      const previewHeight = 250 * (safeHeight / safeWidth);
+      return Math.max(140, Math.round(previewHeight));
+    },
     nodeStyle() {
       return {
         position: 'absolute',
         left: `${this.position.x}px`,
         top: `${this.position.y}px`,
+        '--media-preview-height': `${this.previewHeight}px`
       };
     }
   },
@@ -259,14 +271,15 @@ export default {
 }
 
 .image-preview {
-  flex: 1;
   width: 100%;
+  height: var(--media-preview-height, 140px);
   min-height: 140px;
   overflow: hidden;
   background: hsl(var(--b3));
   display: flex;
   align-items: center;
   justify-content: center;
+  flex: none;
 }
 
 .layout-shell.theme-dark .image-preview {
@@ -286,5 +299,4 @@ export default {
   width: 100%;
   height: 100%;
 }
-
 </style>

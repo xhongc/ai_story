@@ -4,7 +4,6 @@
     :class="`status-${status}`"
     :style="nodeStyle"
   >
-    <!-- 节点头部 -->
     <div class="node-header">
       <div class="header-left">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -41,11 +40,14 @@
       </div>
     </div>
 
-    <!-- 视频预览 -->
-    <div v-if="videoUrl" class="video-preview">
-      <video :src="videoUrl" class="preview-video" controls></video>
+    <div class="video-preview">
+      <video v-if="videoUrl" :src="videoUrl" class="preview-video" controls></video>
+      <div v-else class="video-placeholder">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+        </svg>
+      </div>
     </div>
-
   </div>
 </template>
 
@@ -69,6 +71,14 @@ export default {
       type: Object,
       default: null
     },
+    mediaWidth: {
+      type: Number,
+      default: 1080
+    },
+    mediaHeight: {
+      type: Number,
+      default: 1080
+    },
     storyboardId: {
       type: [String, Number],
       required: true
@@ -84,17 +94,23 @@ export default {
     };
   },
   computed: {
+    previewHeight() {
+      const safeWidth = this.mediaWidth > 0 ? this.mediaWidth : 1;
+      const safeHeight = this.mediaHeight > 0 ? this.mediaHeight : 1;
+      const previewHeight = 250 * (safeHeight / safeWidth);
+      return Math.max(140, Math.round(previewHeight));
+    },
     nodeStyle() {
       return {
         position: 'absolute',
         left: `${this.position.x}px`,
         top: `${this.position.y}px`,
+        '--media-preview-height': `${this.previewHeight}px`
       };
     }
   },
   methods: {
     async handleGenerate() {
-
       this.isGenerating = true;
       try {
         this.$emit('generate', {
@@ -119,7 +135,6 @@ export default {
 <style scoped>
 .video-gen-node {
   width: 250px;
-  height: 280px;
   background: #fafafa;
   border: 2px solid hsl(var(--bc) / 0.2);
   border-radius: 0.75rem;
@@ -222,13 +237,15 @@ export default {
 }
 
 .video-preview {
-  flex: 1;
   width: 100%;
+  height: var(--media-preview-height, 140px);
+  min-height: 140px;
   overflow: hidden;
   background: hsl(var(--b3));
   display: flex;
   align-items: center;
   justify-content: center;
+  flex: none;
 }
 
 .layout-shell.theme-dark .video-preview {
@@ -241,4 +258,11 @@ export default {
   object-fit: cover;
 }
 
+.video-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
 </style>

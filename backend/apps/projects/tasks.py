@@ -17,6 +17,7 @@ from apps.content.processors.llm_stage import LLMStageProcessor
 from apps.content.processors.text2image_stage import Text2ImageStageProcessor
 from apps.content.processors.image2video_stage import Image2VideoStageProcessor
 from apps.projects.models import Project, ProjectStage
+from apps.projects.queue_service import complete_episode_task_by_celery_id
 from apps.projects.utils import is_stage_template_enabled
 from config.celery_app import app
 
@@ -231,12 +232,14 @@ def execute_llm_stage(
         error_msg = f'项目不存在: {project_id}'
         logger.error(error_msg)
         publisher.publish_error(error_msg)
+        queue_final_status = 'failed'
         return {'success': False, 'error': error_msg}
 
     except ProjectStage.DoesNotExist:
         error_msg = f'阶段不存在: {stage_name}'
         logger.error(error_msg)
         publisher.publish_error(error_msg)
+        queue_final_status = 'failed'
         return {'success': False, 'error': error_msg}
 
     except TaskRevokedError:
@@ -797,6 +800,7 @@ def run_full_pipeline_task(
 
     completed_stages = []
     skipped_stages = []
+    queue_final_status = 'failed'
 
     try:
         # 获取项目
@@ -933,6 +937,7 @@ def run_full_pipeline_task(
         )
 
         logger.info(f"完整工作流执行完成, 项目: {project_id}")
+        queue_final_status = 'completed'
 
         return {
             'success': True,
@@ -946,10 +951,12 @@ def run_full_pipeline_task(
         error_msg = f'项目不存在: {project_id}'
         logger.error(error_msg)
         publisher.publish_error(error_msg)
+        queue_final_status = 'failed'
         return {'success': False, 'error': error_msg}
 
     except TaskRevokedError:
         logger.info(f"完整工作流任务已撤销, 项目: {project_id}, 任务ID: {task_id}")
+        queue_final_status = 'cancelled'
         return {
             'success': False,
             'paused': True,
@@ -962,6 +969,7 @@ def run_full_pipeline_task(
     except Exception as e:
         if _is_project_paused(project_id):
             logger.info(f"完整工作流因项目暂停结束, 项目: {project_id}, 任务ID: {task_id}")
+            queue_final_status = 'cancelled'
             return {
                 'success': False,
                 'paused': True,
@@ -987,9 +995,12 @@ def run_full_pipeline_task(
 
         # 发布流程错误消息 (用于全阶段订阅的结束信号)
         publisher.publish_pipeline_error(error_msg)
+        queue_final_status = 'failed'
 
         return {'success': False, 'error': error_msg}
 
     finally:
+        if task_id:
+            complete_episode_task_by_celery_id(task_id, queue_final_status)
         _unregister_project_task(project_id, task_id)
         publisher.close()

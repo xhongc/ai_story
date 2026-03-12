@@ -36,7 +36,7 @@ class Series(models.Model):
         verbose_name_plural = '作品'
         ordering = ['-created_at']
         indexes = [
-            models.Index(fields=['user', '-created_at']),
+            models.Index(fields=['user', '-created_at'], name='series_user_created_idx'),
         ]
 
     def __str__(self):
@@ -51,6 +51,7 @@ class Project(models.Model):
 
     STATUS_CHOICES = [
         ('draft', '草稿'),
+        ('queued', '等待中'),
         ('processing', '处理中'),
         ('completed', '已完成'),
         ('failed', '失败'),
@@ -107,8 +108,8 @@ class Project(models.Model):
         verbose_name_plural = '项目'
         ordering = ['-created_at']
         indexes = [
-            models.Index(fields=['user', 'status', '-created_at']),
-            models.Index(fields=['series', 'sort_order', 'episode_number']),
+            models.Index(fields=['user', 'status', '-created_at'], name='projects_user_id_5d20b1_idx'),
+            models.Index(fields=['series', 'sort_order', 'episode_number'], name='projects_series_sort_idx'),
         ]
         constraints = [
             models.UniqueConstraint(
@@ -257,6 +258,69 @@ class ProjectModelConfig(models.Model):
         return f'{self.project.name} - 模型配置'
 
 
+class EpisodeTaskQueue(models.Model):
+    """
+    分集任务队列
+    职责: 维护同一作品下分集任务的串行执行顺序
+    """
+
+    TASK_TYPE_CHOICES = [
+        ('pipeline', '完整流程'),
+        ('stage', '单阶段'),
+    ]
+
+    STATUS_CHOICES = [
+        ('waiting', '等待中'),
+        ('running', '执行中'),
+        ('completed', '已完成'),
+        ('failed', '失败'),
+        ('cancelled', '已取消'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    series = models.ForeignKey(
+        Series,
+        on_delete=models.CASCADE,
+        related_name='episode_tasks',
+        verbose_name='所属作品'
+    )
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name='queue_tasks',
+        verbose_name='分集项目'
+    )
+    task_type = models.CharField('任务类型', max_length=20, choices=TASK_TYPE_CHOICES, default='pipeline')
+    stage_name = models.CharField('阶段名称', max_length=32, blank=True, default='')
+    status = models.CharField('队列状态', max_length=20, choices=STATUS_CHOICES, default='waiting')
+    payload = models.JSONField('任务参数', default=dict, blank=True)
+    celery_task_id = models.CharField('Celery任务ID', max_length=255, blank=True, default='')
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='episode_task_queues',
+        verbose_name='创建者'
+    )
+    started_at = models.DateTimeField('开始时间', null=True, blank=True)
+    completed_at = models.DateTimeField('完成时间', null=True, blank=True)
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
+
+    class Meta:
+        db_table = 'episode_task_queue'
+        verbose_name = '分集任务队列'
+        verbose_name_plural = '分集任务队列'
+        ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['series', 'status', 'created_at'], name='episode_tas_series__18f8c7_idx'),
+            models.Index(fields=['project', 'status', 'created_at'], name='episode_tas_project_7152ad_idx'),
+            models.Index(fields=['celery_task_id'], name='episode_tas_celery__c73a3a_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.series.name} - {self.project.name} - {self.get_status_display()}'
+
+
 class ProjectAssetBinding(models.Model):
     """
     项目资产绑定
@@ -286,7 +350,7 @@ class ProjectAssetBinding(models.Model):
         ordering = ['created_at']
         unique_together = [('project', 'asset')]
         indexes = [
-            models.Index(fields=['project', 'created_at']),
+            models.Index(fields=['project', 'created_at'], name='proj_asset_proj_created_idx'),
         ]
 
     def __str__(self):

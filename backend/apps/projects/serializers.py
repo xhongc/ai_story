@@ -10,7 +10,7 @@ from rest_framework import serializers
 from apps.content.models import ContentRewrite
 from apps.prompts.serializers import GlobalVariableListSerializer
 from apps.projects.utils import parse_storyboard_json
-from .models import Project, ProjectStage, ProjectModelConfig, ProjectAssetBinding, Series
+from .models import EpisodeTaskQueue, Project, ProjectStage, ProjectModelConfig, ProjectAssetBinding, Series
 
 
 def get_latest_episode(series):
@@ -330,13 +330,15 @@ class ProjectListSerializer(serializers.ModelSerializer):
     display_name = serializers.SerializerMethodField()
     stages_count = serializers.SerializerMethodField()
     completed_stages_count = serializers.SerializerMethodField()
+    queue_status = serializers.SerializerMethodField()
+    queue_position = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
         fields = [
             'id', 'name', 'display_name', 'description', 'original_topic',
             'series', 'series_name', 'episode_number', 'episode_title', 'sort_order',
-            'status', 'status_display', 'user', 'user_name',
+            'status', 'status_display', 'queue_status', 'queue_position', 'user', 'user_name',
             'prompt_template_set', 'prompt_set_name',
             'stages_count', 'completed_stages_count',
             'created_at', 'updated_at', 'completed_at'
@@ -353,6 +355,29 @@ class ProjectListSerializer(serializers.ModelSerializer):
         if obj.episode_title:
             return obj.episode_title
         return obj.name
+
+    def _get_active_queue_task(self, obj):
+        tasks = getattr(obj, '_prefetched_objects_cache', {}).get('queue_tasks')
+        if tasks is not None:
+            for task in tasks:
+                if task.status in ['waiting', 'running']:
+                    return task
+            return None
+        return obj.queue_tasks.filter(status__in=['waiting', 'running']).order_by('created_at').first()
+
+    def get_queue_status(self, obj):
+        queue_task = self._get_active_queue_task(obj)
+        return queue_task.status if queue_task else None
+
+    def get_queue_position(self, obj):
+        queue_task = self._get_active_queue_task(obj)
+        if not queue_task or not obj.series_id:
+            return None
+        return EpisodeTaskQueue.objects.filter(
+            series_id=obj.series_id,
+            status__in=['waiting', 'running'],
+            created_at__lt=queue_task.created_at,
+        ).count() + 1
 
 
 class ProjectDetailSerializer(serializers.ModelSerializer):
@@ -372,13 +397,15 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
     completed_stages = serializers.SerializerMethodField()
     failed_stages = serializers.SerializerMethodField()
     progress_percentage = serializers.SerializerMethodField()
+    queue_status = serializers.SerializerMethodField()
+    queue_position = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
         fields = [
             'id', 'name', 'display_name', 'description', 'original_topic',
             'series', 'series_name', 'episode_number', 'episode_title', 'sort_order',
-            'status', 'status_display', 'user', 'user_name',
+            'status', 'status_display', 'queue_status', 'queue_position', 'user', 'user_name',
             'prompt_template_set', 'prompt_set_name',
             'stages', 'model_config', 'asset_bindings',
             'total_stages', 'completed_stages', 'failed_stages', 'progress_percentage',
@@ -406,6 +433,29 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
         if obj.episode_title:
             return obj.episode_title
         return obj.name
+
+    def _get_active_queue_task(self, obj):
+        tasks = getattr(obj, '_prefetched_objects_cache', {}).get('queue_tasks')
+        if tasks is not None:
+            for task in tasks:
+                if task.status in ['waiting', 'running']:
+                    return task
+            return None
+        return obj.queue_tasks.filter(status__in=['waiting', 'running']).order_by('created_at').first()
+
+    def get_queue_status(self, obj):
+        queue_task = self._get_active_queue_task(obj)
+        return queue_task.status if queue_task else None
+
+    def get_queue_position(self, obj):
+        queue_task = self._get_active_queue_task(obj)
+        if not queue_task or not obj.series_id:
+            return None
+        return EpisodeTaskQueue.objects.filter(
+            series_id=obj.series_id,
+            status__in=['waiting', 'running'],
+            created_at__lt=queue_task.created_at,
+        ).count() + 1
 
 
 class ProjectCreateSerializer(serializers.ModelSerializer):

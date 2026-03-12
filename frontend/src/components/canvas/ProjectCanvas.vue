@@ -184,7 +184,7 @@
           <div class="asset-drawer-header">
             <div>
               <div class="asset-drawer-title">资产变量</div>
-              <div class="asset-drawer-subtitle">绑定后在节点输入 `{{` 即可联想选择变量</div>
+              <div class="asset-drawer-subtitle">绑定后在节点输入 <code>{{ "{{" }}</code> 即可联想选择变量</div>
             </div>
             <button class="btn btn-ghost btn-xs" @click.stop="showAssetDrawer = false">关闭</button>
           </div>
@@ -256,6 +256,8 @@
           :status="getImageStatus(storyboard)"
           :position="calculateImagePosition(index)"
           :image-url="getImageUrl(storyboard)"
+          :media-width="getStoryboardMediaDimensions(storyboard).width"
+          :media-height="getStoryboardMediaDimensions(storyboard).height"
           :prompt="storyboard.image_prompt"
           :storyboard-id="storyboard.id"
           @generate="handleGenerateImage"
@@ -285,6 +287,8 @@
           :position="calculateVideoPosition(index)"
           :video-url="getVideoUrl(storyboard)"
           :video-info="getVideoInfo(storyboard)"
+          :media-width="getStoryboardMediaDimensions(storyboard).width"
+          :media-height="getStoryboardMediaDimensions(storyboard).height"
           :storyboard-id="storyboard.id"
           :can-generate="getCameraStatus(storyboard) === 'completed'"
           @generate="handleGenerateVideo"
@@ -436,6 +440,15 @@ export default {
         rewrite: { x: 50, y: 100 }
       };
     },
+    nodeMetrics() {
+      return {
+        storyboard: { width: 280, height: 250 },
+        media: { width: 250, headerHeight: 50, minPreviewHeight: 140 },
+        camera: { width: 250, height: 280 },
+        columnGap: 40,
+        rowGap: 120
+      };
+    },
     rewriteStage() {
       return this.stages.find(s => s.stage_type === 'rewrite') || null;
     },
@@ -528,8 +541,8 @@ export default {
           positions[`storyboard-${index}`] = {
             x: storyboardPos.x,
             y: storyboardPos.y,
-            width: 280,
-            height: 250
+            width: this.nodeMetrics.storyboard.width,
+            height: this.nodeMetrics.storyboard.height
           };
         }
 
@@ -539,8 +552,8 @@ export default {
           positions[`image-${index}`] = {
             x: imagePos.x,
             y: imagePos.y,
-            width: 250,
-            height: 250
+            width: this.nodeMetrics.media.width,
+            height: this.getImageNodeHeight(storyboard)
           };
         }
 
@@ -550,8 +563,8 @@ export default {
           positions[`camera-${index}`] = {
             x: cameraPos.x,
             y: cameraPos.y,
-            width: 250,
-            height: 250
+            width: this.nodeMetrics.camera.width,
+            height: this.nodeMetrics.camera.height
           };
         }
 
@@ -561,8 +574,8 @@ export default {
           positions[`video-${index}`] = {
             x: videoPos.x,
             y: videoPos.y,
-            width: 250,
-            height: 250
+            width: this.nodeMetrics.media.width,
+            height: this.getVideoNodeHeight(storyboard)
           };
         }
       });
@@ -778,15 +791,74 @@ export default {
       return storyboard?.video_generation?.template_enabled !== false;
     },
 
+    getStoryboardMediaDimensions(storyboard) {
+      const image = storyboard?.image_generation?.images?.[0];
+      const video = storyboard?.video_generation?.videos?.[0];
+      const width = Number(image?.width || video?.width) || 1080;
+      const height = Number(image?.height || video?.height) || 1080;
+
+      return { width, height };
+    },
+
+    getMediaPreviewHeight(storyboard) {
+      const { width, height } = this.getStoryboardMediaDimensions(storyboard);
+      const safeWidth = width > 0 ? width : 1;
+      const safeHeight = height > 0 ? height : 1;
+      const previewHeight = this.nodeMetrics.media.width * (safeHeight / safeWidth);
+
+      return Math.max(this.nodeMetrics.media.minPreviewHeight, Math.round(previewHeight));
+    },
+
+    getImageNodeHeight(storyboard) {
+      return this.nodeMetrics.media.headerHeight + this.getMediaPreviewHeight(storyboard);
+    },
+
+    getVideoNodeHeight(storyboard) {
+      return this.nodeMetrics.media.headerHeight + this.getMediaPreviewHeight(storyboard);
+    },
+
+    getRowHeight(index) {
+      const storyboard = this.storyboards[index];
+      if (!storyboard) {
+        return this.nodeMetrics.storyboard.height + this.nodeMetrics.rowGap;
+      }
+
+      const heights = [];
+
+      if (this.showStoryboardNode) {
+        heights.push(this.nodeMetrics.storyboard.height);
+      }
+      if (this.showImageNode(storyboard)) {
+        heights.push(this.getImageNodeHeight(storyboard));
+      }
+      if (this.showCameraNode(storyboard)) {
+        heights.push(this.nodeMetrics.camera.height);
+      }
+      if (this.showVideoNode(storyboard)) {
+        heights.push(this.getVideoNodeHeight(storyboard));
+      }
+
+      return Math.max(...heights, this.nodeMetrics.storyboard.height) + this.nodeMetrics.rowGap;
+    },
+
+    getStoryboardY(index) {
+      const startY = 100;
+      let currentY = startY;
+
+      for (let i = 0; i < index; i += 1) {
+        currentY += this.getRowHeight(i);
+      }
+
+      return currentY;
+    },
+
     // 计算分镜节点位置（垂直排列）
     calculateStoryboardPosition(index) {
       const startX = 700;
-      const startY = 100;
-      const rowHeight = 400; // 每行高度（包含间距）
 
       return {
         x: startX,
-        y: startY + index * rowHeight
+        y: this.getStoryboardY(index)
       };
     },
 
@@ -794,7 +866,7 @@ export default {
     calculateImagePosition(index) {
       const storyboardPos = this.calculateStoryboardPosition(index);
       return {
-        x: storyboardPos.x + 320, // 分镜节点右侧
+        x: storyboardPos.x + this.nodeMetrics.storyboard.width + this.nodeMetrics.columnGap,
         y: storyboardPos.y
       };
     },
@@ -803,7 +875,7 @@ export default {
     calculateCameraPosition(index) {
       const imagePos = this.calculateImagePosition(index);
       return {
-        x: imagePos.x + 290, // 文生图节点右侧
+        x: imagePos.x + this.nodeMetrics.media.width + this.nodeMetrics.columnGap,
         y: imagePos.y
       };
     },
@@ -812,7 +884,7 @@ export default {
     calculateVideoPosition(index) {
       const cameraPos = this.calculateCameraPosition(index);
       return {
-        x: cameraPos.x + 290, // 运镜节点右侧
+        x: cameraPos.x + this.nodeMetrics.camera.width + this.nodeMetrics.columnGap,
         y: cameraPos.y
       };
     },
