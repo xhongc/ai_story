@@ -13,12 +13,6 @@
     <div class="form-layout">
       <form class="form-body" @submit.prevent="handleSubmit">
         <div class="mode-section">
-          <div class="card-top">
-            <div>
-              <h2 class="card-title">创建模式</h2>
-              <p class="card-desc">单集适合逐条录入，批量适合同一作品连续创建多集。</p>
-            </div>
-          </div>
           <div class="mode-switch">
             <button
               type="button"
@@ -102,7 +96,7 @@
             </div>
             <div class="form-control">
               <label class="field-label">分集标题 <span class="required-mark">*</span></label>
-              <input v-model="form.episode_title" type="text" class="field-input" placeholder="例如：石猴出世">
+              <input v-model="form.episode_title" type="text" class="field-input" placeholder="例如：石猴出世" @input="handleSingleTitleInput">
             </div>
           </div>
 
@@ -122,6 +116,7 @@
             <textarea
               v-model="form.original_topic"
               class="field-input field-textarea"
+              @input="handleSingleTopicInput"
               :class="{ 'field-error': errors.original_topic }"
               placeholder="请输入这一集的原始主题、剧情简介或完整文案..."
             ></textarea>
@@ -170,6 +165,7 @@
                     v-model="episode.episode_title"
                     type="text"
                     class="field-input"
+                    @input="handleBatchTitleInput(index)"
                     :class="{ 'field-error': getBatchEpisodeError(index, 'episode_title') }"
                     placeholder="例如：大闹天宫"
                   >
@@ -193,6 +189,7 @@
                 <textarea
                   v-model="episode.original_topic"
                   class="field-input batch-textarea"
+                  @input="handleBatchTopicInput(index)"
                   :class="{ 'field-error': getBatchEpisodeError(index, 'original_topic') }"
                   placeholder="请输入这一集的原始文案或剧情简介..."
                 ></textarea>
@@ -227,6 +224,7 @@ const createBatchEpisode = () => ({
   episode_title: '',
   name: '',
   original_topic: '',
+  titleTouched: false,
 });
 
 export default {
@@ -255,6 +253,7 @@ export default {
       loadingTemplates: false,
       submitting: false,
       submitTried: false,
+      singleTitleTouched: false,
     };
   },
   computed: {
@@ -383,6 +382,37 @@ export default {
     },
     getBatchEpisodeError(index, field) {
       return this.errors.batch_episode_errors?.[index]?.[field] || '';
+    },
+    buildEpisodeTitleFromTopic(value) {
+      return (value || '').replace(/\s+/g, ' ').trim().slice(0, 8);
+    },
+    handleSingleTitleInput() {
+      this.singleTitleTouched = !!this.form.episode_title.trim();
+    },
+    handleSingleTopicInput() {
+      if (this.singleTitleTouched && this.form.episode_title.trim()) {
+        return;
+      }
+      this.form.episode_title = this.buildEpisodeTitleFromTopic(this.form.original_topic);
+      this.singleTitleTouched = false;
+    },
+    handleBatchTitleInput(index) {
+      const episode = this.form.batch_episodes[index];
+      if (!episode) {
+        return;
+      }
+      episode.titleTouched = !!episode.episode_title.trim();
+    },
+    handleBatchTopicInput(index) {
+      const episode = this.form.batch_episodes[index];
+      if (!episode) {
+        return;
+      }
+      if (episode.titleTouched && episode.episode_title.trim()) {
+        return;
+      }
+      episode.episode_title = this.buildEpisodeTitleFromTopic(episode.original_topic);
+      episode.titleTouched = false;
     },
     validateCommonFields() {
       if (!this.form.series) {
@@ -579,7 +609,7 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
-  padding: 1.75rem;
+  padding: 0.75rem;
 }
 
 .card-block {
