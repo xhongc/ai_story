@@ -24,7 +24,7 @@ class OpenAIClient(LLMClient):
         temperature: float = None,
         **kwargs
     ) -> AIResponse:
-        """生成文本(非流式)"""
+        """生成文本(非流式) 废弃"""
 
         start_time = time.time()
 
@@ -47,7 +47,7 @@ class OpenAIClient(LLMClient):
             timeout = self.config.get('timeout', 60)
 
             response = requests.post(
-                f'{self.api_url}/chat/completions',
+                f'{self.api_url}',
                 headers=headers,
                 json=payload,
                 timeout=timeout
@@ -126,10 +126,6 @@ class OpenAIClient(LLMClient):
 
         try:
             timeout = self.config.get('timeout', 300)
-            # if self.api_url.endswith("/chat/completions"):
-            #     api_url = self.api_url
-            # else:
-            #     api_url = f'{self.api_url}/chat/completions'
             api_url = self.api_url
             response = requests.post(
                 api_url,

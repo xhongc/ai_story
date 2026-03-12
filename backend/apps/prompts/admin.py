@@ -1,6 +1,13 @@
 """提示词管理Admin配置"""
 from django.contrib import admin
-from .models import PromptTemplateSet, PromptTemplate, GlobalVariable
+from .models import (
+    PromptTemplateSet,
+    PromptTemplate,
+    GlobalVariable,
+    PromptDebugSession,
+    PromptDebugRun,
+    PromptDebugArtifact,
+)
 
 
 @admin.register(PromptTemplateSet)
@@ -35,3 +42,24 @@ class GlobalVariableAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+
+@admin.register(PromptDebugSession)
+class PromptDebugSessionAdmin(admin.ModelAdmin):
+    list_display = ['name', 'stage_type', 'prompt_template', 'model_provider', 'created_by', 'last_run_at']
+    list_filter = ['stage_type']
+    search_fields = ['name', 'prompt_template__template_content']
+
+
+@admin.register(PromptDebugRun)
+class PromptDebugRunAdmin(admin.ModelAdmin):
+    list_display = ['session', 'stage_type', 'status', 'model_provider', 'latency_ms', 'created_at']
+    list_filter = ['stage_type', 'status']
+    search_fields = ['rendered_prompt', 'error_message']
+
+
+@admin.register(PromptDebugArtifact)
+class PromptDebugArtifactAdmin(admin.ModelAdmin):
+    list_display = ['name', 'artifact_type', 'stage_type', 'run', 'sequence_number', 'created_by', 'created_at']
+    list_filter = ['artifact_type', 'stage_type', 'is_pinned']
+    search_fields = ['name', 'preview_text']

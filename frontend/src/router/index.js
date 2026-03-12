@@ -118,6 +118,12 @@ const routes = [
         component: () => import('@/views/prompts/PromptTemplateEditor.vue'),
         meta: { title: '编辑提示词模板' },
       },
+      {
+        path: 'templates/:id/debug',
+        name: 'PromptTemplateDebug',
+        component: () => import('@/views/prompts/PromptDebugWorkbench.vue'),
+        meta: { title: '提示词调试工作台' },
+      },
     ],
   },
   {

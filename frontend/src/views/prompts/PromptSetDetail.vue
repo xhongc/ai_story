@@ -141,6 +141,13 @@
                       <div class="divider divider-horizontal mx-0"></div>
                       <button
                         class="btn btn-ghost btn-sm"
+                        @click="handleDebugTemplate(template)"
+                        title="调试"
+                      >
+                        调试
+                      </button>
+                      <button
+                        class="btn btn-ghost btn-sm"
                         @click="handleEditTemplate(template)"
                         title="编辑"
                       >
@@ -419,6 +426,10 @@ export default {
 
     handleEditTemplate(template) {
       this.$router.push(`/prompts/templates/${template.id}/edit`);
+    },
+
+    handleDebugTemplate(template) {
+      this.$router.push(`/prompts/templates/${template.id}/debug`);
     },
 
     async handleDeleteTemplate(template) {

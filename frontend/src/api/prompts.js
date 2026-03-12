@@ -278,6 +278,87 @@ export const promptTemplateAPI = {
 /**
  * 阶段类型配置
  */
+
+
+/**
+ * 提示词调试 API
+ */
+export const promptDebugAPI = {
+  bootstrap(promptTemplateId) {
+    return apiClient({
+      url: '/prompts/debug-sessions/bootstrap/',
+      method: 'post',
+      data: { prompt_template_id: promptTemplateId },
+    })
+  },
+
+  getSession(id) {
+    return apiClient({
+      url: `/prompts/debug-sessions/${id}/`,
+      method: 'get',
+    })
+  },
+
+  runSession(id, data) {
+    return apiClient({
+      url: `/prompts/debug-sessions/${id}/run/`,
+      method: 'post',
+      data,
+    })
+  },
+
+  async runSessionStream(id, data = {}, token = '') {
+    const baseUrl = (process.env.VUE_APP_API_BASE_URL || '/api/v1').replace(/\/$/, '')
+    const response = await fetch(`${baseUrl}/prompts/debug-sessions/${id}/run-stream/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(data),
+    })
+
+    if (!response.ok) {
+      const text = await response.text()
+      throw new Error(text || '流式调试请求失败')
+    }
+
+    return response
+  },
+
+  saveTemplate(id, data) {
+    return apiClient({
+      url: `/prompts/debug-sessions/${id}/save_template/`,
+      method: 'post',
+      data,
+    })
+  },
+
+  saveAsVersion(id, data) {
+    return apiClient({
+      url: `/prompts/debug-sessions/${id}/save_as_version/`,
+      method: 'post',
+      data,
+    })
+  },
+
+  getRuns(params = {}) {
+    return apiClient({
+      url: '/prompts/debug-runs/',
+      method: 'get',
+      params,
+    })
+  },
+
+  getArtifacts(params = {}) {
+    return apiClient({
+      url: '/prompts/debug-artifacts/',
+      method: 'get',
+      params,
+    })
+  },
+}
+
 export const STAGE_TYPES = [
   { value: 'rewrite', label: '文案改写' },
   { value: 'storyboard', label: '分镜生成' },

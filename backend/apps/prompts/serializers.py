@@ -5,7 +5,14 @@
 
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import PromptTemplateSet, PromptTemplate, GlobalVariable
+from .models import (
+    PromptTemplateSet,
+    PromptTemplate,
+    GlobalVariable,
+    PromptDebugSession,
+    PromptDebugRun,
+    PromptDebugArtifact,
+)
 import re
 import json
 from jinja2 import Template, TemplateSyntaxError, Environment, meta
@@ -476,4 +483,99 @@ class GlobalVariableBatchSerializer(serializers.Serializer):
             if 'key' not in var or 'value' not in var:
                 raise serializers.ValidationError('每个变量必须包含 key 和 value 字段')
 
+        return value
+
+
+class PromptDebugArtifactSerializer(serializers.ModelSerializer):
+    """调试资产序列化器"""
+
+    class Meta:
+        model = PromptDebugArtifact
+        fields = [
+            'id', 'run', 'source_artifact', 'artifact_type', 'stage_type',
+            'name', 'sequence_number', 'content', 'preview_text',
+            'preview_image_url', 'preview_video_url', 'is_pinned',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class PromptDebugRunSerializer(serializers.ModelSerializer):
+    """调试运行记录序列化器"""
+
+    model_provider_detail = ModelProviderSerializer(source='model_provider', read_only=True)
+    artifacts = PromptDebugArtifactSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = PromptDebugRun
+        fields = [
+            'id', 'session', 'stage_type', 'status', 'source_artifact',
+            'model_provider', 'model_provider_detail', 'template_snapshot',
+            'variable_values', 'input_payload', 'resolved_variables',
+            'rendered_prompt', 'raw_response', 'parsed_output', 'latency_ms',
+            'error_message', 'artifacts', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'artifacts']
+
+
+class PromptDebugSessionSerializer(serializers.ModelSerializer):
+    """调试会话序列化器"""
+
+    prompt_template_detail = PromptTemplateListSerializer(source='prompt_template', read_only=True)
+    model_provider_detail = ModelProviderSerializer(source='model_provider', read_only=True)
+    latest_source_artifact_detail = PromptDebugArtifactSerializer(source='latest_source_artifact', read_only=True)
+    recent_runs = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PromptDebugSession
+        fields = [
+            'id', 'prompt_template', 'prompt_template_detail', 'template_set',
+            'name', 'stage_type', 'draft_template_content', 'draft_variables',
+            'model_provider', 'model_provider_detail', 'latest_variable_values',
+            'latest_input_payload', 'latest_source_artifact', 'latest_source_artifact_detail',
+            'last_run_at', 'recent_runs', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'last_run_at', 'recent_runs']
+
+    def get_recent_runs(self, obj):
+        runs = obj.runs.select_related('model_provider').prefetch_related('artifacts').all()[:5]
+        return PromptDebugRunSerializer(runs, many=True).data
+
+
+class PromptDebugRunCreateSerializer(serializers.Serializer):
+    """创建调试运行请求"""
+
+    template_content = serializers.CharField(required=False, allow_blank=True)
+    variable_values = serializers.JSONField(required=False)
+    input_payload = serializers.JSONField(required=False)
+    source_artifact_id = serializers.UUIDField(required=False, allow_null=True)
+    model_provider_id = serializers.UUIDField(required=False, allow_null=True)
+
+    def validate_variable_values(self, value):
+        if value is None:
+            return {}
+        if not isinstance(value, dict):
+            raise serializers.ValidationError('变量值必须是字典格式')
+        return value
+
+    def validate_input_payload(self, value):
+        if value is None:
+            return {}
+        if not isinstance(value, dict):
+            raise serializers.ValidationError('输入载荷必须是字典格式')
+        return value
+
+
+class PromptDebugSaveTemplateSerializer(serializers.Serializer):
+    """保存调试草稿到模板"""
+
+    template_content = serializers.CharField()
+    variables = serializers.JSONField(required=False)
+    model_provider_id = serializers.UUIDField(required=False, allow_null=True)
+
+    def validate_variables(self, value):
+        if value is None:
+            return {}
+        if not isinstance(value, dict):
+            raise serializers.ValidationError('变量定义必须是字典格式')
         return value

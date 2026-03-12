@@ -5,6 +5,7 @@
 """
 
 import asyncio
+import json
 
 from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
@@ -14,8 +15,16 @@ from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from django.http import StreamingHttpResponse
 
-from .models import PromptTemplate, PromptTemplateSet, GlobalVariable
+from .models import (
+    PromptTemplate,
+    PromptTemplateSet,
+    GlobalVariable,
+    PromptDebugSession,
+    PromptDebugRun,
+    PromptDebugArtifact,
+)
 from .serializers import (
     PromptTemplateEvaluationSerializer,
     PromptTemplateListSerializer,
@@ -27,8 +36,14 @@ from .serializers import (
     GlobalVariableSerializer,
     GlobalVariableListSerializer,
     GlobalVariableBatchSerializer,
+    PromptDebugSessionSerializer,
+    PromptDebugRunSerializer,
+    PromptDebugArtifactSerializer,
+    PromptDebugRunCreateSerializer,
+    PromptDebugSaveTemplateSerializer,
 )
 from .services import PromptEvaluationService
+from .debug_services import PromptDebugService
 
 
 class PromptTemplateSetViewSet(viewsets.ModelViewSet):
@@ -566,3 +581,178 @@ class GlobalVariableViewSet(viewsets.ModelViewSet):
             'valid': True,
             'message': '变量键可用'
         })
+
+
+class PromptDebugSessionViewSet(viewsets.ModelViewSet):
+    """提示词调试会话视图集"""
+
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['stage_type', 'template_set', 'prompt_template']
+    ordering = ['-updated_at']
+
+    def get_queryset(self):
+        return PromptDebugSession.objects.filter(
+            created_by=self.request.user
+        ).select_related(
+            'prompt_template', 'template_set', 'model_provider', 'latest_source_artifact'
+        ).prefetch_related('runs__artifacts')
+
+    def get_serializer_class(self):
+        return PromptDebugSessionSerializer
+
+    def perform_create(self, serializer):
+        prompt_template = serializer.validated_data['prompt_template']
+        serializer.save(
+            created_by=self.request.user,
+            template_set=prompt_template.template_set,
+            stage_type=prompt_template.stage_type,
+            draft_template_content=serializer.validated_data.get('draft_template_content') or prompt_template.template_content,
+            draft_variables=serializer.validated_data.get('draft_variables') or prompt_template.variables,
+        )
+
+    @action(detail=False, methods=['post'])
+    def bootstrap(self, request):
+        template_id = request.data.get('prompt_template_id')
+        if not template_id:
+            return Response({'error': '缺少 prompt_template_id'}, status=status.HTTP_400_BAD_REQUEST)
+
+        template = PromptTemplate.objects.filter(
+            Q(id=template_id),
+            Q(template_set__created_by=request.user) | Q(template_set__is_default=True)
+        ).first()
+        if not template:
+            return Response({'error': '模板不存在或无权限访问'}, status=status.HTTP_404_NOT_FOUND)
+
+        session = PromptDebugService.get_or_create_session(template, request.user)
+        serializer = self.get_serializer(session)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def run(self, request, pk=None):
+        session = self.get_object()
+        serializer = PromptDebugRunCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated = serializer.validated_data
+
+        template_content = validated.get('template_content') or session.draft_template_content or session.prompt_template.template_content
+
+        try:
+            run = PromptDebugService.run_session(
+                session=session,
+                user=request.user,
+                template_content=template_content,
+                variable_values=validated.get('variable_values') or {},
+                input_payload=validated.get('input_payload') or {},
+                source_artifact_id=validated.get('source_artifact_id'),
+                provider_id=validated.get('model_provider_id'),
+            )
+        except Exception as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(PromptDebugRunSerializer(run).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path='run-stream')
+    def run_stream(self, request, pk=None):
+        session = self.get_object()
+        if session.stage_type not in ('rewrite', 'storyboard', 'camera_movement'):
+            return Response({'error': '仅 LLM 类型阶段支持流式调试'}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = PromptDebugRunCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated = serializer.validated_data
+        template_content = validated.get('template_content') or session.draft_template_content or session.prompt_template.template_content
+
+        def event_stream():
+            try:
+                for event in PromptDebugService.stream_llm_session(
+                    session=session,
+                    user=request.user,
+                    template_content=template_content,
+                    variable_values=validated.get('variable_values') or {},
+                    input_payload=validated.get('input_payload') or {},
+                    source_artifact_id=validated.get('source_artifact_id'),
+                    provider_id=validated.get('model_provider_id'),
+                ):
+                    payload = json.dumps(event, ensure_ascii=False)
+                    yield f'data: {payload}\n\n'
+            except Exception as exc:
+                payload = json.dumps({'type': 'error', 'error': str(exc)}, ensure_ascii=False)
+                yield f'data: {payload}\n\n'
+
+        response = StreamingHttpResponse(event_stream(), content_type='text/event-stream; charset=utf-8')
+        response['Cache-Control'] = 'no-cache, no-transform'
+        response['X-Accel-Buffering'] = 'no'
+        return response
+
+    @action(detail=True, methods=['post'])
+    def save_template(self, request, pk=None):
+        session = self.get_object()
+        serializer = PromptDebugSaveTemplateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated = serializer.validated_data
+
+        try:
+            template = PromptDebugService.save_to_template(
+                session=session,
+                template_content=validated['template_content'],
+                variables=validated.get('variables') or {},
+                model_provider_id=validated.get('model_provider_id'),
+            )
+        except Exception as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(PromptTemplateSerializer(template).data)
+
+    @action(detail=True, methods=['post'])
+    def save_as_version(self, request, pk=None):
+        session = self.get_object()
+        serializer = PromptDebugSaveTemplateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated = serializer.validated_data
+
+        try:
+            template = PromptDebugService.create_template_version(
+                session=session,
+                template_content=validated['template_content'],
+                variables=validated.get('variables') or {},
+                model_provider_id=validated.get('model_provider_id'),
+            )
+        except Exception as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(PromptTemplateSerializer(template).data, status=status.HTTP_201_CREATED)
+
+
+class PromptDebugRunViewSet(viewsets.ReadOnlyModelViewSet):
+    """提示词调试运行只读视图集"""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = PromptDebugRunSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['session', 'stage_type', 'status', 'model_provider']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        return PromptDebugRun.objects.filter(
+            session__created_by=self.request.user
+        ).select_related('session', 'model_provider', 'source_artifact').prefetch_related('artifacts')
+
+
+class PromptDebugArtifactViewSet(viewsets.ReadOnlyModelViewSet):
+    """提示词调试资产只读视图集"""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = PromptDebugArtifactSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['run', 'artifact_type', 'stage_type', 'source_artifact']
+    ordering = ['stage_type', 'sequence_number', '-created_at']
+
+    def get_queryset(self):
+        queryset = PromptDebugArtifact.objects.filter(created_by=self.request.user).select_related(
+            'run', 'source_artifact'
+        )
+        session_id = self.request.query_params.get('session_id')
+        if session_id:
+            queryset = queryset.filter(run__session_id=session_id)
+        return queryset

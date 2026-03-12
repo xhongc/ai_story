@@ -4,7 +4,7 @@
  * 遵循单一职责原则(SRP)
  */
 
-import { promptSetAPI, promptTemplateAPI } from '@/api/prompts';
+import { promptSetAPI, promptTemplateAPI, promptDebugAPI } from '@/api/prompts';
 
 const state = {
   // 提示词集
@@ -30,6 +30,12 @@ const state = {
   // 预览结果
   previewResult: null,
   previewLoading: false,
+
+  // 调试工作台
+  currentDebugSession: null,
+  debugRuns: [],
+  debugArtifacts: [],
+  debugLoading: false,
 };
 
 const getters = {
@@ -208,6 +214,23 @@ const mutations = {
     state.previewLoading = loading;
   },
 
+  // ===== 调试工作台 =====
+  SET_CURRENT_DEBUG_SESSION(state, session) {
+    state.currentDebugSession = session;
+  },
+
+  SET_DEBUG_RUNS(state, runs) {
+    state.debugRuns = runs;
+  },
+
+  SET_DEBUG_ARTIFACTS(state, artifacts) {
+    state.debugArtifacts = artifacts;
+  },
+
+  SET_DEBUG_LOADING(state, loading) {
+    state.debugLoading = loading;
+  },
+
   // ===== 重置 =====
   RESET_STATE(state) {
     state.currentPromptSet = null;
@@ -215,6 +238,9 @@ const mutations = {
     state.templateVersions = [];
     state.evaluationResult = null;
     state.previewResult = null;
+    state.currentDebugSession = null;
+    state.debugRuns = [];
+    state.debugArtifacts = [];
   },
 };
 
@@ -512,6 +538,148 @@ const actions = {
       throw error;
     } finally {
       commit('SET_EVALUATION_LOADING', false);
+    }
+  },
+
+
+  async bootstrapDebugSession({ commit }, promptTemplateId) {
+    commit('SET_DEBUG_LOADING', true);
+    try {
+      const response = await promptDebugAPI.bootstrap(promptTemplateId);
+      commit('SET_CURRENT_DEBUG_SESSION', response);
+      commit('SET_DEBUG_RUNS', response.recent_runs || []);
+      return response;
+    } catch (error) {
+      console.error('初始化调试会话失败:', error);
+      throw error;
+    } finally {
+      commit('SET_DEBUG_LOADING', false);
+    }
+  },
+
+  async fetchDebugSession({ commit }, id) {
+    commit('SET_DEBUG_LOADING', true);
+    try {
+      const response = await promptDebugAPI.getSession(id);
+      commit('SET_CURRENT_DEBUG_SESSION', response);
+      commit('SET_DEBUG_RUNS', response.recent_runs || []);
+      return response;
+    } catch (error) {
+      console.error('获取调试会话失败:', error);
+      throw error;
+    } finally {
+      commit('SET_DEBUG_LOADING', false);
+    }
+  },
+
+  async runDebugSession({ commit }, { id, data }) {
+    commit('SET_DEBUG_LOADING', true);
+    try {
+      const response = await promptDebugAPI.runSession(id, data);
+      const session = await promptDebugAPI.getSession(id);
+      const artifacts = await promptDebugAPI.getArtifacts({ session_id: id });
+      commit('SET_CURRENT_DEBUG_SESSION', session);
+      commit('SET_DEBUG_RUNS', session.recent_runs || []);
+      commit('SET_DEBUG_ARTIFACTS', artifacts.results || artifacts);
+      return response;
+    } catch (error) {
+      console.error('执行调试失败:', error);
+      throw error;
+    } finally {
+      commit('SET_DEBUG_LOADING', false);
+    }
+  },
+
+
+  async runDebugSessionStream({ commit, rootGetters }, { id, data, onEvent }) {
+    commit('SET_DEBUG_LOADING', true);
+    try {
+      const token = rootGetters['auth/accessToken'];
+      const response = await promptDebugAPI.runSessionStream(id, data, token);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const chunks = buffer.split('\n\n');
+        buffer = chunks.pop() || '';
+
+        chunks.forEach((chunk) => {
+          const line = chunk
+            .split('\n')
+            .find(item => item.startsWith('data: '));
+          if (!line) return;
+          const payload = line.slice(6);
+          if (!payload) return;
+          try {
+            const event = JSON.parse(payload);
+            if (onEvent) {
+              onEvent(event);
+            }
+          } catch (error) {
+            console.error('解析流式调试事件失败:', error, payload);
+          }
+        });
+      }
+
+      const session = await promptDebugAPI.getSession(id);
+      const artifacts = await promptDebugAPI.getArtifacts({ session_id: id });
+      commit('SET_CURRENT_DEBUG_SESSION', session);
+      commit('SET_DEBUG_RUNS', session.recent_runs || []);
+      commit('SET_DEBUG_ARTIFACTS', artifacts.results || artifacts);
+      return session;
+    } catch (error) {
+      console.error('流式调试失败:', error);
+      throw error;
+    } finally {
+      commit('SET_DEBUG_LOADING', false);
+    }
+  },
+
+  async fetchDebugArtifacts({ commit }, params = {}) {
+    commit('SET_DEBUG_LOADING', true);
+    try {
+      const response = await promptDebugAPI.getArtifacts(params);
+      commit('SET_DEBUG_ARTIFACTS', response.results || response);
+      return response;
+    } catch (error) {
+      console.error('获取调试资产失败:', error);
+      throw error;
+    } finally {
+      commit('SET_DEBUG_LOADING', false);
+    }
+  },
+
+  async saveDebugTemplate({ commit }, { id, data }) {
+    commit('SET_DEBUG_LOADING', true);
+    try {
+      const response = await promptDebugAPI.saveTemplate(id, data);
+      commit('UPDATE_PROMPT_TEMPLATE', response);
+      return response;
+    } catch (error) {
+      console.error('保存调试模板失败:', error);
+      throw error;
+    } finally {
+      commit('SET_DEBUG_LOADING', false);
+    }
+  },
+
+  async saveDebugTemplateAsVersion({ commit }, { id, data }) {
+    commit('SET_DEBUG_LOADING', true);
+    try {
+      const response = await promptDebugAPI.saveAsVersion(id, data);
+      commit('ADD_PROMPT_TEMPLATE', response);
+      commit('SET_CURRENT_PROMPT_TEMPLATE', response);
+      return response;
+    } catch (error) {
+      console.error('另存调试模板版本失败:', error);
+      throw error;
+    } finally {
+      commit('SET_DEBUG_LOADING', false);
     }
   },
 

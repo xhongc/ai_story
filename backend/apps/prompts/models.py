@@ -105,7 +105,13 @@ class PromptTemplate(models.Model):
         db_table = 'prompt_templates'
         verbose_name = '提示词模板'
         verbose_name_plural = '提示词模板'
-        unique_together = [('template_set', 'stage_type')]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['template_set', 'stage_type'],
+                condition=models.Q(is_active=True),
+                name='uniq_active_template_per_stage'
+            )
+        ]
         indexes = [
             models.Index(fields=['template_set', 'stage_type', 'is_active']),
         ]
@@ -241,3 +247,194 @@ class GlobalVariable(models.Model):
             variables[var.key] = var.get_typed_value()
 
         return variables
+
+
+class PromptDebugSession(models.Model):
+    """
+    提示词调试会话
+    职责: 挂载某个模板的可编辑调试草稿与最近输入状态
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    prompt_template = models.ForeignKey(
+        PromptTemplate,
+        on_delete=models.CASCADE,
+        related_name='debug_sessions',
+        verbose_name='提示词模板'
+    )
+    template_set = models.ForeignKey(
+        PromptTemplateSet,
+        on_delete=models.CASCADE,
+        related_name='debug_sessions',
+        verbose_name='提示词集'
+    )
+    name = models.CharField('会话名称', max_length=255, blank=True, default='')
+    stage_type = models.CharField('阶段类型', max_length=20, choices=PromptTemplate.STAGE_TYPES)
+    draft_template_content = models.TextField('草稿模板内容', blank=True, default='')
+    draft_variables = models.JSONField('草稿变量定义', default=dict, blank=True)
+    model_provider = models.ForeignKey(
+        'models.ModelProvider',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='prompt_debug_sessions',
+        verbose_name='调试模型'
+    )
+    latest_variable_values = models.JSONField('最近变量值', default=dict, blank=True)
+    latest_input_payload = models.JSONField('最近输入载荷', default=dict, blank=True)
+    latest_source_artifact = models.ForeignKey(
+        'PromptDebugArtifact',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='referenced_by_sessions',
+        verbose_name='最近引用资产'
+    )
+    last_run_at = models.DateTimeField('最近运行时间', null=True, blank=True)
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='prompt_debug_sessions',
+        verbose_name='创建者'
+    )
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
+
+    class Meta:
+        db_table = 'prompt_debug_sessions'
+        verbose_name = '提示词调试会话'
+        verbose_name_plural = '提示词调试会话'
+        ordering = ['-updated_at']
+        indexes = [
+            models.Index(fields=['created_by', 'stage_type']),
+            models.Index(fields=['prompt_template', '-updated_at']),
+        ]
+
+    def __str__(self):
+        return self.name or f'{self.prompt_template} 调试会话'
+
+
+class PromptDebugRun(models.Model):
+    """
+    提示词调试运行记录
+    职责: 保存某次调试执行的输入、渲染结果与输出
+    """
+
+    STATUS_CHOICES = [
+        ('pending', '待执行'),
+        ('running', '执行中'),
+        ('completed', '已完成'),
+        ('failed', '失败'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    session = models.ForeignKey(
+        PromptDebugSession,
+        on_delete=models.CASCADE,
+        related_name='runs',
+        verbose_name='调试会话'
+    )
+    stage_type = models.CharField('阶段类型', max_length=20, choices=PromptTemplate.STAGE_TYPES)
+    status = models.CharField('状态', max_length=20, choices=STATUS_CHOICES, default='pending')
+    source_artifact = models.ForeignKey(
+        'PromptDebugArtifact',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='derived_runs',
+        verbose_name='来源资产'
+    )
+    model_provider = models.ForeignKey(
+        'models.ModelProvider',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='prompt_debug_runs',
+        verbose_name='使用模型'
+    )
+    template_snapshot = models.TextField('模板快照', blank=True, default='')
+    variable_values = models.JSONField('变量值', default=dict, blank=True)
+    input_payload = models.JSONField('输入载荷', default=dict, blank=True)
+    resolved_variables = models.JSONField('解析后变量', default=dict, blank=True)
+    rendered_prompt = models.TextField('渲染后提示词', blank=True, default='')
+    raw_response = models.JSONField('原始响应', default=dict, blank=True)
+    parsed_output = models.JSONField('解析后输出', default=dict, blank=True)
+    latency_ms = models.IntegerField('延迟(毫秒)', default=0)
+    error_message = models.TextField('错误信息', blank=True, default='')
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
+
+    class Meta:
+        db_table = 'prompt_debug_runs'
+        verbose_name = '提示词调试运行'
+        verbose_name_plural = '提示词调试运行'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['session', '-created_at']),
+            models.Index(fields=['stage_type', 'status']),
+        ]
+
+    def __str__(self):
+        return f'{self.session} - {self.created_at:%Y-%m-%d %H:%M:%S}'
+
+
+class PromptDebugArtifact(models.Model):
+    """
+    调试资产
+    职责: 保存调试输出中可被下游阶段复用的中间结果
+    """
+
+    ARTIFACT_TYPES = [
+        ('text', '文本'),
+        ('storyboard_bundle', '分镜集合'),
+        ('storyboard_item', '分镜条目'),
+        ('image', '图片'),
+        ('video', '视频'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    run = models.ForeignKey(
+        PromptDebugRun,
+        on_delete=models.CASCADE,
+        related_name='artifacts',
+        verbose_name='调试运行'
+    )
+    source_artifact = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='children',
+        verbose_name='来源资产'
+    )
+    artifact_type = models.CharField('资产类型', max_length=30, choices=ARTIFACT_TYPES)
+    stage_type = models.CharField('阶段类型', max_length=20, choices=PromptTemplate.STAGE_TYPES)
+    name = models.CharField('名称', max_length=255)
+    sequence_number = models.IntegerField('序号', null=True, blank=True)
+    content = models.JSONField('资产内容', default=dict, blank=True)
+    preview_text = models.TextField('预览文本', blank=True, default='')
+    preview_image_url = models.URLField('预览图片', max_length=1024, blank=True, default='')
+    preview_video_url = models.URLField('预览视频', max_length=1024, blank=True, default='')
+    is_pinned = models.BooleanField('是否固定', default=False)
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='prompt_debug_artifacts',
+        verbose_name='创建者'
+    )
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
+
+    class Meta:
+        db_table = 'prompt_debug_artifacts'
+        verbose_name = '提示词调试资产'
+        verbose_name_plural = '提示词调试资产'
+        ordering = ['stage_type', 'sequence_number', '-created_at']
+        indexes = [
+            models.Index(fields=['created_by', 'artifact_type']),
+            models.Index(fields=['stage_type', 'artifact_type']),
+            models.Index(fields=['run', 'sequence_number']),
+        ]
+
+    def __str__(self):
+        return self.name
