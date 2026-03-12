@@ -51,7 +51,7 @@ class PromptDebugService:
             if not session.draft_variables:
                 session.draft_variables = template.variables
                 update_fields.append('draft_variables')
-            if not session.model_provider and template.model_provider:
+            if session.model_provider_id != template.model_provider_id:
                 session.model_provider = template.model_provider
                 update_fields.append('model_provider')
             session.save(update_fields=update_fields)
@@ -97,14 +97,12 @@ class PromptDebugService:
         cls,
         user,
         variable_values: Optional[Dict[str, Any]] = None,
-        input_payload: Optional[Dict[str, Any]] = None,
         source_artifact: Optional[PromptDebugArtifact] = None,
     ) -> Dict[str, Any]:
         global_variables = GlobalVariable.get_variables_for_user(user)
         context = {
             **global_variables,
             **(variable_values or {}),
-            **(input_payload or {}),
         }
 
         if source_artifact:
@@ -119,6 +117,30 @@ class PromptDebugService:
     def render_prompt(cls, template_content: str, context: Dict[str, Any]) -> str:
         jinja_template = Template(template_content)
         return jinja_template.render(**context)
+
+
+    @classmethod
+    def build_llm_user_prompt(
+        cls,
+        stage_type: str,
+        input_payload: Optional[Any] = None,
+    ) -> str:
+        if input_payload is None:
+            return ''
+
+        if isinstance(input_payload, str):
+            return input_payload
+
+        if isinstance(input_payload, dict):
+            if isinstance(input_payload.get('user_prompt'), str):
+                return input_payload.get('user_prompt', '')
+            if isinstance(input_payload.get('raw_text'), str):
+                return input_payload.get('raw_text', '')
+            if isinstance(input_payload.get('text'), str):
+                return input_payload.get('text', '')
+            return str(input_payload)
+
+        return str(input_payload)
 
     @classmethod
     def parse_output(cls, stage_type: str, raw_text: str) -> Any:
@@ -327,7 +349,7 @@ class PromptDebugService:
         user,
         template_content: str,
         variable_values: Optional[Dict[str, Any]],
-        input_payload: Optional[Dict[str, Any]],
+        input_payload: str,
         source_artifact_id: Optional[str],
         provider_id: Optional[str],
     ) -> Dict[str, Any]:
@@ -349,7 +371,6 @@ class PromptDebugService:
         context = cls.build_template_context(
             user=user,
             variable_values=variable_values,
-            input_payload=input_payload,
             source_artifact=source_artifact,
         )
 
@@ -507,8 +528,9 @@ class PromptDebugService:
         full_text = ''
         start_time = time.time()
         try:
+            user_prompt = cls.build_llm_user_prompt(session.stage_type, input_payload)
             stream = client.generate_stream(
-                prompt='请基于以上指令完成输出',
+                prompt=user_prompt,
                 system_prompt=rendered_prompt,
                 max_tokens=provider.max_tokens,
                 temperature=provider.temperature,

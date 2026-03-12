@@ -547,7 +547,7 @@ class PromptDebugRunCreateSerializer(serializers.Serializer):
 
     template_content = serializers.CharField(required=False, allow_blank=True)
     variable_values = serializers.JSONField(required=False)
-    input_payload = serializers.JSONField(required=False)
+    input_payload = serializers.CharField(required=False)
     source_artifact_id = serializers.UUIDField(required=False, allow_null=True)
     model_provider_id = serializers.UUIDField(required=False, allow_null=True)
 
@@ -556,13 +556,6 @@ class PromptDebugRunCreateSerializer(serializers.Serializer):
             return {}
         if not isinstance(value, dict):
             raise serializers.ValidationError('变量值必须是字典格式')
-        return value
-
-    def validate_input_payload(self, value):
-        if value is None:
-            return {}
-        if not isinstance(value, dict):
-            raise serializers.ValidationError('输入载荷必须是字典格式')
         return value
 
 

@@ -35,15 +35,14 @@
             <label class="field-label">模板内容</label>
             <textarea v-model="form.template_content" class="field-textarea textarea-lg" rows="14" />
           </div>
+          <div class="field-group">
+            <label class="field-label">阶段输入</label>
+            <textarea v-model="inputPayloadText" class="field-textarea" rows="8" :placeholder="inputPlaceholder" />
+          </div>
 
           <div class="field-group">
             <label class="field-label">变量值 JSON</label>
             <textarea v-model="variableValuesText" class="field-textarea" rows="8" placeholder='{"topic":"赛博都市"}' />
-          </div>
-
-          <div class="field-group">
-            <label class="field-label">阶段输入 JSON</label>
-            <textarea v-model="inputPayloadText" class="field-textarea" rows="8" :placeholder="inputPlaceholder" />
           </div>
 
           <div v-if="canSelectSource" class="field-group">
@@ -197,7 +196,7 @@ export default {
         source_artifact_id: '',
       },
       variableValuesText: '{}',
-      inputPayloadText: '{}',
+      inputPayloadText: '',
       lastRun: null,
       streamingRun: null,
       availableProviders: [],
@@ -232,7 +231,7 @@ export default {
       if (stageType === 'video_generation') {
         return '{"image_url":"https://...","duration":5,"fps":24}'
       }
-      return '{"topic":"输入业务信息"}'
+      return '请输入用户提示词文本'
     },
   },
   async created() {
@@ -266,16 +265,25 @@ export default {
         throw new Error('JSON 格式不正确')
       }
     },
+
+    parseInputPayload() {
+      if (this.isLlmStage) {
+        return this.inputPayloadText || ''
+      }
+      return this.parseJsonText(this.inputPayloadText, {})
+    },
     async bootstrap() {
       this.loadingPage = true
       try {
         const templateId = this.$route.params.id
         const session = await this.bootstrapDebugSession(templateId)
         this.form.template_content = session.draft_template_content || session.prompt_template_detail?.template_content || ''
-        this.form.model_provider_id = session.model_provider || ''
+        this.form.model_provider_id = session.prompt_template_detail?.model_provider || session.model_provider || ''
         this.form.source_artifact_id = session.latest_source_artifact || ''
         this.variableValuesText = this.formatJson(session.latest_variable_values || {})
-        this.inputPayloadText = this.formatJson(session.latest_input_payload || {})
+        this.inputPayloadText = this.isLlmStage
+          ? (typeof session.latest_input_payload === 'string' ? session.latest_input_payload : '')
+          : this.formatJson(session.latest_input_payload || {})
         const sessionArtifacts = await this.fetchDebugArtifacts({ session_id: session.id })
         this.sessionArtifacts = sessionArtifacts.results || sessionArtifacts || []
         const providers = await this.fetchProviders({ provider_type: this.providerTypeByStage(session.stage_type), is_active: true })
@@ -312,7 +320,7 @@ export default {
         const data = {
           template_content: this.form.template_content,
           variable_values: this.parseJsonText(this.variableValuesText, {}),
-          input_payload: this.parseJsonText(this.inputPayloadText, {}),
+          input_payload: this.parseInputPayload(),
           source_artifact_id: this.form.source_artifact_id || null,
           model_provider_id: this.form.model_provider_id || null,
         }
