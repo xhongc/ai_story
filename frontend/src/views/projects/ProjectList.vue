@@ -138,17 +138,40 @@ import { mapState, mapActions } from 'vuex';
 import LoadingContainer from '@/components/common/LoadingContainer.vue';
 import { formatDate } from '@/utils/helpers';
 
+const PROJECT_LIST_FILTER_STORAGE_KEY = 'project_list_filters';
+
+const getSavedProjectFilters = () => {
+  const defaultFilters = {
+    search: '',
+    status: '',
+  };
+
+  try {
+    const saved = localStorage.getItem(PROJECT_LIST_FILTER_STORAGE_KEY);
+    if (!saved) {
+      return defaultFilters;
+    }
+
+    const parsed = JSON.parse(saved);
+    return {
+      search: typeof parsed.search === 'string' ? parsed.search : '',
+      status: typeof parsed.status === 'string' ? parsed.status : '',
+    };
+  } catch (error) {
+    return defaultFilters;
+  }
+};
+
 export default {
   name: 'ProjectList',
   components: { LoadingContainer },
   data() {
+    const savedFilters = getSavedProjectFilters();
+
     return {
       loading: false,
       deletingProjectId: null,
-      filters: {
-        search: '',
-        status: '',
-      },
+      filters: savedFilters,
       statusOptions: [
         { value: '', label: '全部' },
         { value: 'draft', label: '草稿' },
@@ -168,11 +191,18 @@ export default {
   methods: {
     ...mapActions('projects', ['fetchProjects', 'deleteProject']),
     formatDate,
-    async fetchData() {
+    persistFilters() {
+      try {
+        localStorage.setItem(PROJECT_LIST_FILTER_STORAGE_KEY, JSON.stringify(this.filters));
+      } catch (error) {
+        console.error('保存分集筛选条件失败:', error);
+      }
+    },
+    async fetchData(page = this.pagination.page) {
       this.loading = true;
       try {
         await this.fetchProjects({
-          page: this.pagination.page,
+          page,
           page_size: this.pagination.pageSize,
           search: this.filters.search,
           status: this.filters.status,
@@ -182,11 +212,12 @@ export default {
       }
     },
     handleFilter() {
-      this.fetchData();
+      this.persistFilters();
+      this.fetchData(1);
     },
     handleStatusFilter(status) {
       this.filters.status = status;
-      this.fetchData();
+      this.handleFilter();
     },
     handleView(id) {
       this.$router.push({ name: 'ProjectDetail', params: { id } });

@@ -227,6 +227,32 @@ import StatusBadge from '@/components/common/StatusBadge.vue';
 import LoadingContainer from '@/components/common/LoadingContainer.vue';
 import { formatDate } from '@/utils/helpers';
 
+const PROMPT_FILTER_STORAGE_KEY = 'prompt_list_filters';
+
+const getSavedPromptFilters = () => {
+  const defaultFilters = {
+    searchKeyword: '',
+    filterStatus: '',
+    filterDefault: '',
+  };
+
+  try {
+    const saved = localStorage.getItem(PROMPT_FILTER_STORAGE_KEY);
+    if (!saved) {
+      return defaultFilters;
+    }
+
+    const parsed = JSON.parse(saved);
+    return {
+      searchKeyword: typeof parsed.searchKeyword === 'string' ? parsed.searchKeyword : '',
+      filterStatus: typeof parsed.filterStatus === 'string' ? parsed.filterStatus : '',
+      filterDefault: typeof parsed.filterDefault === 'string' ? parsed.filterDefault : '',
+    };
+  } catch (error) {
+    return defaultFilters;
+  }
+};
+
 export default {
   name: 'PromptList',
   components: {
@@ -234,10 +260,12 @@ export default {
     LoadingContainer,
   },
   data() {
+    const savedFilters = getSavedPromptFilters();
+
     return {
-      searchKeyword: '',
-      filterStatus: '',
-      filterDefault: '',
+      searchKeyword: savedFilters.searchKeyword,
+      filterStatus: savedFilters.filterStatus,
+      filterDefault: savedFilters.filterDefault,
       currentPage: 1,
       pageSize: 9,
       cloneName: '',
@@ -265,6 +293,9 @@ export default {
   created() {
     this.fetchData();
   },
+  beforeDestroy() {
+    clearTimeout(this.searchTimer);
+  },
   methods: {
     ...mapActions('prompts', [
       'fetchPromptSets',
@@ -274,6 +305,18 @@ export default {
       'updatePromptSet',
     ]),
     formatDate,
+
+    persistFilters() {
+      try {
+        localStorage.setItem(PROMPT_FILTER_STORAGE_KEY, JSON.stringify({
+          searchKeyword: this.searchKeyword,
+          filterStatus: this.filterStatus,
+          filterDefault: this.filterDefault,
+        }));
+      } catch (error) {
+        console.error('保存提示词筛选条件失败:', error);
+      }
+    },
 
     async fetchData() {
       const params = {
@@ -309,12 +352,14 @@ export default {
       clearTimeout(this.searchTimer);
       this.searchTimer = setTimeout(() => {
         this.currentPage = 1;
+        this.persistFilters();
         this.fetchData();
       }, 500);
     },
 
     handleFilter() {
       this.currentPage = 1;
+      this.persistFilters();
       this.fetchData();
     },
 

@@ -48,45 +48,30 @@
         <input
           v-model="filters.search"
           type="text"
-          placeholder="搜索模型名称"
+          placeholder="搜索模型名称..."
           class="search-input"
-          @keyup.enter="handleFilter"
+          @input="handleSearch"
         >
       </div>
-      <div class="select-group">
-        <select
-          v-model="filters.provider_type"
-          class="select-input"
-          @change="handleFilter"
+      <div class="status-filters">
+        <button
+          v-for="option in providerTypeOptions"
+          :key="option.value"
+          :class="['status-filter-btn', { active: filters.provider_type === option.value }]"
+          @click="handleTypeFilter(option.value)"
         >
-          <option value="">
-            全部类型
-          </option>
-          <option value="llm">
-            LLM模型
-          </option>
-          <option value="text2image">
-            文生图模型
-          </option>
-          <option value="image2video">
-            图生视频模型
-          </option>
-        </select>
-        <select
-          v-model="filters.is_active"
-          class="select-input"
-          @change="handleFilter"
+          {{ option.label }}
+        </button>
+      </div>
+      <div class="status-filters">
+        <button
+          v-for="option in statusOptions"
+          :key="option.value"
+          :class="['status-filter-btn', { active: filters.is_active === option.value }]"
+          @click="handleStatusFilter(option.value)"
         >
-          <option value="">
-            全部状态
-          </option>
-          <option value="true">
-            已激活
-          </option>
-          <option value="false">
-            未激活
-          </option>
-        </select>
+          {{ option.label }}
+        </button>
       </div>
     </div>
 
@@ -212,18 +197,54 @@
 import { mapState, mapActions } from 'vuex'
 import LoadingContainer from '@/components/common/LoadingContainer.vue'
 
+const MODEL_FILTER_STORAGE_KEY = 'model_list_filters'
+
+const getSavedFilters = () => {
+  const defaultFilters = {
+    search: '',
+    provider_type: '',
+    is_active: ''
+  }
+
+  try {
+    const saved = localStorage.getItem(MODEL_FILTER_STORAGE_KEY)
+    if (!saved) {
+      return defaultFilters
+    }
+
+    const parsed = JSON.parse(saved)
+    return {
+      search: typeof parsed.search === 'string' ? parsed.search : '',
+      provider_type: typeof parsed.provider_type === 'string' ? parsed.provider_type : '',
+      is_active: typeof parsed.is_active === 'string' ? parsed.is_active : ''
+    }
+  } catch (error) {
+    return defaultFilters
+  }
+}
+
 export default {
   name: 'ModelList',
   components: {
     LoadingContainer
   },
   data() {
+    const savedFilters = getSavedFilters()
+
     return {
-      filters: {
-        search: '',
-        provider_type: '',
-        is_active: ''
-      },
+      filters: savedFilters,
+      providerTypeOptions: [
+        { label: '全部类型', value: '' },
+        { label: 'LLM模型', value: 'llm' },
+        { label: '文生图模型', value: 'text2image' },
+        { label: '图生视频模型', value: 'image2video' }
+      ],
+      statusOptions: [
+        { label: '全部状态', value: '' },
+        { label: '已激活', value: 'true' },
+        { label: '未激活', value: 'false' }
+      ],
+      searchTimer: null,
       testingProviderId: null
     }
   },
@@ -235,6 +256,9 @@ export default {
   },
   created() {
     this.loadProviders()
+  },
+  beforeDestroy() {
+    clearTimeout(this.searchTimer)
   },
   methods: {
     ...mapActions('models', [
@@ -267,8 +291,34 @@ export default {
       return params
     },
 
+    persistFilters() {
+      try {
+        localStorage.setItem(MODEL_FILTER_STORAGE_KEY, JSON.stringify(this.filters))
+      } catch (error) {
+        console.error('保存模型筛选条件失败:', error)
+      }
+    },
+
     handleFilter() {
+      this.persistFilters()
       this.loadProviders()
+    },
+
+    handleSearch() {
+      clearTimeout(this.searchTimer)
+      this.searchTimer = setTimeout(() => {
+        this.handleFilter()
+      }, 500)
+    },
+
+    handleTypeFilter(value) {
+      this.filters.provider_type = value
+      this.handleFilter()
+    },
+
+    handleStatusFilter(value) {
+      this.filters.is_active = value
+      this.handleFilter()
     },
 
     handleCreate() {
@@ -501,35 +551,51 @@ export default {
   color: #64748b;
 }
 
-.select-group {
+.status-filters {
   display: flex;
+  gap: 0.5rem;
   flex-wrap: wrap;
-  gap: 0.75rem;
-  align-items: center;
 }
 
-.select-input {
-  min-width: 140px;
-  padding: 0.75rem 1rem;
-  border-radius: 14px;
+.status-filter-btn {
+  padding: 0.625rem 1.25rem;
+  border-radius: 999px;
   border: 1px solid rgba(148, 163, 184, 0.35);
   background: rgba(255, 255, 255, 0.9);
-  color: #0f172a;
+  color: #64748b;
   font-size: 0.875rem;
-  cursor: pointer;
+  font-weight: 500;
   outline: none;
+  cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.layout-shell.theme-dark .select-input {
+.layout-shell.theme-dark .status-filter-btn {
   background: rgba(15, 23, 42, 0.9);
   border-color: rgba(148, 163, 184, 0.25);
-  color: #e2e8f0;
+  color: #cbd5e1;
 }
 
-.select-input:focus {
-  border-color: rgba(20, 184, 166, 0.6);
-  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.18);
+.status-filter-btn:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.layout-shell.theme-dark .status-filter-btn:hover {
+  border-color: rgba(148, 163, 184, 0.4);
+  background: rgba(30, 41, 59, 0.9);
+}
+
+.status-filter-btn.active {
+  background: rgba(20, 184, 166, 0.16);
+  color: #0f172a;
+  border-color: rgba(20, 184, 166, 0.5);
+}
+
+.layout-shell.theme-dark .status-filter-btn.active {
+  background: rgba(94, 234, 212, 0.2);
+  color: #e2e8f0;
+  border-color: rgba(94, 234, 212, 0.5);
 }
 
 .card-grid {
