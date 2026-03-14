@@ -248,15 +248,26 @@ class PromptDebugService:
                 response = asyncio.run(response)
 
         latency_ms = int((time.time() - start_time) * 1000)
-        if not response.success:
-            raise ValueError(response.error or '图生视频调试执行失败')
+        if isinstance(response, dict):
+            success = response.get('success', True)
+            error = response.get('error')
+            response_data = response.get('data', [])
+            response_metadata = response.get('metadata', {})
+        else:
+            success = response.success
+            error = response.error
+            response_data = response.data
+            response_metadata = response.metadata
+
+        if not success:
+            raise ValueError(error or '图生视频调试执行失败')
         return {
             'raw_text': '',
             'raw_response': {
-                'data': response.data,
-                'metadata': response.metadata,
+                'data': response_data,
+                'metadata': response_metadata,
             },
-            'latency_ms': response.metadata.get('latency_ms', latency_ms),
+            'latency_ms': response_metadata.get('latency_ms', latency_ms),
             'parsed_output': {
                 'videos': response.data,
             },

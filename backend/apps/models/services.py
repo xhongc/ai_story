@@ -480,16 +480,29 @@ class ModelProviderService:
             if 'fps' in signature.parameters:
                 generate_kwargs['fps'] = fps
 
-            video_data = await sync_to_async(generate_func)(**generate_kwargs)
+            video_result = await sync_to_async(generate_func)(**generate_kwargs)
+            if isinstance(video_result, dict):
+                video_data = video_result.get('data', [])
+                metadata = video_result.get('metadata', {})
+                success = video_result.get('success', True)
+                error = video_result.get('error')
+            else:
+                video_data = [{'url': url} if isinstance(url, str) else url for url in video_result]
+                metadata = {}
+                success = True
+                error = None
+
             ai_response = AIResponse(
-                success=True,
-                data=[{'url': url} if isinstance(url, str) else url for url in video_data],
+                success=success,
+                data=video_data,
                 metadata={
+                    **metadata,
                     'model': provider.model_name,
                     'duration': duration,
                     'fps': fps,
                     'aspect_ratio': aspect_ratio,
                 },
+                error=error,
             )
         else:
             raise ImportError(f'不支持的图生视频执行器: {executor_class_path}')

@@ -304,18 +304,34 @@ class VideoGeneratorClient:
         poll_interval: int = 5,
         max_wait_time: int = 600,
         **kwargs,
-    ) -> List[str]:
+    ) -> Dict[str, Any]:
         """同步生成视频(提交任务并等待完成)。"""
+        start_time = time.time()
         task_result = self.create_video_task(prompt, **kwargs)
 
         if isinstance(task_result, list):
-            video_urls = []
+            video_data = []
             for item in task_result:
-                url = item.get('url') if isinstance(item, dict) else item
-                if url:
-                    video_urls.append(url)
-            print(f'✓ 视频生成完成! 共 {len(video_urls)} 个视频')
-            return video_urls
+                if isinstance(item, dict):
+                    url = item.get('url')
+                    if not url:
+                        continue
+                    video_data.append(item)
+                    continue
+
+                if item:
+                    video_data.append({'url': item})
+
+            print(f'✓ 视频生成完成! 共 {len(video_data)} 个视频')
+            return {
+                'success': True,
+                'data': video_data,
+                'metadata': {
+                    'latency_ms': int((time.time() - start_time) * 1000),
+                    'model': kwargs.get('model') or self.model,
+                    'request_url': self._build_create_video_url(),
+                },
+            }
 
         task_id = task_result
         if isinstance(task_result, dict):
@@ -336,7 +352,24 @@ class VideoGeneratorClient:
         )
 
         videos = result.get('data', {}).get('videos', [])
-        video_urls = [video['url'] for video in videos]
+        video_data = []
+        for video in videos:
+            url = video.get('url') if isinstance(video, dict) else video
+            if not url:
+                continue
+            if isinstance(video, dict):
+                video_data.append(video)
+            else:
+                video_data.append({'url': url})
 
-        print(f'✓ 视频生成完成! 共 {len(video_urls)} 个视频')
-        return video_urls
+        print(f'✓ 视频生成完成! 共 {len(video_data)} 个视频')
+        return {
+            'success': True,
+            'data': video_data,
+            'metadata': {
+                'latency_ms': int((time.time() - start_time) * 1000),
+                'model': kwargs.get('model') or self.model,
+                'request_url': self._build_create_video_url(),
+                'task_id': task_id,
+            },
+        }

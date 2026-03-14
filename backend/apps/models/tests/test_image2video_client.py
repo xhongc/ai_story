@@ -34,7 +34,8 @@ class VideoGeneratorClientTestCase(SimpleTestCase):
             model='grok-imagine-1.0-video',
         )
 
-        self.assertEqual(result, ['https://example.com/generated.mp4'])
+        self.assertTrue(result['success'])
+        self.assertEqual(result['data'], [{'url': 'https://example.com/generated.mp4'}])
         mock_post.assert_called_once()
         self.assertEqual(
             mock_post.call_args.args[0],
@@ -66,7 +67,7 @@ class VideoGeneratorClientTestCase(SimpleTestCase):
             model='video-model',
         )
 
-        task_id = client.create_video_task(
+        task_result = client.create_video_task(
             prompt='狗狗动起来',
             image_uri='https://example.com/source.png',
             image_base64='ZmFrZV9pbWFnZV9iYXNlNjQ=',
@@ -74,7 +75,7 @@ class VideoGeneratorClientTestCase(SimpleTestCase):
             model='video-model',
         )
 
-        self.assertEqual(task_id, 'task-123')
+        self.assertEqual(task_result, 'task-123')
         mock_post.assert_called_once()
         self.assertEqual(
             mock_post.call_args.args[0],

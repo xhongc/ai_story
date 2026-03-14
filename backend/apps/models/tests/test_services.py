@@ -50,7 +50,7 @@ class ModelProviderServiceImage2VideoTestCase(TestCase):
             },
         )
 
-        with patch('core.ai_client.image2video_client.VideoGeneratorClient._generate_video', return_value=['http://example.com/video-api.mp4']) as mock_generate:
+        with patch('core.ai_client.image2video_client.VideoGeneratorClient._generate_video', return_value={'success': True, 'data': [{'url': 'http://example.com/video-api.mp4'}], 'metadata': {}}) as mock_generate:
             result = await ModelProviderService._test_image2video_provider(provider, 'animate prompt')
 
         self.assertTrue(result['success'])
