@@ -48,11 +48,17 @@
               </select>
             </div>
             <div class="form-control">
-              <label class="field-label">提示词集</label>
-              <select v-model="form.prompt_template_set" class="field-input" :disabled="loadingTemplates">
-                <option :value="null">{{ loadingTemplates ? '加载中...' : '使用默认提示词集' }}</option>
+              <label class="field-label">提示词集 <span class="required-mark">*</span></label>
+              <select
+                v-model="form.prompt_template_set"
+                class="field-input"
+                :class="{ 'field-error': errors.prompt_template_set }"
+                :disabled="loadingTemplates"
+              >
+                <option :value="null" disabled>{{ loadingTemplates ? '加载中...' : '请选择提示词集' }}</option>
                 <option v-for="set in templateSets" :key="set.id" :value="set.id">{{ set.name }}</option>
               </select>
+              <p v-if="errors.prompt_template_set" class="error-text">{{ errors.prompt_template_set }}</p>
             </div>
           </div>
 
@@ -248,6 +254,7 @@ export default {
         batch_episodes: [createBatchEpisode()],
       },
       errors: {
+        prompt_template_set: '',
         original_topic: '',
         start_episode_number: '',
         batch_episodes: '',
@@ -362,6 +369,7 @@ export default {
     },
     resetErrors() {
       this.errors = {
+        prompt_template_set: '',
         original_topic: '',
         start_episode_number: '',
         batch_episodes: '',
@@ -421,6 +429,10 @@ export default {
     validateCommonFields() {
       if (!this.form.series) {
         alert('请选择所属作品');
+        return false;
+      }
+      if (!this.form.prompt_template_set) {
+        this.errors.prompt_template_set = '请选择提示词集';
         return false;
       }
       return true;

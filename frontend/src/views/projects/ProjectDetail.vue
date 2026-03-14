@@ -8,6 +8,7 @@
           ref="projectCanvas"
           :project="project"
           :stages="stages"
+          :model-config="modelConfig"
           :episodes="seriesEpisodes"
           @execute-stage="handleExecuteStage"
           @save-stage="handleSaveStage"
@@ -51,6 +52,7 @@ export default {
       loading: false,
       project: null,
       stages: [],
+      modelConfig: null,
       seriesEpisodes: [],
       storyboards: [],
       savedScrollPosition: 0, // 保存滚动位置
@@ -79,6 +81,7 @@ export default {
     ...mapActions('projects', [
       'fetchProject',
       'fetchProjectStages',
+      'fetchModelConfig',
       'fetchSeriesDetail',
       'executeStage',
       'updateProject',
@@ -134,6 +137,7 @@ export default {
         const projectId = this.$route.params.id;
         this.project = await this.fetchProject(projectId);
         this.stages = await this.fetchProjectStages(projectId);
+        this.modelConfig = await this.fetchModelConfig(projectId);
         this.seriesEpisodes = [];
 
         if (this.project?.series) {

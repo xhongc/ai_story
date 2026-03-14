@@ -228,6 +228,7 @@
         :status="rewriteStage ? rewriteStage.status : 'pending'"
         :position="nodePositions.rewrite"
         :data="rewriteStage ? rewriteStage.domain_data : null"
+        :show-rewrite-node="showRewriteNode"
         :asset-options="boundAssets"
         :original-topic="project.original_topic"
         :project-id="project.id"
@@ -261,6 +262,7 @@
           :prompt="storyboard.image_prompt"
           :storyboard-id="storyboard.id"
           @generate="handleGenerateImage"
+          @media-loaded="handleImageMediaLoaded"
           @save="handleSaveStoryboard"
         />
 
@@ -343,6 +345,10 @@ export default {
       type: Array,
       default: () => []
     },
+    modelConfig: {
+      type: Object,
+      default: null
+    },
     episodes: {
       type: Array,
       default: () => []
@@ -375,6 +381,7 @@ export default {
       showAssetDrawer: false,
       availableAssets: [],
       selectedAssetIds: [],
+      runtimeMediaDimensions: {},
       showEpisodeMenu: false,
       switchingEpisodeId: null,
       episodeSearch: '',
@@ -437,16 +444,99 @@ export default {
     // 节点位置配置（固定位置，由 FlowCanvas 自动居中）
     nodePositions() {
       return {
-        rewrite: { x: 370, y: 100 }
+        rewrite: {
+          x: this.treeLayout.rewriteX,
+          y: this.treeLayout.rowY.rewrite || this.nodeMetrics.startY
+        }
       };
     },
     nodeMetrics() {
       return {
+        rewrite: { width: 620, height: 300 },
         storyboard: { width: 280, height: 250 },
         media: { width: 250, headerHeight: 50, minPreviewHeight: 140 },
         camera: { width: 250, height: 280 },
-        columnGap: 40,
-        rowGap: 120
+        startX: 80,
+        startY: 60,
+        columnGap: 60,
+        rowGap: 90,
+        rewriteRowGap: 105
+      };
+    },
+    treeLayout() {
+      const branchWidth = Math.max(
+        this.nodeMetrics.storyboard.width,
+        this.nodeMetrics.media.width,
+        this.nodeMetrics.camera.width
+      );
+      const columnCount = Math.max(this.storyboards.length, 1);
+      const totalWidth = columnCount * branchWidth + (columnCount - 1) * this.nodeMetrics.columnGap;
+      const rowY = {};
+      let currentY = this.nodeMetrics.startY;
+
+      const stageRows = [
+        {
+          key: 'rewrite',
+          visible: true,
+          height: this.nodeMetrics.rewrite.height,
+        },
+        {
+          key: 'storyboard',
+          visible: this.showStoryboardNode && this.storyboards.length > 0,
+          height: this.nodeMetrics.storyboard.height,
+        },
+        {
+          key: 'image',
+          visible: this.storyboards.some(storyboard => this.showImageNode(storyboard)),
+          height: Math.max(
+            this.nodeMetrics.media.headerHeight + this.nodeMetrics.media.minPreviewHeight,
+            ...this.storyboards
+              .filter(storyboard => this.showImageNode(storyboard))
+              .map(storyboard => this.getImageNodeHeight(storyboard))
+          ),
+        },
+        {
+          key: 'camera',
+          visible: this.storyboards.some(storyboard => this.showCameraNode(storyboard)),
+          height: this.nodeMetrics.camera.height,
+        },
+        {
+          key: 'video',
+          visible: this.storyboards.some(storyboard => this.showVideoNode(storyboard)),
+          height: Math.max(
+            this.nodeMetrics.media.headerHeight + this.nodeMetrics.media.minPreviewHeight,
+            ...this.storyboards
+              .filter(storyboard => this.showVideoNode(storyboard))
+              .map(storyboard => this.getVideoNodeHeight(storyboard))
+          ),
+        },
+      ];
+
+      stageRows.forEach((row, index) => {
+        if (!row.visible) {
+          return;
+        }
+
+        rowY[row.key] = currentY;
+
+        const nextVisibleRow = stageRows.slice(index + 1).find(item => item.visible);
+        if (!nextVisibleRow) {
+          return;
+        }
+
+        const gap = row.key === 'rewrite'
+          ? this.nodeMetrics.rewriteRowGap
+          : this.nodeMetrics.rowGap;
+
+        currentY += row.height + gap;
+      });
+
+      return {
+        branchWidth,
+        columnCount,
+        totalWidth,
+        rowY,
+        rewriteX: this.nodeMetrics.startX + ((totalWidth - this.nodeMetrics.rewrite.width) / 2),
       };
     },
     rewriteStage() {
@@ -471,12 +561,14 @@ export default {
     connections() {
       const conns = [];
 
-      // 文案改写 → 第一个分镜
+      // 文案改写 → 每个分镜
       if (this.showRewriteNode && this.showStoryboardNode && this.storyboards.length > 0) {
-        conns.push({
-          id: 'rewrite-to-storyboard-0',
-          from: 'rewrite',
-          to: 'storyboard-0'
+        this.storyboards.forEach((storyboard, index) => {
+          conns.push({
+            id: `rewrite-to-storyboard-${index}`,
+            from: 'rewrite',
+            to: `storyboard-${index}`
+          });
         });
       }
 
@@ -508,15 +600,6 @@ export default {
             to: `video-${index}`
           });
         }
-
-        // 分镜之间的连接（垂直）
-        if (this.showStoryboardNode && index < this.storyboards.length - 1) {
-          conns.push({
-            id: `storyboard-${index}-to-storyboard-${index + 1}`,
-            from: `storyboard-${index}`,
-            to: `storyboard-${index + 1}`
-          });
-        }
       });
 
       return conns;
@@ -525,13 +608,11 @@ export default {
     allNodePositions() {
       const positions = {};
 
-      if (this.showRewriteNode) {
-        positions.rewrite = {
-          ...this.nodePositions.rewrite,
-          width: 580,
-          height: 520
-        };
-      }
+      positions.rewrite = {
+        ...this.nodePositions.rewrite,
+        width: this.nodeMetrics.rewrite.width,
+        height: this.nodeMetrics.rewrite.height
+      };
 
       // 添加所有分镜及其子节点的位置
       this.storyboards.forEach((storyboard, index) => {
@@ -791,13 +872,86 @@ export default {
       return storyboard?.video_generation?.template_enabled !== false;
     },
 
+    parseMediaRatio(ratio) {
+      if (!ratio || typeof ratio !== 'string') {
+        return null;
+      }
+
+      const normalizedRatio = ratio.trim();
+      const matched = normalizedRatio.match(/^(\d+(?:\.\d+)?)\s*[:/]\s*(\d+(?:\.\d+)?)$/);
+      if (!matched) {
+        return null;
+      }
+
+      const width = Number(matched[1]);
+      const height = Number(matched[2]);
+
+      if (!width || !height) {
+        return null;
+      }
+
+      return {
+        width: Math.round(width * 100),
+        height: Math.round(height * 100)
+      };
+    },
+
+    getDefaultImageRatio() {
+      const provider = this.modelConfig?.image_providers_detail?.[0];
+      return provider?.extra_config?.default_ratio || provider?.extra_config?.ratio || null;
+    },
+
+    getDefaultVideoRatio() {
+      const provider = this.modelConfig?.video_providers_detail?.[0];
+      return provider?.extra_config?.aspect_ratio || provider?.extra_config?.default_ratio || provider?.extra_config?.ratio || null;
+    },
+
+    handleImageMediaLoaded({ storyboardId, width, height }) {
+      if (!storyboardId || !(width > 0) || !(height > 0)) {
+        return;
+      }
+
+      const current = this.runtimeMediaDimensions[storyboardId];
+      if (current?.width === width && current?.height === height) {
+        return;
+      }
+
+      this.$set(this.runtimeMediaDimensions, storyboardId, { width, height });
+    },
+
     getStoryboardMediaDimensions(storyboard) {
+      const runtimeDimensions = storyboard?.id
+        ? this.runtimeMediaDimensions[storyboard.id]
+        : null;
+
+      if (runtimeDimensions?.width > 0 && runtimeDimensions?.height > 0) {
+        return runtimeDimensions;
+      }
+
       const image = storyboard?.image_generation?.images?.[0];
       const video = storyboard?.video_generation?.videos?.[0];
-      const width = Number(image?.width || video?.width) || 1080;
-      const height = Number(image?.height || video?.height) || 1080;
+      const width = Number(image?.width || video?.width);
+      const height = Number(image?.height || video?.height);
 
-      return { width, height };
+      if (width > 0 && height > 0) {
+        return { width, height };
+      }
+
+      const inferredRatio = image?.generation_params?.ratio ||
+        image?.generation_params?.aspect_ratio ||
+        video?.generation_params?.aspect_ratio ||
+        video?.generation_params?.ratio ||
+        this.getDefaultImageRatio() ||
+        this.getDefaultVideoRatio() ||
+        storyboard?.generation_metadata?.ratio ||
+        storyboard?.generation_metadata?.aspect_ratio;
+
+      const inferredDimensions = this.parseMediaRatio(inferredRatio);
+      if (inferredDimensions) {
+        return inferredDimensions;
+      }
+
+      return { width: 1080, height: 1080 };
     },
 
     getMediaPreviewHeight(storyboard) {
@@ -817,75 +971,41 @@ export default {
       return this.nodeMetrics.media.headerHeight + this.getMediaPreviewHeight(storyboard);
     },
 
-    getRowHeight(index) {
-      const storyboard = this.storyboards[index];
-      if (!storyboard) {
-        return this.nodeMetrics.storyboard.height + this.nodeMetrics.rowGap;
-      }
-
-      const heights = [];
-
-      if (this.showStoryboardNode) {
-        heights.push(this.nodeMetrics.storyboard.height);
-      }
-      if (this.showImageNode(storyboard)) {
-        heights.push(this.getImageNodeHeight(storyboard));
-      }
-      if (this.showCameraNode(storyboard)) {
-        heights.push(this.nodeMetrics.camera.height);
-      }
-      if (this.showVideoNode(storyboard)) {
-        heights.push(this.getVideoNodeHeight(storyboard));
-      }
-
-      return Math.max(...heights, this.nodeMetrics.storyboard.height) + this.nodeMetrics.rowGap;
+    getBranchNodeX(index, nodeWidth) {
+      return this.nodeMetrics.startX
+        + index * (this.treeLayout.branchWidth + this.nodeMetrics.columnGap)
+        + ((this.treeLayout.branchWidth - nodeWidth) / 2);
     },
 
-    getStoryboardY(index) {
-      const startY = 100;
-      let currentY = startY;
-
-      for (let i = 0; i < index; i += 1) {
-        currentY += this.getRowHeight(i);
-      }
-
-      return currentY;
-    },
-
-    // 计算分镜节点位置（垂直排列）
+    // 计算分镜节点位置（第二行横向排列）
     calculateStoryboardPosition(index) {
-      const startX = 700;
-
       return {
-        x: startX,
-        y: this.getStoryboardY(index)
+        x: this.getBranchNodeX(index, this.nodeMetrics.storyboard.width),
+        y: this.treeLayout.rowY.storyboard || this.nodeMetrics.startY
       };
     },
 
-    // 计算文生图节点位置
+    // 计算文生图节点位置（第三行横向排列）
     calculateImagePosition(index) {
-      const storyboardPos = this.calculateStoryboardPosition(index);
       return {
-        x: storyboardPos.x + this.nodeMetrics.storyboard.width + this.nodeMetrics.columnGap,
-        y: storyboardPos.y
+        x: this.getBranchNodeX(index, this.nodeMetrics.media.width),
+        y: this.treeLayout.rowY.image || this.nodeMetrics.startY
       };
     },
 
-    // 计算运镜节点位置
+    // 计算运镜节点位置（第四行横向排列）
     calculateCameraPosition(index) {
-      const imagePos = this.calculateImagePosition(index);
       return {
-        x: imagePos.x + this.nodeMetrics.media.width + this.nodeMetrics.columnGap,
-        y: imagePos.y
+        x: this.getBranchNodeX(index, this.nodeMetrics.camera.width),
+        y: this.treeLayout.rowY.camera || this.nodeMetrics.startY
       };
     },
 
-    // 计算视频生成节点位置
+    // 计算视频生成节点位置（第五行横向排列）
     calculateVideoPosition(index) {
-      const cameraPos = this.calculateCameraPosition(index);
       return {
-        x: cameraPos.x + this.nodeMetrics.camera.width + this.nodeMetrics.columnGap,
-        y: cameraPos.y
+        x: this.getBranchNodeX(index, this.nodeMetrics.media.width),
+        y: this.treeLayout.rowY.video || this.nodeMetrics.startY
       };
     },
 

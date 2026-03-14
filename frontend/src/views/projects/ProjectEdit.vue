@@ -22,7 +22,7 @@
             <div class="form-control">
               <label class="field-label">提示词集</label>
               <select v-model="form.prompt_template_set" class="field-input" :disabled="loadingTemplates">
-                <option :value="null">{{ loadingTemplates ? '加载中...' : '使用默认提示词集' }}</option>
+                <option :value="null" disabled>{{ loadingTemplates ? '加载中...' : '请选择提示词集' }}</option>
                 <option v-for="set in templateSets" :key="set.id" :value="set.id">{{ set.name }}</option>
               </select>
             </div>

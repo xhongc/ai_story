@@ -8,6 +8,7 @@ from django.db import transaction
 from rest_framework import serializers
 
 from apps.content.models import ContentRewrite
+from apps.models.serializers import ModelProviderDetailSerializer
 from apps.prompts.serializers import GlobalVariableListSerializer
 from apps.projects.utils import parse_storyboard_json
 from .models import EpisodeTaskQueue, Project, ProjectStage, ProjectModelConfig, ProjectAssetBinding, Series
@@ -268,6 +269,8 @@ class ProjectModelConfigSerializer(serializers.ModelSerializer):
     image_providers_names = serializers.SerializerMethodField()
     camera_providers_names = serializers.SerializerMethodField()
     video_providers_names = serializers.SerializerMethodField()
+    image_providers_detail = ModelProviderDetailSerializer(source='image_providers', many=True, read_only=True)
+    video_providers_detail = ModelProviderDetailSerializer(source='video_providers', many=True, read_only=True)
 
     class Meta:
         model = ProjectModelConfig
@@ -275,9 +278,9 @@ class ProjectModelConfigSerializer(serializers.ModelSerializer):
             'id', 'project', 'load_balance_strategy',
             'rewrite_providers', 'rewrite_providers_names',
             'storyboard_providers', 'storyboard_providers_names',
-            'image_providers', 'image_providers_names',
+            'image_providers', 'image_providers_names', 'image_providers_detail',
             'camera_providers', 'camera_providers_names',
-            'video_providers', 'video_providers_names',
+            'video_providers', 'video_providers_names', 'video_providers_detail',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']

@@ -43,49 +43,69 @@
       </div>
     </div>
 
-    <div class="node-section">
-      <label class="section-label">原始文案</label>
-      <div
-        class="original-text"
-        @wheel.stop
-        @mousedown.stop
-      >{{ data.original_text || '暂无原始文案' }}</div>
-    </div>
+    <div class="node-content">
+      <div :class="['sub-node', 'sub-node-original', { 'sub-node-full': !showRewriteNode }]">
+        <div class="sub-node-header">
+          <div class="sub-node-title-wrap">
+            <svg xmlns="http://www.w3.org/2000/svg" class="sub-node-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-4 4v-4z" />
+            </svg>
+            <span class="sub-node-title">原始文案</span>
+          </div>
+        </div>
+        <div class="sub-node-body">
+          <div
+            class="original-text"
+            @wheel.stop
+            @mousedown.stop
+          >{{ displayOriginalText }}</div>
+        </div>
+      </div>
 
-    <div class="node-section node-section-editor">
-      <label class="section-label">改写后文案</label>
-      <div class="textarea-autocomplete-wrap">
-        <textarea
-          ref="rewriteTextarea"
-          v-model="localText"
-          class="textarea textarea-bordered w-full rewrite-textarea"
-          rows="3"
-          placeholder="改写后的文案将显示在这里..."
-          :disabled="status === 'processing'"
-          @focus="handleFocus"
-          @blur="handleBlur"
-          @input="handleTextInput"
-          @click="handleCursorChange"
-          @keyup="handleCursorChange"
-          @keydown.down.prevent="navigateAutocomplete(1)"
-          @keydown.up.prevent="navigateAutocomplete(-1)"
-          @keydown.enter.exact.prevent="confirmAutocomplete"
-          @keydown.esc.prevent="closeAutocomplete"
-          @wheel.stop
-          @mousedown.stop
-        ></textarea>
-        <div v-if="showAutocomplete && filteredAssetOptions.length" class="asset-autocomplete prevent-canvas-wheel">
-          <button
-            v-for="(asset, index) in filteredAssetOptions"
-            :key="asset.id"
-            type="button"
-            class="asset-autocomplete-item"
-            :class="{ active: highlightedAssetIndex === index }"
-            @mousedown.prevent="selectAutocomplete(asset.key)"
-          >
-            <code>{{ asset.key }}</code>
-            <span>{{ asset.group || asset.variable_type_display }}</span>
-          </button>
+      <div v-if="showRewriteNode" class="sub-node sub-node-rewrite sub-node-editor">
+        <div class="sub-node-header">
+          <div class="sub-node-title-wrap">
+            <svg xmlns="http://www.w3.org/2000/svg" class="sub-node-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            <span class="sub-node-title">改写后文案</span>
+          </div>
+        </div>
+        <div class="sub-node-body sub-node-body-editor">
+          <div class="textarea-autocomplete-wrap">
+          <textarea
+            ref="rewriteTextarea"
+            v-model="localText"
+            class="textarea textarea-bordered w-full rewrite-textarea"
+            rows="3"
+            placeholder="改写后的文案将显示在这里..."
+            :disabled="status === 'processing'"
+            @focus="handleFocus"
+            @blur="handleBlur"
+            @input="handleTextInput"
+            @click="handleCursorChange"
+            @keyup="handleCursorChange"
+            @keydown.down.prevent="navigateAutocomplete(1)"
+            @keydown.up.prevent="navigateAutocomplete(-1)"
+            @keydown.enter.exact.prevent="confirmAutocomplete"
+            @keydown.esc.prevent="closeAutocomplete"
+            @wheel.stop
+            @mousedown.stop
+          ></textarea>
+            <div v-if="showAutocomplete && filteredAssetOptions.length" class="asset-autocomplete prevent-canvas-wheel">
+            <button
+              v-for="(asset, index) in filteredAssetOptions"
+              :key="asset.id"
+              type="button"
+              class="asset-autocomplete-item"
+              :class="{ active: highlightedAssetIndex === index }"
+              @mousedown.prevent="selectAutocomplete(asset.key)"
+            >
+              <code>{{ asset.key }}</code>
+              <span>{{ asset.group || asset.variable_type_display }}</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -133,6 +153,10 @@ export default {
     projectId: {
       type: [String, Number],
       required: true
+    },
+    showRewriteNode: {
+      type: Boolean,
+      default: true
     }
   },
   data() {
@@ -164,6 +188,9 @@ export default {
         return 'processing';
       }
       return this.status;
+    },
+    displayOriginalText() {
+      return this.data?.original_text || this.originalTopic || '暂无原始文案';
     },
     statusText() {
       const statusMap = {
@@ -432,7 +459,7 @@ export default {
 
 <style scoped>
 .rewrite-node-expanded {
-  width: 280px;
+  width: 620px;
   height: 300px;
   background: #fafafa;
   border: 2px solid hsl(var(--bc) / 0.2);
@@ -494,7 +521,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1rem 1.25rem;
+  padding: 0.25rem 1.25rem;
   border-bottom: 1px solid hsl(var(--bc) / 0.1);
   background: hsl(var(--b2) / 0.5);
 }
@@ -593,20 +620,115 @@ export default {
   color: hsl(var(--bc) / 0.6);
 }
 
-.node-section {
-  padding: 0rem 1.25rem;
-  border-bottom: 1px solid hsl(var(--bc) / 0.05);
-}
-
-.node-section-editor {
+.node-content {
   flex: 1;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  gap: 0.9rem;
+  padding: 1rem 1.1rem;
   min-height: 0;
+  overflow: hidden;
 }
 
-.layout-shell.theme-dark .node-section {
-  border-bottom-color: hsl(var(--bc) / 0.15);
+.sub-node {
+  flex: 1;
+  min-width: 0;
+  background: #fafafa;
+  border: 2px solid hsl(var(--bc) / 0.18);
+  border-radius: 0.75rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.layout-shell.theme-dark .sub-node {
+  background: #0f172a;
+  border-color: hsl(var(--bc) / 0.24);
+  box-shadow: 0 4px 16px rgba(2, 6, 23, 0.45);
+}
+
+.sub-node-original {
+  flex: 0 0 240px;
+  border-color: hsl(var(--bc) / 0.2);
+}
+
+.sub-node-original .sub-node-header {
+  padding: 0.45rem 0.7rem;
+}
+
+.sub-node-original .sub-node-title-wrap {
+  gap: 0.35rem;
+}
+
+.sub-node-original .sub-node-title {
+  font-size: 0.8rem;
+}
+
+.sub-node-original .sub-node-body {
+  padding: 0.65rem;
+}
+
+.sub-node-full {
+  flex: 1 1 auto;
+}
+
+.sub-node-rewrite {
+  flex: 1 1 auto;
+  border-color: hsl(var(--su) / 0.45);
+}
+
+.layout-shell.theme-dark .sub-node-rewrite {
+  border-color: hsl(var(--su) / 0.35);
+}
+
+.sub-node-editor {
+  flex: 1;
+  min-height: 180px;
+}
+
+.sub-node-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 0.9rem;
+  border-bottom: 1px solid hsl(var(--bc) / 0.08);
+  background: hsl(var(--b2) / 0.45);
+}
+
+.layout-shell.theme-dark .sub-node-header {
+  border-bottom-color: hsl(var(--bc) / 0.16);
+  background: hsl(var(--b2) / 0.55);
+}
+
+.sub-node-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sub-node-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.sub-node-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: hsl(var(--bc));
+}
+
+.sub-node-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  padding: 0.85rem;
+}
+
+.sub-node-body-editor {
+  flex: 1;
+  min-height: 0;
+  display: flex;
 }
 
 .section-label {
@@ -618,20 +740,24 @@ export default {
 }
 
 .original-text {
-  padding: 0.25rem;
-  background: hsl(var(--b2));
-  border-radius: 0.5rem;
+  flex: 1;
+  height: 100%;
+  padding: 0.55rem 0.65rem;
+  background: rgba(248, 250, 252, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 12px;
   font-size: 0.875rem;
   line-height: 1.6;
   color: hsl(var(--bc) / 0.8);
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 120px;
+  max-height: none;
   overflow-y: auto;
 }
 
 .layout-shell.theme-dark .original-text {
-  background: hsl(var(--b2) / 0.85);
+  background: rgba(15, 23, 42, 0.78);
+  border-color: rgba(148, 163, 184, 0.12);
 }
 
 .original-text::-webkit-scrollbar {
@@ -650,7 +776,26 @@ export default {
 .textarea-autocomplete-wrap {
   position: relative;
   flex: 1;
+  display: flex;
   min-height: 0;
+}
+
+.rewrite-textarea {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  padding: 0.8rem 0.9rem;
+  border-radius: 12px;
+  border-color: rgba(148, 163, 184, 0.18);
+  background: rgba(248, 250, 252, 0.92);
+  line-height: 1.6;
+  resize: none;
+}
+
+.layout-shell.theme-dark .rewrite-textarea {
+  background: rgba(15, 23, 42, 0.78);
+  border-color: rgba(148, 163, 184, 0.16);
+  color: hsl(var(--bc) / 0.88);
 }
 
 .asset-autocomplete {
