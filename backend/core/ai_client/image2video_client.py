@@ -25,8 +25,6 @@ class TaskStatus(Enum):
 class VideoGenerator:
     """视频生成客户端"""
 
-    BASE_URL = "https://openai.qiniu.com"
-    BASE_URL_BACKUP = "https://api.qnaigc.com"
 
     def __init__(self, api_url:str ,api_token: str, model: str):
         """初始化视频生成客户端
@@ -236,79 +234,3 @@ class VideoGenerator:
         print(f"✓ 视频生成完成! 共 {len(video_urls)} 个视频")
         return video_urls
 
-
-def main():
-    """使用示例"""
-
-    # 1. 初始化客户端
-    API_TOKEN = "sk-17ee64ecaf4fbab1f81361bdb121347a44dc073f92834d93f59baace08826515"  # 请替换为您的API Token
-    generator = VideoGenerator(API_TOKEN)
-
-    # 2. 示例1: 文本转视频
-    print("=" * 50)
-    print("示例1: 文本转视频")
-    print("=" * 50)
-
-    try:
-        video_urls = generator.generate_video_sync(
-            prompt="一只可爱的小猫在草地上玩耍，阳光明媚",
-            model="veo-3.0-fast-generate-preview",
-            duration_seconds=8,
-            sample_count=1,
-            aspect_ratio="16:9",
-            generate_audio=True
-        )
-
-        for i, url in enumerate(video_urls):
-            print(f"视频 {i+1}: {url}")
-
-    except Exception as e:
-        print(f"✗ 错误: {e}")
-
-    # 3. 示例2: 图片转视频
-    print("\n" + "=" * 50)
-    print("示例2: 图片转视频")
-    print("=" * 50)
-
-    try:
-        video_urls = generator.generate_video_sync(
-            prompt="根据图片内容生成有趣的视频",
-            image_uri="http://example.com/example.jpeg",
-            model="veo-3.0-fast-generate-preview",
-            duration_seconds=8,
-            sample_count=1
-        )
-
-        for i, url in enumerate(video_urls):
-            print(f"视频 {i+1}: {url}")
-
-    except Exception as e:
-        print(f"✗ 错误: {e}")
-
-    # 4. 示例3: 异步任务(手动控制)
-    print("\n" + "=" * 50)
-    print("示例3: 手动控制轮询")
-    print("=" * 50)
-
-    try:
-        # 创建任务
-        task_id = generator.create_video_task(
-            prompt="一朵花在延时摄影中绽放",
-            model="veo-3.0-fast-generate-preview"
-        )
-        print(f"任务ID: {task_id}")
-
-        # 手动查询状态
-        task_info = generator.get_task_status(task_id)
-        print(f"当前状态: {task_info['status']}")
-
-        # 等待完成
-        result = generator.wait_for_completion(task_id)
-        print(f"最终状态: {result['status']}")
-
-    except Exception as e:
-        print(f"✗ 错误: {e}")
-
-
-if __name__ == "__main__":
-    main()

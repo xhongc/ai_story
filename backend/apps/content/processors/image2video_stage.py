@@ -113,92 +113,10 @@ class Image2VideoStageProcessor(StageProcessor):
 
     def process(self, context: PipelineContext) -> StageResult:
         """
-        非流式执行图生视频生成
+        非流式执行图生视频生成 废弃
         用于Pipeline自动执行
         """
-        try:
-            # 获取项目和阶段
-            project = Project.objects.get(id=context.project_id)
-            stage, created = ProjectStage.objects.get_or_create(project=project, stage_type=self.stage_type)
-
-            # 更新阶段状态
-            stage.status = "processing"
-            stage.started_at = timezone.now()
-            stage.save()
-
-            # 获取分镜数据(从ProjectStage.output_data读取)
-            storyboards = stage.output_data.get("human_text", {}).get("scenes", [])
-
-            if not storyboards:
-                return StageResult(
-                    success=False, error="没有找到分镜数据", can_retry=False
-                )
-
-            # 获取AI客户端
-            provider = self._get_image2video_provider(project)
-            video_generator = VideoGenerator(
-                api_token=provider.api_key, use_backup=False
-            )
-
-            # 批量生成视频
-            generated_videos = []
-            failed_count = 0
-
-            for index, storyboard in enumerate(storyboards, 1):
-                try:
-                    # 检查是否有图片URL
-                    image_urls = storyboard.get("urls", [])
-                    if not image_urls:
-                        logger.warning(f"分镜 {index} 没有图片URL，跳过")
-                        failed_count += 1
-                        continue
-
-                    # 生成视频
-                    video_url = self._generate_single_video(
-                        storyboard=storyboard,
-                        scene_number=index,
-                        video_generator=video_generator,
-                        provider=provider,
-                    )
-
-                    if video_url:
-                        generated_videos.append(
-                            {"scene_number": index, "video_url": video_url}
-                        )
-                        # 更新output_data
-                        storyboard["video_url"] = video_url
-                    else:
-                        failed_count += 1
-
-                except Exception as e:
-                    logger.error(f"分镜 {index} 视频生成失败: {str(e)}")
-                    failed_count += 1
-
-            # 保存最终结果
-            success_count = len(generated_videos)
-            total = len(storyboards)
-
-            output_data = {
-                "human_text": {"scenes": storyboards},
-                "total_storyboards": total,
-                "success_count": success_count,
-                "failed_count": failed_count,
-                "generated_videos": generated_videos,
-            }
-
-            stage.output_data = output_data
-            stage.status = "completed" if failed_count == 0 else "partially_completed"
-            stage.completed_at = timezone.now()
-            stage.save()
-
-            # 添加到上下文
-            context.add_result(self.stage_type, output_data)
-
-            return StageResult(success=True, data=output_data)
-
-        except Exception as e:
-            logger.error(f"{self.stage_type} 阶段处理失败: {str(e)}", exc_info=True)
-            return StageResult(success=False, error=str(e), can_retry=True)
+        pass
 
     def process_stream(
         self,
@@ -222,7 +140,9 @@ class Image2VideoStageProcessor(StageProcessor):
         try:
             # 获取项目和阶段
             project = Project.objects.get(id=project_id)
-            stage, created = ProjectStage.objects.get_or_create(project=project, stage_type=self.stage_type)
+            stage, created = ProjectStage.objects.get_or_create(
+                project=project, stage_type=self.stage_type
+            )
 
             # 更新阶段状态
             stage.status = "processing"
@@ -242,7 +162,9 @@ class Image2VideoStageProcessor(StageProcessor):
             # 从 Storyboard 模型获取分镜列表
             from apps.content.models import Storyboard as StoryboardModel
 
-            storyboards_query = StoryboardModel.objects.filter(project=project).order_by('sequence_number')
+            storyboards_query = StoryboardModel.objects.filter(
+                project=project
+            ).order_by("sequence_number")
 
             # 如果指定了分镜ID,则只处理这些分镜
             if storyboard_ids:
@@ -250,13 +172,16 @@ class Image2VideoStageProcessor(StageProcessor):
 
             completed_storyboard_ids = set(
                 GeneratedVideo.objects.filter(
-                    storyboard__project=project,
-                    status='completed'
-                ).values_list('storyboard_id', flat=True).distinct()
+                    storyboard__project=project, status="completed"
+                )
+                .values_list("storyboard_id", flat=True)
+                .distinct()
             )
 
             if not force_regenerate:
-                storyboards_query = storyboards_query.exclude(id__in=completed_storyboard_ids)
+                storyboards_query = storyboards_query.exclude(
+                    id__in=completed_storyboard_ids
+                )
 
             storyboards = list(storyboards_query)
 
@@ -278,10 +203,10 @@ class Image2VideoStageProcessor(StageProcessor):
                 try:
                     # 构建分镜数据字典(兼容原有接口)
                     storyboard_dict = {
-                        'scene_number': storyboard_obj.sequence_number,
-                        'narration': storyboard_obj.narration_text,
-                        'visual_prompt': storyboard_obj.image_prompt,
-                        'shot_type': storyboard_obj.scene_description
+                        "scene_number": storyboard_obj.sequence_number,
+                        "narration": storyboard_obj.narration_text,
+                        "visual_prompt": storyboard_obj.image_prompt,
+                        "shot_type": storyboard_obj.scene_description,
                     }
 
                     # 进度更新
@@ -296,10 +221,10 @@ class Image2VideoStageProcessor(StageProcessor):
                     # 检查是否有图片URL
                     # 从 GeneratedImage 模型获取该分镜的图片
                     from apps.content.models import GeneratedImage
+
                     generated_images = GeneratedImage.objects.filter(
-                        storyboard=storyboard_obj,
-                        status='completed'
-                    ).order_by('-created_at')
+                        storyboard=storyboard_obj, status="completed"
+                    ).order_by("-created_at")
 
                     if not generated_images.exists():
                         failed_count += 1
@@ -311,7 +236,7 @@ class Image2VideoStageProcessor(StageProcessor):
 
                     # 使用第一张生成的图片
                     first_image = generated_images.first()
-                    storyboard_dict['urls'] = [{'url': first_image.image_url}]
+                    storyboard_dict["urls"] = [{"url": first_image.image_url}]
 
                     # 生成视频 (流式推送状态更新)
                     video_urls = None
@@ -327,14 +252,17 @@ class Image2VideoStageProcessor(StageProcessor):
                         # 保存最终生成的视频URL
                         if event["type"] == "video_generated":
                             video_urls_obj = event.get("video_urls", {})
-                            if getattr(video_urls_obj, 'data', None):
+                            if getattr(video_urls_obj, "data", None):
                                 video_urls = video_urls_obj.data
                             else:
                                 video_urls = video_urls_obj.get("data", [])
 
                     if video_urls:
                         generated_videos.append(
-                            {"scene_number": storyboard_obj.sequence_number, "video_urls": video_urls}
+                            {
+                                "scene_number": storyboard_obj.sequence_number,
+                                "video_urls": video_urls,
+                            }
                         )
 
                         # 保存到 GeneratedVideo 模型
@@ -350,20 +278,20 @@ class Image2VideoStageProcessor(StageProcessor):
                                 storyboard=storyboard_obj,
                                 image=first_image,
                                 camera_movement=camera_movement,
-                                video_url=video_data.get('url', ''),
-                                thumbnail_url='',
+                                video_url=video_data.get("url", ""),
+                                thumbnail_url="",
                                 generation_params={
-                                    'prompt': storyboard_dict.get('visual_prompt', ''),
-                                    'model': provider.model_name if provider else '',
-                                    'original_data': video_data
+                                    "prompt": storyboard_dict.get("visual_prompt", ""),
+                                    "model": provider.model_name if provider else "",
+                                    "original_data": video_data,
                                 },
                                 model_provider=provider,
-                                status='completed',
-                                duration=video_data.get('duration', 0),
-                                width=video_data.get('width', 0),
-                                height=video_data.get('height', 0),
-                                fps=video_data.get('fps', 0),
-                                file_size=video_data.get('file_size', 0)
+                                status="completed",
+                                duration=video_data.get("duration", 0),
+                                width=video_data.get("width", 0),
+                                height=video_data.get("height", 0),
+                                fps=video_data.get("fps", 0),
+                                file_size=video_data.get("file_size", 0),
                             )
                     else:
                         failed_count += 1
@@ -374,7 +302,9 @@ class Image2VideoStageProcessor(StageProcessor):
 
                 except Exception as e:
                     failed_count += 1
-                    logger.error(f"分镜 {storyboard_obj.sequence_number} 生成失败: {str(e)}")
+                    logger.error(
+                        f"分镜 {storyboard_obj.sequence_number} 生成失败: {str(e)}"
+                    )
                     yield {
                         "type": "error",
                         "error": f"分镜 {storyboard_obj.sequence_number} 生成失败: {str(e)}",
@@ -384,14 +314,14 @@ class Image2VideoStageProcessor(StageProcessor):
             # 保存最终结果到阶段
             success_count = len(generated_videos)
             output_data = {
-                'total_storyboards': total,
-                'success_count': success_count,
-                'failed_count': failed_count,
-                'generated_videos': generated_videos
+                "total_storyboards": total,
+                "success_count": success_count,
+                "failed_count": failed_count,
+                "generated_videos": generated_videos,
             }
 
             stage.output_data = output_data
-            stage.status = 'completed' if failed_count == 0 else 'completed'
+            stage.status = "completed" if failed_count == 0 else "completed"
             stage.completed_at = timezone.now()
             stage.save()
 
@@ -423,8 +353,8 @@ class Image2VideoStageProcessor(StageProcessor):
         try:
             project = Project.objects.get(id=context.project_id)
             stage = ProjectStage.objects.filter(
-                    project=project, stage_type=self.stage_type
-                ).first()
+                project=project, stage_type=self.stage_type
+            ).first()
 
             if stage:
                 stage.status = "failed"
@@ -436,90 +366,14 @@ class Image2VideoStageProcessor(StageProcessor):
 
     # ===== 私有辅助方法 =====
 
-    def _get_image2video_provider(
-        self, project: Project
-    ) -> Optional[ModelProvider]:
+    def _get_image2video_provider(self, project: Project) -> Optional[ModelProvider]:
         """获取图生视频模型提供商"""
 
         # 1. 从提示词模板获取默认模型
         template = self._get_prompt_template(project)
         if template and template.model_provider:
             return template.model_provider
-
-
         return None
-
-    def _generate_single_video(
-        self,
-        storyboard: Dict[str, Any],
-        scene_number: int,
-        video_generator: VideoGenerator,
-        provider: ModelProvider,
-    ) -> Optional[str]:
-        """
-        为单个分镜生成视频 (非流式版本)
-
-        Args:
-            storyboard: 分镜数据字典
-            scene_number: 分镜序号
-            video_generator: 视频生成器
-            provider: 模型提供商
-
-        Returns:
-            视频URL或None(失败时)
-        """
-        try:
-            # 准备生成参数
-            prompt = self._build_video_prompt(storyboard)
-            image_urls = storyboard.get("urls", [])
-
-            if not image_urls:
-                logger.error(f"分镜 {scene_number} 没有图片URL")
-                return None
-
-            generation_params = {
-                "prompt": prompt,
-                "model": provider.model_name,
-                "image_uri": image_urls[0],  # 使用第一张图片
-                "duration_seconds": int(storyboard.get("duration_seconds", 8)),
-                "aspect_ratio": "9:16",  # 默认竖屏
-                "generate_audio": True,
-            }
-
-            # 调用VideoGenerator创建任务 (同步函数,需要在executor中执行)
-            task_result = video_generator.create_video_task(**generation_params)
-
-            logger.info(f"分镜 {scene_number} 视频任务已创建: {task_result}")
-
-            # # 轮询等待任务完成
-            # task_result = loop.run_in_executor(
-            #     None,
-            #     lambda: video_generator.wait_for_completion(
-            #         task_id=task_id,
-            #         poll_interval=self.poll_interval,
-            #         max_wait_time=self.max_wait_time
-            #     )
-            # )
-
-            # 提取视频URL
-            videos = task_result
-            if not videos:
-                logger.error(f"分镜 {scene_number} 任务完成但没有视频数据")
-                return None
-
-            video_data = videos[0]  # 取第一个视频
-            video_url = video_data.get("url", "")
-
-            logger.info(f"分镜 {scene_number} 视频生成成功: {video_url}")
-            return video_url
-
-        except TimeoutError as e:
-            logger.error(f"分镜 {scene_number} 视频生成超时: {str(e)}")
-            return None
-
-        except Exception as e:
-            logger.error(f"分镜 {scene_number} 视频生成异常: {str(e)}", exc_info=True)
-            return None
 
     def image_to_base64(self, image_path):
         """将本地图片转换为 Base64 字符串（带格式前缀）"""
@@ -580,7 +434,6 @@ class Image2VideoStageProcessor(StageProcessor):
                 prompt=prompt,
             )
 
-
             yield {
                 "type": "video_generated",
                 "scene_number": scene_number,
@@ -593,10 +446,11 @@ class Image2VideoStageProcessor(StageProcessor):
             )
 
             yield {"type": "error", "error": str(e), "scene_number": scene_number}
+
     def _get_prompt_template(self, project: Project):
         """获取提示词模板"""
         # 从项目的prompt_template_set中获取
-        template_set = getattr(project, 'prompt_template_set', None)
+        template_set = getattr(project, "prompt_template_set", None)
         from apps.prompts.models import PromptTemplateSet, PromptTemplate
 
         if not template_set:
@@ -606,14 +460,16 @@ class Image2VideoStageProcessor(StageProcessor):
         if not template_set:
             return None
         # 获取对应阶段的模板 - 使用select_related预加载model_provider
-        template = PromptTemplate.objects.select_related('model_provider').filter(
-            template_set=template_set,
-            stage_type=self.stage_type,
-            is_active=True
-        ).first()
+        template = (
+            PromptTemplate.objects.select_related("model_provider")
+            .filter(
+                template_set=template_set, stage_type=self.stage_type, is_active=True
+            )
+            .first()
+        )
 
         return template
-    
+
     def _build_prompt(self, project: Project, storyboard: dict) -> str:
         """
         构建提示词
@@ -628,7 +484,7 @@ class Image2VideoStageProcessor(StageProcessor):
             raise ValueError(f"分镜 {storyboard.get('scene_number', '')} 没有图片URL")
         storyboard_copy = copy.deepcopy(storyboard)
         image_url = urls[0].get("url", "")
-        image_dir = Path(settings.STORAGE_ROOT) / 'image'
+        image_dir = Path(settings.STORAGE_ROOT) / "image"
         path_list = image_url.split("/")[-2:]
         image_path = Path(image_dir, *path_list)
         base64_image = self.image_to_base64(image_path)
@@ -640,12 +496,12 @@ class Image2VideoStageProcessor(StageProcessor):
             # 准备模板变量
             template_vars = {
                 **asset_context,
-                'project': {
-                    'name': project.name,
-                    'description': project.description,
-                    'original_topic': project.original_topic,
+                "project": {
+                    "name": project.name,
+                    "description": project.description,
+                    "original_topic": project.original_topic,
                 },
-                **storyboard_copy  # 合并输入数据作为变量
+                **storyboard_copy,  # 合并输入数据作为变量
             }
 
             # 渲染Jinja2模板
