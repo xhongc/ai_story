@@ -5,10 +5,13 @@
 支持视频生成任务提交和轮询查询
 """
 
-import requests
+import re
 import time
-from typing import Optional, Dict, Any, List
 from enum import Enum
+from typing import Optional, Dict, Any, List
+from urllib.parse import urlparse
+
+import requests
 
 
 class TaskStatus(Enum):
@@ -25,13 +28,19 @@ class TaskStatus(Enum):
 class VideoGeneratorClient:
     """视频生成客户端"""
 
+    VIDEO_TAG_PATTERN = re.compile(
+        r'<video[^>]+src=["\'](https?://[^"\']+)["\']',
+        re.IGNORECASE,
+    )
+    URL_PATTERN = re.compile(r'https?://\S+')
 
-    def __init__(self, api_url:str ,api_token: str, model: str):
+    def __init__(self, api_url: str, api_token: str, model: str):
         """初始化视频生成客户端
 
         Args:
+            api_url: API地址或基础地址
             api_token: API认证令牌
-            use_backup: 是否使用备用URL
+            model: 模型名称
         """
         self.api_token = api_token
         self.base_url = api_url
@@ -40,6 +49,48 @@ class VideoGeneratorClient:
             "Authorization": f"Bearer {api_token}",
             "Content-Type": "application/json"
         }
+
+    def _is_chat_completions_endpoint(self, api_url: str) -> bool:
+        """判断是否为 chat/completions 接口。"""
+        path = urlparse(api_url).path.rstrip('/')
+        return path.endswith('/chat/completions')
+
+    def _is_video_generations_endpoint(self, api_url: str) -> bool:
+        """判断是否为 video(s)/generations 接口。"""
+        path = urlparse(api_url).path.rstrip('/')
+        return path.endswith('/video/generations') or path.endswith('/videos/generations')
+
+    def _build_create_video_url(self) -> str:
+        """构建视频生成请求地址。"""
+        if self._is_chat_completions_endpoint(self.base_url):
+            return self.base_url
+        if self._is_video_generations_endpoint(self.base_url):
+            return self.base_url
+        return f"{self.base_url.rstrip('/')}/v1/videos/generations"
+
+    def _build_task_status_url(self, task_id: str) -> str:
+        """构建任务状态查询地址。"""
+        if self._is_chat_completions_endpoint(self.base_url):
+            raise ValueError('chat/completions 接口不支持任务轮询')
+
+        create_url = self._build_create_video_url().rstrip('/')
+        return f"{create_url}/{task_id}"
+
+    def _extract_video_urls(self, content: str) -> List[str]:
+        """从响应内容中提取视频地址。"""
+        if not content:
+            return []
+
+        urls = self.VIDEO_TAG_PATTERN.findall(content)
+        if urls:
+            return list(dict.fromkeys(urls))
+
+        fallback_urls = []
+        for candidate in self.URL_PATTERN.findall(content):
+            cleaned = candidate.rstrip(').,]"\'\n\r\t >')
+            if cleaned:
+                fallback_urls.append(cleaned)
+        return list(dict.fromkeys(fallback_urls))
 
     def create_video_task(
         self,
@@ -75,14 +126,66 @@ class VideoGeneratorClient:
             person_generation: 人物生成控制
 
         Returns:
-            任务ID
+            任务ID或直接生成的视频结果
         """
-        url = f"{self.base_url}/v1/videos/generations"
+        url = self._build_create_video_url()
 
-        # 构建请求体
+        if self._is_chat_completions_endpoint(url):
+            text_prompt = prompt.strip()
+            if negative_prompt:
+                text_prompt = f"{text_prompt}\n\n负面提示词：{negative_prompt.strip()}"
+
+            message_content = [
+                {
+                    'type': 'text',
+                    'text': text_prompt,
+                }
+            ]
+
+            image_url = image_uri.get('url') if isinstance(image_uri, dict) else image_uri
+            if not image_url and image_base64:
+                image_url = f'data:{image_mime_type};base64,{image_base64}'
+
+            if image_url:
+                message_content.append(
+                    {
+                        'type': 'image_url',
+                        'image_url': {
+                            'url': image_url,
+                        },
+                    }
+                )
+
+            payload = {
+                'model': model,
+                'messages': [
+                    {
+                        'role': 'user',
+                        'content': message_content,
+                    }
+                ],
+            }
+
+            try:
+                response = requests.post(url, json=payload, headers=self.headers)
+                response.raise_for_status()
+                result = response.json()
+                choices = result.get('choices') or []
+                if not choices:
+                    raise Exception('响应格式错误: 缺少choices字段')
+
+                message = choices[0].get('message') or {}
+                content = message.get('content', '')
+                video_urls = self._extract_video_urls(content)
+                if not video_urls:
+                    raise Exception('响应格式错误: 未从message.content中解析到有效视频链接')
+
+                return video_urls
+            except requests.exceptions.RequestException as e:
+                raise Exception(f"创建视频任务失败: {str(e)}")
+
         instance = {"prompt": prompt}
 
-        # 添加图片信息(如果提供)
         if image_uri or image_base64:
             image_data = {"mimeType": image_mime_type}
             if image_uri:
@@ -91,7 +194,6 @@ class VideoGeneratorClient:
                 image_data["bytesBase64Encoded"] = image_base64
             instance["image"] = image_data
 
-        # 构建参数
         parameters = {
             "durationSeconds": duration_seconds,
             "sampleCount": sample_count,
@@ -99,7 +201,6 @@ class VideoGeneratorClient:
             "personGeneration": person_generation
         }
 
-        # 添加可选参数
         if generate_audio and model != "veo-2.0-generate-001":
             parameters["generateAudio"] = generate_audio
         if resolution:
@@ -109,11 +210,6 @@ class VideoGeneratorClient:
         if negative_prompt:
             parameters["negativePrompt"] = negative_prompt
 
-        # payload = {
-        #     "instances": [instance],
-        #     "parameters": parameters,
-        #     "model": model
-        # }
         file_path = image_uri.get("url") if isinstance(image_uri, dict) else image_uri
 
         payload = {
@@ -146,7 +242,7 @@ class VideoGeneratorClient:
         Returns:
             任务详情
         """
-        url = f"{self.base_url}/v1/videos/generations/{task_id}"
+        url = self._build_task_status_url(task_id)
 
         try:
             response = requests.get(url, headers=self.headers)
@@ -184,18 +280,15 @@ class VideoGeneratorClient:
             task_info = self.get_task_status(task_id)
             status = task_info.get("status")
 
-            # 执行回调
             if callback:
                 callback(task_info)
 
-            # 检查任务状态
             if status == TaskStatus.COMPLETED.value:
                 return task_info
-            elif status == TaskStatus.FAILED.value:
+            if status == TaskStatus.FAILED.value:
                 message = task_info.get("message", "未知错误")
                 raise Exception(f"任务失败: {message}")
 
-            # 等待后继续轮询
             time.sleep(poll_interval)
 
     def _generate_video(
@@ -216,7 +309,6 @@ class VideoGeneratorClient:
         Returns:
             视频下载链接列表
         """
-        # 创建任务
         task_result = self.create_video_task(prompt, **kwargs)
 
         if isinstance(task_result, list):
@@ -234,13 +326,11 @@ class VideoGeneratorClient:
 
         print(f"✓ 任务已创建: {task_id}")
 
-        # 状态回调
         def status_callback(task_info):
             status = task_info.get("status")
             message = task_info.get("message", "")
             print(f"  状态: {status} {message}")
 
-        # 等待完成
         result = self.wait_for_completion(
             task_id,
             poll_interval=poll_interval,
@@ -248,7 +338,6 @@ class VideoGeneratorClient:
             callback=status_callback
         )
 
-        # 提取视频链接
         videos = result.get("data", {}).get("videos", [])
         video_urls = [video["url"] for video in videos]
 

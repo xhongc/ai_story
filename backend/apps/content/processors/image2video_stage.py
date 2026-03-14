@@ -158,7 +158,7 @@ class Image2VideoStageProcessor(StageProcessor):
             }
 
             # 从 Storyboard 模型获取分镜列表
-            from apps.content.models import Storyboard as StoryboardModel
+            from apps.content.models import Storyboard as StoryboardModel, GeneratedVideo
 
             storyboards_query = StoryboardModel.objects.filter(
                 project=project
