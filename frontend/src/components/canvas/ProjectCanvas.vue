@@ -460,7 +460,7 @@ export default {
         startY: 60,
         columnGap: 60,
         rowGap: 90,
-        rewriteRowGap: 105
+        rewriteRowGap: 60
       };
     },
     treeLayout() {
