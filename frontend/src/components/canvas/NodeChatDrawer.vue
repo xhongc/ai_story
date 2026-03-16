@@ -113,6 +113,23 @@
             </div>
             <div
               v-if="message.role === 'assistant' && message.applyPatch"
+              class="patch-preview"
+            >
+              <button
+                class="patch-toggle"
+                type="button"
+                @click="togglePatchExpanded(message.id)"
+              >
+                <span>applyPatch</span>
+                <span>{{ isPatchExpanded(message.id) ? '收起' : '展开' }}</span>
+              </button>
+              <pre
+                v-show="isPatchExpanded(message.id)"
+                class="patch-content"
+              >{{ formatPatch(message.applyPatch) }}</pre>
+            </div>
+            <div
+              v-if="message.role === 'assistant' && message.applyPatch"
               class="message-footer"
             >
               <button
@@ -211,6 +228,7 @@ export default {
   data() {
     return {
       summaryExpanded: false,
+      expandedPatches: {},
     };
   },
   watch: {
@@ -228,6 +246,7 @@ export default {
     visible(isVisible) {
       if (isVisible) {
         this.summaryExpanded = false;
+        this.expandedPatches = {};
         this.$nextTick(() => {
           const list = this.$refs.messageList;
           if (list) {
@@ -248,6 +267,19 @@ export default {
         const length = textarea.value ? textarea.value.length : 0;
         textarea.setSelectionRange(length, length);
       });
+    },
+    isPatchExpanded(messageId) {
+      return Boolean(this.expandedPatches[messageId]);
+    },
+    togglePatchExpanded(messageId) {
+      this.$set(this.expandedPatches, messageId, !this.isPatchExpanded(messageId));
+    },
+    formatPatch(patch) {
+      try {
+        return JSON.stringify(patch, null, 2);
+      } catch (error) {
+        return String(patch || '');
+      }
     },
   },
 };
@@ -503,6 +535,53 @@ export default {
 
 .layout-shell.theme-dark .message-content {
   color: #e2e8f0;
+}
+
+.patch-preview {
+  margin-top: 0.45rem;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 12px;
+  background: rgba(248, 250, 252, 0.82);
+  overflow: hidden;
+}
+
+.layout-shell.theme-dark .patch-preview {
+  background: rgba(15, 23, 42, 0.78);
+  border-color: rgba(148, 163, 184, 0.18);
+}
+
+.patch-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.42rem 0.58rem;
+  border: 0;
+  background: transparent;
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.layout-shell.theme-dark .patch-toggle {
+  color: #cbd5e1;
+}
+
+.patch-content {
+  margin: 0;
+  padding: 0 0.58rem 0.58rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: #334155;
+}
+
+.layout-shell.theme-dark .patch-content {
+  color: #cbd5e1;
 }
 
 .message-footer {
