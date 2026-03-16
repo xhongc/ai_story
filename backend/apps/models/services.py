@@ -263,6 +263,12 @@ class ModelProviderService:
                     provider,
                     test_prompt,
                 )
+            elif provider.provider_type == 'image_edit':
+                test_prompt = '图片编辑测试：提升图片清晰度并补充细节'
+                result = await ModelProviderService._test_image_edit_provider(
+                    provider,
+                    test_prompt,
+                )
             else:
                 return {
                     'success': False,
@@ -525,6 +531,51 @@ class ModelProviderService:
             },
             'tokens_used': metadata.get('usage', {}).get('total_tokens', 0),
             'error': error,
+        }
+
+
+    @staticmethod
+    async def _test_image_edit_provider(
+        provider: ModelProvider,
+        prompt: str,
+    ) -> Dict[str, Any]:
+        """测试图片编辑提供商"""
+        from core.ai_client.factory import create_ai_client
+
+        extra_config = provider.extra_config or {}
+        image_url = (
+            extra_config.get('test_image_url')
+            or extra_config.get('image_url')
+            or extra_config.get('default_image_url')
+            or 'mock'
+        )
+        width = extra_config.get('width', 1024)
+        height = extra_config.get('height', 1024)
+        strength = extra_config.get('strength', 0.35)
+        mask_url = extra_config.get('mask_url', '')
+
+        client = await sync_to_async(create_ai_client)(provider)
+        ai_response = await sync_to_async(client.generate)(
+            image_url=image_url,
+            prompt=prompt,
+            mask_url=mask_url,
+            strength=strength,
+            width=width,
+            height=height,
+        )
+
+        return {
+            'success': ai_response.success,
+            'text': ai_response.text or ('ImageEdit test successful' if ai_response.success else ''),
+            'data': {
+                'prompt': prompt,
+                'provider': provider.name,
+                'images': ai_response.data,
+                'metadata': ai_response.metadata,
+                'test_image_url': image_url,
+            },
+            'tokens_used': ai_response.metadata.get('usage', {}).get('total_tokens', 0),
+            'error': ai_response.error,
         }
 
 

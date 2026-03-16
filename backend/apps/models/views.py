@@ -245,10 +245,16 @@ class ModelProviderViewSet(viewsets.ModelViewSet):
             is_active=True
         ).order_by('-priority')
 
+        image_edit_providers = ModelProvider.objects.filter(
+            provider_type='image_edit',
+            is_active=True
+        ).order_by('-priority')
+
         return Response({
             'llm': ModelProviderListSerializer(llm_providers, many=True).data,
             'text2image': ModelProviderListSerializer(text2image_providers, many=True).data,
             'image2video': ModelProviderListSerializer(image2video_providers, many=True).data,
+            'image_edit': ModelProviderListSerializer(image_edit_providers, many=True).data,
         })
 
     @action(detail=False, methods=['get'])

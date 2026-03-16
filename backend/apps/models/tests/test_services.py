@@ -58,3 +58,37 @@ class ModelProviderServiceImage2VideoTestCase(TestCase):
         self.assertEqual(result['data']['metadata']['aspect_ratio'], '9:16')
         mock_generate.assert_called_once()
         self.assertEqual(mock_generate.call_args.kwargs['image_uri'], 'http://example.com/test.png')
+
+
+
+class ModelProviderServiceImageEditTestCase(TestCase):
+    async def test_image_edit_provider_uses_mock_image_edit_client(self):
+        provider = ModelProvider(
+            name='Mock Image Edit',
+            provider_type='image_edit',
+            api_url='http://localhost:8010/api/mock/image-edit/',
+            api_key='secret',
+            model_name='mock-image-edit-v1',
+            executor_class='core.ai_client.mock_image_edit_client.MockImageEditClient',
+            timeout=30,
+            extra_config={
+                'test_image_url': 'http://example.com/input.png',
+                'width': 1536,
+                'height': 1536,
+                'strength': 0.25,
+            },
+        )
+
+        with patch(
+            'core.ai_client.mock_image_edit_client.MockImageEditClient.generate',
+            return_value=AIResponse(success=True, data=[{'url': 'http://example.com/output.png'}], metadata={'usage': {}})
+        ) as mock_generate:
+            result = await ModelProviderService._test_image_edit_provider(provider, 'enhance image')
+
+        self.assertTrue(result['success'])
+        self.assertEqual(result['data']['images'][0]['url'], 'http://example.com/output.png')
+        self.assertEqual(result['data']['test_image_url'], 'http://example.com/input.png')
+        mock_generate.assert_called_once()
+        self.assertEqual(mock_generate.call_args.kwargs['image_url'], 'http://example.com/input.png')
+        self.assertEqual(mock_generate.call_args.kwargs['width'], 1536)
+        self.assertEqual(mock_generate.call_args.kwargs['height'], 1536)

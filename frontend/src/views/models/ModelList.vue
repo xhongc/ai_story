@@ -237,7 +237,8 @@ export default {
         { label: '全部类型', value: '' },
         { label: 'LLM模型', value: 'llm' },
         { label: '文生图模型', value: 'text2image' },
-        { label: '图生视频模型', value: 'image2video' }
+        { label: '图生视频模型', value: 'image2video' },
+        { label: '图片编辑模型', value: 'image_edit' }
       ],
       statusOptions: [
         { label: '全部状态', value: '' },
@@ -388,7 +389,8 @@ export default {
       const labels = {
         llm: 'LLM',
         text2image: '文生图',
-        image2video: '图生视频'
+        image2video: '图生视频',
+        image_edit: '图片编辑'
       }
       return labels[type] || type
     },
@@ -397,7 +399,8 @@ export default {
       const classes = {
         llm: 'badge-primary',
         text2image: 'badge-info',
-        image2video: 'badge-accent'
+        image2video: 'badge-accent',
+        image_edit: 'badge-secondary'
       }
       return classes[type] || 'badge-ghost'
     }

@@ -14,7 +14,8 @@ const state = {
   providersByType: {
     llm: [],
     text2image: [],
-    image2video: []
+    image2video: [],
+    image_edit: []
   },
 
   // 使用日志
@@ -88,6 +89,13 @@ const getters = {
    */
   image2videoProviders: (state) => {
     return state.providersByType.image2video
+  },
+
+  /**
+   * 获取图片编辑提供商
+   */
+  imageEditProviders: (state) => {
+    return state.providersByType.image_edit
   }
 }
 

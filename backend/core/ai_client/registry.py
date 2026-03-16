@@ -6,7 +6,7 @@
 
 import importlib
 from typing import Type, Optional
-from .base import BaseAIClient, LLMClient, Text2ImageClient, Image2VideoClient
+from .base import BaseAIClient, LLMClient, Text2ImageClient, Image2VideoClient, ImageEditClient
 
 
 def get_executor_class(class_path: str) -> Optional[Type[BaseAIClient]]:
@@ -81,6 +81,7 @@ def get_base_class_for_provider_type(provider_type: str) -> Type[BaseAIClient]:
         'llm': LLMClient,
         'text2image': Text2ImageClient,
         'image2video': Image2VideoClient,
+        'image_edit': ImageEditClient,
     }
 
     base_class = base_class_map.get(provider_type)

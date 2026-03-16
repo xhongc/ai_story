@@ -17,6 +17,7 @@ class ModelProvider(models.Model):
         ('llm', 'LLM模型'),
         ('text2image', '文生图模型'),
         ('image2video', '图生视频模型'),
+        ('image_edit', '图片编辑模型'),
     ]
 
     # 执行器选项定义
@@ -35,6 +36,11 @@ class ModelProvider(models.Model):
         ('core.ai_client.image2video_client.VideoGeneratorClient', '图生视频客户端'),
         ('core.ai_client.comfyui_client.ComfyUIClient', 'ComfyUI客户端'),
         ('core.ai_client.mock_image2video_client.MockImage2VideoClient', 'Mock 图生视频客户端（测试用）'),
+    ]
+
+    IMAGE_EDIT_EXECUTORS = [
+        ('core.ai_client.image_edit_client.ImageEditClient', '图片编辑客户端'),
+        ('core.ai_client.mock_image_edit_client.MockImageEditClient', 'Mock 图片编辑客户端（测试用）'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -96,6 +102,7 @@ class ModelProvider(models.Model):
             'llm': self.LLM_EXECUTORS,
             'text2image': self.TEXT2IMAGE_EXECUTORS,
             'image2video': self.IMAGE2VIDEO_EXECUTORS,
+            'image_edit': self.IMAGE_EDIT_EXECUTORS,
         }
         return executor_map.get(self.provider_type, [])
 

@@ -13,7 +13,7 @@ export const modelProviderApi = {
   /**
    * 获取模型提供商列表
    * @param {Object} params - 查询参数
-   * @param {string} params.provider_type - 提供商类型 (llm/text2image/image2video)
+   * @param {string} params.provider_type - 提供商类型 (llm/text2image/image2video/image_edit)
    * @param {boolean} params.is_active - 是否激活
    * @param {string} params.search - 搜索关键词
    * @param {string} params.ordering - 排序字段
@@ -124,7 +124,7 @@ export const modelProviderApi = {
 
   /**
    * 按类型分组获取模型提供商
-   * @returns {Promise} - 返回 {llm: [], text2image: [], image2video: []}
+   * @returns {Promise} - 返回 {llm: [], text2image: [], image2video: [], image_edit: []}
    */
   getProvidersByType() {
     return apiClient.get('/models/providers/by_type/')
@@ -133,7 +133,7 @@ export const modelProviderApi = {
   /**
    * 获取简化的模型提供商列表(仅id和name) - 用于下拉选择
    * @param {Object} params - 查询参数
-   * @param {string} params.provider_type - 提供商类型 (llm/text2image/image2video)
+   * @param {string} params.provider_type - 提供商类型 (llm/text2image/image2video/image_edit)
    * @returns {Promise} - 返回 {count, results: [{id, name}]}
    */
   getSimpleList(params = {}) {
@@ -147,7 +147,7 @@ export const modelProviderApi = {
    *
    * 返回格式:
    * - 指定类型: {provider_type: 'llm', executors: [{value, label}]}
-   * - 所有类型: {llm: [{value, label}], text2image: [...], image2video: [...]}
+   * - 所有类型: {llm: [{value, label}], text2image: [...], image2video: [...], image_edit: [...]}
    */
   getExecutorChoices(providerType = null) {
     const params = providerType ? { provider_type: providerType } : {}

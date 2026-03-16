@@ -185,11 +185,10 @@ AI分析每个场景，自动生成合适的镜头运动方案。
 ---
 
 ## 联系方式
-
+![](wc.jpg)
 - 视频号：小小方圆669
 - 作者微信：charlesnowed （添加好友请备注 **AI Story**）
 - 项目地址：https://github.com/xhongc/ai_story
-
 
 uv run celery -A config worker -l info -P gevent
 

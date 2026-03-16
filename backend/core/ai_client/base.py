@@ -210,3 +210,58 @@ class Image2VideoClient(BaseAIClient):
     ) -> AIResponse:
         """具体的视频生成实现"""
         pass
+
+
+class ImageEditClient(BaseAIClient):
+    """
+    图片编辑客户端抽象基类
+    """
+
+    def generate(
+        self,
+        image_url: str,
+        prompt: str = "",
+        mask_url: str = "",
+        strength: float = 0.35,
+        width: int = 1024,
+        height: int = 1024,
+        **kwargs
+    ) -> AIResponse:
+        """
+        编辑图片
+
+        Args:
+            image_url: 源图片地址
+            prompt: 编辑提示词
+            mask_url: 蒙版图片地址
+            strength: 重绘强度
+            width: 输出宽度
+            height: 输出高度
+            **kwargs: 其他参数
+
+        Returns:
+            AIResponse: 包含编辑后图片URL的响应对象
+        """
+        return self._edit_image(
+            image_url=image_url,
+            prompt=prompt,
+            mask_url=mask_url,
+            strength=strength,
+            width=width,
+            height=height,
+            **kwargs
+        )
+
+    @abstractmethod
+    def _edit_image(
+        self,
+        image_url: str,
+        prompt: str,
+        mask_url: str,
+        strength: float,
+        width: int,
+        height: int,
+        **kwargs
+    ) -> AIResponse:
+        """具体的图片编辑实现"""
+        pass

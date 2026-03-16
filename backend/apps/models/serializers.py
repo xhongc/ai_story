@@ -194,6 +194,17 @@ class ModelProviderCreateSerializer(serializers.ModelSerializer):
                 extra_config['duration'] = 5
             attrs['extra_config'] = extra_config
 
+        elif provider_type == 'image_edit':
+            # 图片编辑模型建议配置extra_config中的基础图片参数
+            extra_config = attrs.get('extra_config', {})
+            if not extra_config.get('width'):
+                extra_config['width'] = 1024
+            if not extra_config.get('height'):
+                extra_config['height'] = 1024
+            if extra_config.get('strength') is None:
+                extra_config['strength'] = 0.35
+            attrs['extra_config'] = extra_config
+
         return attrs
 
 

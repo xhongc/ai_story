@@ -44,6 +44,9 @@
                 <option value="image2video">
                   图生视频模型
                 </option>
+                <option value="image_edit">
+                  图片编辑模型
+                </option>
               </select>
             </div>
 
@@ -254,6 +257,62 @@
             </div>
           </div>
 
+          <!-- 图片编辑参数 -->
+          <div
+            v-if="formData.provider_type === 'image_edit'"
+            class="space-y-4"
+          >
+            <div class="divider">
+              图片编辑参数配置
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div class="form-control">
+                <label class="label">
+                  <span class="label-text">默认宽度</span>
+                </label>
+                <input
+                  v-model.number="extraConfig.width"
+                  type="number"
+                  min="256"
+                  max="10240"
+                  step="32"
+                  class="input input-bordered"
+                  placeholder="1024"
+                >
+              </div>
+
+              <div class="form-control">
+                <label class="label">
+                  <span class="label-text">默认高度</span>
+                </label>
+                <input
+                  v-model.number="extraConfig.height"
+                  type="number"
+                  min="256"
+                  max="10240"
+                  step="32"
+                  class="input input-bordered"
+                  placeholder="1024"
+                >
+              </div>
+
+              <div class="form-control">
+                <label class="label">
+                  <span class="label-text">默认重绘强度</span>
+                </label>
+                <input
+                  v-model.number="extraConfig.strength"
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  class="input input-bordered"
+                  placeholder="0.35"
+                >
+              </div>
+            </div>
+          </div>
+
           <!-- 通用配置 -->
           <div class="divider">
             通用配置
@@ -392,7 +451,8 @@ export default {
         width: 1024,
         height: 1024,
         fps: 24,
-        duration: 5
+        duration: 5,
+        strength: 0.35
       },
       availableExecutors: [],
       loadingExecutors: false,
