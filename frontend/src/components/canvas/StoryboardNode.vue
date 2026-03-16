@@ -27,6 +27,26 @@
         <span class="duration-badge">{{ storyboard.duration_seconds || 3 }}s</span>
         <button
           class="btn btn-circle btn-xs btn-ghost"
+          title="对话修改"
+          @click="handleChatEdit"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-3 w-3"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 4v-4z"
+            />
+          </svg>
+        </button>
+        <button
+          class="btn btn-circle btn-xs btn-ghost"
           title="保存修改"
           @click="handleSave"
         >
@@ -267,6 +287,11 @@ export default {
       return Boolean(
         target.closest('button, input, textarea, select, option, video, [contenteditable="true"], .prevent-canvas-wheel')
       );
+    },
+    handleChatEdit() {
+      this.$emit('chat-edit', {
+        storyboardId: this.storyboard.id,
+      });
     },
     handleSave() {
       this.$emit('save', {

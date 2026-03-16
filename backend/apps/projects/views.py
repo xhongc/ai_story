@@ -5,21 +5,31 @@
 """
 
 
+import json
+import uuid
+
 from celery.result import AsyncResult
 from django.core.cache import cache
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.db.models import Q
+from django.http import StreamingHttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
+from jinja2 import Template, TemplateError
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter, SearchFilter
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import AccessToken
 
+from apps.models.models import ModelProvider
+from apps.prompts.models import PromptTemplate, PromptTemplateSet
 from apps.prompts.models import GlobalVariable
 from apps.prompts.serializers import GlobalVariableListSerializer
+from core.ai_client.factory import create_ai_client
 from .models import Project, ProjectAssetBinding, ProjectModelConfig, ProjectStage, Series
 from .queue_service import cancel_running_queue_task, enqueue_episode_task, force_release_queue_task
 from .serializers import (
@@ -136,6 +146,356 @@ class ProjectViewSet(viewsets.ModelViewSet):
             Q(created_by=user, scope='user', is_active=True) |
             Q(scope='system', is_active=True)
         ).order_by('group', 'key')
+
+    def _get_node_chat_template(self, project, node_type):
+        stage_type_map = {
+            'storyboard': 'storyboard',
+            'camera_movement': 'camera_movement',
+        }
+        stage_type = stage_type_map.get(node_type)
+        if not stage_type:
+            return None
+
+        template_set = getattr(project, 'prompt_template_set', None)
+        if not template_set:
+            template_set = PromptTemplateSet.objects.filter(is_default=True).first()
+
+        if not template_set:
+            return None
+
+        return PromptTemplate.objects.select_related('model_provider').filter(
+            template_set=template_set,
+            stage_type=stage_type,
+            is_active=True,
+        ).first()
+
+    def _get_default_llm_provider(self):
+        provider = ModelProvider.objects.filter(
+            provider_type='llm',
+            is_active=True,
+        ).first()
+        if not provider:
+            raise ValueError('未找到可用的 LLM 模型提供商')
+        return provider
+
+    def _get_node_chat_provider(self, project, node_type):
+        config = getattr(project, 'model_config', None)
+        provider = None
+
+        if config:
+            field_name = {
+                'storyboard': 'storyboard_providers',
+                'camera_movement': 'camera_providers',
+            }.get(node_type)
+            if field_name:
+                providers = list(getattr(config, field_name).all())
+                if providers:
+                    provider = providers[0]
+
+        if not provider:
+            template = self._get_node_chat_template(project, node_type)
+            if template and template.model_provider:
+                provider = template.model_provider
+
+        if not provider:
+            provider = self._get_default_llm_provider()
+
+        return provider
+
+    def _get_node_chat_asset_context(self, project):
+        from .asset_context import build_project_asset_context
+
+        return build_project_asset_context(project)
+
+    def _render_node_chat_system_prompt(self, project, node_type, node_payload):
+        template = self._get_node_chat_template(project, node_type)
+        if not template:
+            return ''
+
+        template_vars = {
+            **self._get_node_chat_asset_context(project),
+            'project': {
+                'name': project.name,
+                'description': project.description,
+                'original_topic': project.original_topic,
+            },
+            'node': node_payload,
+            'chat_mode': 'node_edit',
+        }
+
+        try:
+            return Template(template.template_content).render(**template_vars)
+        except TemplateError as exc:
+            raise ValueError(f'节点对话模板渲染失败: {str(exc)}')
+
+    def _build_storyboard_node_payload(self, storyboard):
+        return {
+            'id': str(storyboard.id),
+            'sequence_number': storyboard.sequence_number,
+            'scene_description': storyboard.scene_description or '',
+            'narration_text': storyboard.narration_text or '',
+            'image_prompt': storyboard.image_prompt or '',
+            'duration_seconds': storyboard.duration_seconds,
+        }
+
+    def _build_camera_node_payload(self, camera):
+        storyboard = camera.storyboard
+        return {
+            'id': str(camera.id),
+            'storyboard_id': str(storyboard.id),
+            'sequence_number': storyboard.sequence_number,
+            'scene_description': storyboard.scene_description or '',
+            'narration_text': storyboard.narration_text or '',
+            'image_prompt': storyboard.image_prompt or '',
+            'movement_type': camera.movement_type or '',
+            'movement_params': camera.movement_params or {},
+        }
+
+    def _resolve_node_chat_target(self, project, node_type, node_id):
+        from apps.content.models import Storyboard, CameraMovement
+
+        if node_type == 'storyboard':
+            storyboard = get_object_or_404(Storyboard, id=node_id, project=project)
+            return storyboard, self._build_storyboard_node_payload(storyboard)
+
+        if node_type == 'camera_movement':
+            camera = get_object_or_404(
+                CameraMovement.objects.select_related('storyboard'),
+                id=node_id,
+                storyboard__project=project,
+            )
+            return camera, self._build_camera_node_payload(camera)
+
+        raise ValueError('不支持的节点类型')
+
+    def _build_node_chat_user_prompt(self, node_type, node_payload, messages, user_message):
+        node_title = '分镜节点' if node_type == 'storyboard' else '运镜节点'
+        output_format = {
+            'storyboard': {
+                'reply_text': '自然语言回复',
+                'apply_patch': {
+                    'scene_description': '字符串',
+                    'narration_text': '字符串',
+                    'image_prompt': '字符串',
+                    'duration_seconds': '数字，可选',
+                }
+            },
+            'camera_movement': {
+                'reply_text': '自然语言回复',
+                'apply_patch': {
+                    'movement_type': '字符串',
+                    'movement_params': {
+                        'description': '字符串',
+                    }
+                }
+            }
+        }[node_type]
+
+        conversation = []
+        for item in messages or []:
+            role = item.get('role') or 'user'
+            content = item.get('content') or ''
+            if content.strip():
+                conversation.append(f'[{role}] {content}')
+
+        conversation_text = '\n'.join(conversation) if conversation else '无历史对话'
+
+        prompt = f"""你是一个视频创作工作流中的{node_title}协作助手。
+
+当前节点内容如下：
+{json.dumps(node_payload, ensure_ascii=False, indent=2)}
+
+历史对话：
+{conversation_text}
+
+本轮用户诉求：
+{user_message}
+
+请根据用户诉求修改当前节点内容，并严格返回 JSON，不要输出 Markdown 代码块。
+要求：
+1. `reply_text` 用中文解释你做了什么修改。
+2. `apply_patch` 只返回应该写回当前节点的字段。
+3. 不要返回多余字段。
+4. 如果用户要求不明确，请在 `reply_text` 中给出合理假设，但仍提供可应用结果。
+
+返回格式：
+{json.dumps(output_format, ensure_ascii=False, indent=2)}
+"""
+        return prompt
+
+    def _extract_node_chat_result(self, raw_text, node_type, node_payload):
+        try:
+            json_text = raw_text.strip()
+            if '```json' in json_text:
+                json_text = json_text.split('```json', 1)[1].split('```', 1)[0].strip()
+            elif '```' in json_text:
+                json_text = json_text.split('```', 1)[1].split('```', 1)[0].strip()
+            data = json.loads(json_text)
+        except Exception as exc:
+            raise ValueError(f'节点对话结果解析失败: {str(exc)}')
+
+        reply_text = (data.get('reply_text') or '').strip()
+        apply_patch = data.get('apply_patch') or {}
+
+        if node_type == 'storyboard':
+            normalized_patch = {
+                'scene_description': apply_patch.get('scene_description', node_payload.get('scene_description', '')),
+                'narration_text': apply_patch.get('narration_text', node_payload.get('narration_text', '')),
+                'image_prompt': apply_patch.get('image_prompt', node_payload.get('image_prompt', '')),
+            }
+            if 'duration_seconds' in apply_patch and apply_patch.get('duration_seconds') not in (None, ''):
+                normalized_patch['duration_seconds'] = apply_patch.get('duration_seconds')
+            return {
+                'reply_text': reply_text or '我已经根据你的要求调整了分镜内容。',
+                'apply_patch': normalized_patch,
+            }
+
+        current_movement_params = node_payload.get('movement_params') or {}
+        patch_params = apply_patch.get('movement_params') or {}
+        normalized_patch = {
+            'movement_type': apply_patch.get('movement_type', node_payload.get('movement_type', '')),
+            'movement_params': {
+                **current_movement_params,
+                **patch_params,
+            }
+        }
+        return {
+            'reply_text': reply_text or '我已经根据你的要求调整了运镜参数。',
+            'apply_patch': normalized_patch,
+        }
+
+    def _authenticate_stream_user(self, request):
+        token = (request.query_params.get('access_token') or '').strip()
+        if not token:
+            return None
+
+        try:
+            access_token = AccessToken(token)
+            user_id = access_token.get('user_id')
+            if not user_id:
+                return None
+            return get_user_model().objects.filter(id=user_id).first()
+        except Exception:
+            return None
+
+    @action(detail=True, methods=['post'], url_path='node-chat-init')
+    def node_chat_init(self, request, pk=None):
+        project = self.get_object()
+        node_type = (request.data.get('node_type') or '').strip()
+        node_id = request.data.get('node_id')
+        user_message = (request.data.get('user_message') or '').strip()
+        messages = request.data.get('messages') or []
+
+        if node_type not in ('storyboard', 'camera_movement'):
+            return Response({'error': '不支持的节点类型'}, status=status.HTTP_400_BAD_REQUEST)
+        if not node_id:
+            return Response({'error': '缺少 node_id'}, status=status.HTTP_400_BAD_REQUEST)
+        if not user_message:
+            return Response({'error': '缺少 user_message'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            _, node_payload = self._resolve_node_chat_target(project, node_type, node_id)
+        except ValueError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        stream_token = uuid.uuid4().hex
+        cache.set(
+            f'project_node_chat_stream:{stream_token}',
+            {
+                'project_id': str(project.id),
+                'user_id': request.user.id,
+                'node_type': node_type,
+                'node_id': str(node_id),
+                'user_message': user_message,
+                'messages': messages,
+                'node_payload': node_payload,
+            },
+            timeout=300,
+        )
+
+        return Response({'stream_token': stream_token})
+
+    @action(detail=True, methods=['get'], url_path='node-chat-stream', permission_classes=[AllowAny])
+    def node_chat_stream(self, request, pk=None):
+        user = self._authenticate_stream_user(request)
+        if not user:
+            return Response({'error': '未授权访问'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        project = Project.objects.filter(id=pk, user=user).first()
+        if not project:
+            return Response({'error': '项目不存在或无权限访问'}, status=status.HTTP_404_NOT_FOUND)
+
+        stream_token = request.query_params.get('stream_token', '').strip()
+        if not stream_token:
+            return Response({'error': '缺少 stream_token'}, status=status.HTTP_400_BAD_REQUEST)
+
+        cache_key = f'project_node_chat_stream:{stream_token}'
+        stream_payload = cache.get(cache_key)
+        if not stream_payload:
+            return Response({'error': '流式对话令牌无效或已过期'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if stream_payload.get('project_id') != str(project.id):
+            return Response({'error': '项目不匹配'}, status=status.HTTP_403_FORBIDDEN)
+        if stream_payload.get('user_id') != user.id:
+            return Response({'error': '无权访问该流式对话'}, status=status.HTTP_403_FORBIDDEN)
+
+        def event_stream():
+            try:
+                node_type = stream_payload.get('node_type')
+                node_id = stream_payload.get('node_id')
+                user_message = stream_payload.get('user_message') or ''
+                messages = stream_payload.get('messages') or []
+                _, node_payload = self._resolve_node_chat_target(project, node_type, node_id)
+                provider = self._get_node_chat_provider(project, node_type)
+                ai_client = create_ai_client(provider)
+                system_prompt = self._render_node_chat_system_prompt(project, node_type, node_payload)
+                prompt = self._build_node_chat_user_prompt(node_type, node_payload, messages, user_message)
+                max_tokens = getattr(provider, 'max_tokens', None) or ai_client.config.get('max_tokens', 2000)
+                temperature = getattr(provider, 'temperature', None)
+                if temperature is None:
+                    temperature = ai_client.config.get('temperature', 0.7)
+
+                yield f"data: {json.dumps({'type': 'connected'}, ensure_ascii=False)}\n\n"
+
+                final_text = ''
+                for event in ai_client.generate_stream(
+                    prompt=prompt,
+                    system_prompt=system_prompt,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                ):
+                    if event.get('type') == 'token':
+                        final_text = event.get('full_text') or final_text
+                        payload = {
+                            'type': 'token',
+                            'content': event.get('content', ''),
+                            'full_text': final_text,
+                        }
+                        yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+                    elif event.get('type') == 'done':
+                        final_text = event.get('full_text') or final_text
+                        result = self._extract_node_chat_result(final_text, node_type, node_payload)
+                        payload = {
+                            'type': 'done',
+                            'reply_text': result['reply_text'],
+                            'apply_patch': result['apply_patch'],
+                            'raw_text': final_text,
+                            'metadata': event.get('metadata') or {},
+                        }
+                        yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+                    elif event.get('type') == 'error':
+                        payload = {'type': 'error', 'error': event.get('error') or '节点对话生成失败'}
+                        yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+            except Exception as exc:
+                payload = json.dumps({'type': 'error', 'error': str(exc)}, ensure_ascii=False)
+                yield f'data: {payload}\n\n'
+            finally:
+                cache.delete(cache_key)
+
+        response = StreamingHttpResponse(event_stream(), content_type='text/event-stream; charset=utf-8')
+        response['Cache-Control'] = 'no-cache, no-transform'
+        response['X-Accel-Buffering'] = 'no'
+        return response
 
     def perform_create(self, serializer):
         """创建项目时自动设置当前用户"""

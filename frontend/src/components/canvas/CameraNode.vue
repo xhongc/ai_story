@@ -45,8 +45,29 @@
           />
         </svg>
         <button
+          v-if="cameraId"
+          class="btn btn-circle btn-xs btn-ghost"
+          title="对话修改"
+          @click="handleChatEdit"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-3 w-3"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 4v-4z"
+            />
+          </svg>
+        </button>
+        <button
           class="btn btn-circle btn-xs btn-primary"
-          title="生成运镜"
+          :title="cameraId ? '重新生成运镜' : '生成运镜'"
           @click="handleGenerate"
         >
           <svg
@@ -190,7 +211,21 @@ export default {
     getMovementDescription(params) {
       return params?.description || params?.raw_text || '';
     },
+    handleChatEdit() {
+      if (!this.cameraId) {
+        this.$message?.warning('请先生成一次运镜，再使用对话微调');
+        return;
+      }
+      this.$emit('chat-edit', {
+        cameraId: this.cameraId,
+        storyboardId: this.storyboardId,
+      });
+    },
     async handleGenerate() {
+      if (this.cameraId) {
+        this.handleChatEdit();
+        return;
+      }
       this.isGenerating = true;
       try {
         this.$emit('generate', {

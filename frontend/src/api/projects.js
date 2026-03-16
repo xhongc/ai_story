@@ -147,6 +147,19 @@ export default {
     return apiClient.patch(`/projects/projects/${projectId}/update_camera_movement/`, data);
   },
 
+  initNodeChat(projectId, data) {
+    return apiClient.post(`/projects/projects/${projectId}/node-chat-init/`, data);
+  },
+
+  getNodeChatStreamUrl(projectId, streamToken, accessToken) {
+    const baseUrl = (process.env.VUE_APP_API_BASE_URL || '/api/v1').replace(/\/$/, '');
+    const query = new URLSearchParams({ stream_token: streamToken });
+    if (accessToken) {
+      query.set('access_token', accessToken);
+    }
+    return `${baseUrl}/projects/projects/${projectId}/node-chat-stream/?${query.toString()}`;
+  },
+
   runPipeline(projectId) {
     return apiClient.post(`/projects/projects/${projectId}/run_pipeline/`);
   },

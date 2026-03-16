@@ -353,6 +353,7 @@
             :asset-options="boundAssets"
             @node-dblclick="focusCanvasNode(`storyboard-${index}`)"
             @save="handleSaveStoryboard"
+            @chat-edit="handleOpenStoryboardChat"
           />
 
           <!-- 文生图节点 -->
@@ -386,6 +387,7 @@
             @node-dblclick="focusCanvasNode(`camera-${index}`)"
             @generate="handleGenerateCamera"
             @save="handleSaveCamera"
+            @chat-edit="handleOpenCameraChat"
           />
 
           <!-- 视频生成节点 -->
@@ -435,6 +437,24 @@
         </div>
       </flow-canvas>
     </div>
+
+    <node-chat-drawer
+      :visible="nodeChat.visible"
+      :title="nodeChatTitle"
+      :subtitle="nodeChatSubtitle"
+      :summary="nodeChatSummary"
+      :value="nodeChat.input"
+      :messages="nodeChat.messages"
+      :quick-actions="nodeChatQuickActions"
+      :streaming="nodeChat.streaming"
+      :applying="nodeChat.applying"
+      @close="closeNodeChatDrawer"
+      @input="handleNodeChatInput"
+      @submit="submitNodeChat"
+      @stop="stopNodeChat"
+      @apply="applyNodeChatMessage"
+      @quick-action="applyNodeQuickAction"
+    />
   </div>
 </template>
 
@@ -445,9 +465,11 @@ import StoryboardNode from './StoryboardNode.vue';
 import ImageGenNode from './ImageGenNode.vue';
 import CameraNode from './CameraNode.vue';
 import VideoGenNode from './VideoGenNode.vue';
+import NodeChatDrawer from './NodeChatDrawer.vue';
 import StatusBadge from '@/components/common/StatusBadge.vue';
 import JianyingDraftButton from '@/components/projects/JianyingDraftButton.vue';
 import projectsAPI from '@/api/projects';
+import store from '@/store';
 import { formatDate } from '@/utils/helpers';
 
 export default {
@@ -459,6 +481,7 @@ export default {
     ImageGenNode,
     CameraNode,
     VideoGenNode,
+    NodeChatDrawer,
     StatusBadge,
     JianyingDraftButton
   },
@@ -511,7 +534,20 @@ export default {
       showEpisodeMenu: false,
       switchingEpisodeId: null,
       episodeSearch: '',
-      highlightedEpisodeIndex: 0
+      highlightedEpisodeIndex: 0,
+      nodeChat: {
+        visible: false,
+        type: '',
+        nodeId: null,
+        storyboardId: null,
+        cameraId: null,
+        input: '',
+        messages: [],
+        streaming: false,
+        applying: false,
+        streamRequestId: 0,
+        abortController: null,
+      }
     };
   },
   computed: {
@@ -684,6 +720,53 @@ export default {
       const selectedIds = new Set(this.selectedAssetIds);
       return this.availableAssets.filter(asset => selectedIds.has(asset.id));
     },
+    nodeChatTargetStoryboard() {
+      if (!this.nodeChat.storyboardId) {
+        return null;
+      }
+      return this.storyboards.find(item => item.id === this.nodeChat.storyboardId) || null;
+    },
+    nodeChatTitle() {
+      if (this.nodeChat.type === 'storyboard') {
+        const sequence = this.nodeChatTargetStoryboard?.sequence_number || '';
+        return sequence ? `分镜 ${sequence} 对话修改` : '分镜对话修改';
+      }
+      const sequence = this.nodeChatTargetStoryboard?.sequence_number || '';
+      return sequence ? `分镜 ${sequence} 运镜对话修改` : '运镜对话修改';
+    },
+    nodeChatSubtitle() {
+      if (this.nodeChat.type === 'storyboard') {
+        return '多轮修改场景、旁白和出图提示词，完成后可一键应用';
+      }
+      return '围绕当前运镜参数进行微调，完成后可一键应用';
+    },
+    nodeChatSummary() {
+      const storyboard = this.nodeChatTargetStoryboard;
+      if (!storyboard) {
+        return '';
+      }
+      if (this.nodeChat.type === 'storyboard') {
+        return [
+          `场景：${storyboard.scene_description || '暂无'}`,
+          `旁白：${storyboard.narration_text || '暂无'}`,
+          `图片提示词：${storyboard.image_prompt || '暂无'}`,
+          `时长：${storyboard.duration_seconds || 3}s`,
+        ].join('\n');
+      }
+      const camera = storyboard.camera_movement?.data || {};
+      const movementParams = camera.movement_params || {};
+      return [
+        `关联分镜：${storyboard.scene_description || `分镜 ${storyboard.sequence_number}`}`,
+        `运镜类型：${camera.movement_type || '暂无'}`,
+        `运镜描述：${movementParams.description || movementParams.raw_text || '暂无'}`,
+      ].join('\n');
+    },
+    nodeChatQuickActions() {
+      if (this.nodeChat.type === 'storyboard') {
+        return ['更电影感', '加强环境细节', '压缩旁白', '更适合出图'];
+      }
+      return ['更平稳', '更有推进感', '减少晃动', '更适合图生视频'];
+    },
     connections() {
       const conns = [];
 
@@ -799,6 +882,7 @@ export default {
       this.highlightedEpisodeIndex = 0;
       this.availableAssets = [];
       this.selectedAssetIds = [];
+      this.resetNodeChatState();
       this.loadProjectAssets();
     },
     showEpisodeMenu(isOpen) {
@@ -880,6 +964,7 @@ export default {
   },
   beforeDestroy() {
     document.removeEventListener('click', this.handleDocumentClick);
+    this.resetNodeChatState();
   },
   methods: {
     formatDate,
@@ -924,6 +1009,236 @@ export default {
         if (!clickedInsideDrawer && !clickedToggle) {
           this.showAssetDrawer = false;
         }
+      }
+    },
+    createChatMessage(role, content = '', extra = {}) {
+      return {
+        id: `${role}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        role,
+        content,
+        ...extra,
+      };
+    },
+    resetNodeChatState() {
+      if (this.nodeChat.abortController) {
+        this.nodeChat.abortController.abort();
+      }
+      this.nodeChat = {
+        visible: false,
+        type: '',
+        nodeId: null,
+        storyboardId: null,
+        cameraId: null,
+        input: '',
+        messages: [],
+        streaming: false,
+        applying: false,
+        streamRequestId: this.nodeChat.streamRequestId || 0,
+        abortController: null,
+      };
+    },
+    openNodeChatDrawer(payload) {
+      this.nodeChat.visible = true;
+      this.nodeChat.type = payload.type;
+      this.nodeChat.nodeId = payload.nodeId;
+      this.nodeChat.storyboardId = payload.storyboardId;
+      this.nodeChat.cameraId = payload.cameraId || null;
+      this.nodeChat.input = payload.defaultMessage || '';
+      this.nodeChat.messages = [];
+      this.nodeChat.streaming = false;
+      this.nodeChat.applying = false;
+      if (this.nodeChat.abortController) {
+        this.nodeChat.abortController.abort();
+        this.nodeChat.abortController = null;
+      }
+    },
+    handleOpenStoryboardChat({ storyboardId }) {
+      const storyboard = this.storyboards.find(item => item.id === storyboardId);
+      if (!storyboard) {
+        this.$message?.error('未找到对应分镜');
+        return;
+      }
+      this.openNodeChatDrawer({
+        type: 'storyboard',
+        nodeId: storyboardId,
+        storyboardId,
+        defaultMessage: `请帮我优化这个分镜，保留原意但让表达更准确。`,
+      });
+    },
+    handleOpenCameraChat({ cameraId, storyboardId }) {
+      const storyboard = this.storyboards.find(item => item.id === storyboardId);
+      if (!storyboard || !cameraId) {
+        this.$message?.warning('请先生成一次运镜，再使用对话微调');
+        return;
+      }
+      this.openNodeChatDrawer({
+        type: 'camera_movement',
+        nodeId: cameraId,
+        storyboardId,
+        cameraId,
+        defaultMessage: '请在不改变画面主体的前提下，优化这个运镜。',
+      });
+    },
+    closeNodeChatDrawer() {
+      this.resetNodeChatState();
+    },
+    handleNodeChatInput(value) {
+      this.nodeChat.input = value;
+    },
+    applyNodeQuickAction(value) {
+      this.nodeChat.input = value;
+      this.submitNodeChat();
+    },
+    stopNodeChat() {
+      if (this.nodeChat.abortController) {
+        this.nodeChat.abortController.abort();
+      }
+      this.nodeChat.streaming = false;
+      this.nodeChat.abortController = null;
+    },
+    async submitNodeChat() {
+      const message = (this.nodeChat.input || '').trim();
+      if (!message || this.nodeChat.streaming || !this.project?.id || !this.nodeChat.nodeId) {
+        return;
+      }
+
+      const userMessage = this.createChatMessage('user', message);
+      const assistantMessage = this.createChatMessage('assistant', '', {
+        streaming: true,
+        applyPatch: null,
+        rawText: '',
+        applied: false,
+      });
+
+      const historyMessages = this.nodeChat.messages.map(item => ({
+        role: item.role,
+        content: item.content,
+      }));
+
+      this.nodeChat.messages = [...this.nodeChat.messages, userMessage, assistantMessage];
+      this.nodeChat.input = '';
+      this.nodeChat.streaming = true;
+      this.nodeChat.streamRequestId += 1;
+      const requestId = this.nodeChat.streamRequestId;
+
+      try {
+        const initResponse = await projectsAPI.initNodeChat(this.project.id, {
+          node_type: this.nodeChat.type,
+          node_id: this.nodeChat.nodeId,
+          user_message: message,
+          messages: historyMessages,
+        });
+
+        const accessToken = store.getters['auth/accessToken'];
+        const streamUrl = projectsAPI.getNodeChatStreamUrl(this.project.id, initResponse.stream_token, accessToken);
+        const controller = new AbortController();
+        this.nodeChat.abortController = controller;
+
+        const response = await fetch(streamUrl, {
+          method: 'GET',
+          credentials: 'include',
+          signal: controller.signal,
+        });
+
+        if (!response.ok || !response.body) {
+          throw new Error('节点对话流连接失败');
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+
+        let streamDone = false;
+        while (!streamDone) {
+          const { value, done } = await reader.read();
+          if (done) {
+            streamDone = true;
+            break;
+          }
+
+          buffer += decoder.decode(value, { stream: true });
+          const chunks = buffer.split('\n\n');
+          buffer = chunks.pop() || '';
+
+          chunks.forEach((chunk) => {
+            const line = chunk.split('\n').find(item => item.startsWith('data: '));
+            if (!line) {
+              return;
+            }
+            const payload = JSON.parse(line.slice(6));
+            if (requestId !== this.nodeChat.streamRequestId) {
+              return;
+            }
+            const target = this.nodeChat.messages.find(item => item.id === assistantMessage.id);
+            if (!target) {
+              return;
+            }
+
+            if (payload.type === 'token') {
+              target.content = payload.full_text || `${target.content || ''}${payload.content || ''}`;
+              target.rawText = payload.full_text || target.content;
+            } else if (payload.type === 'done') {
+              target.content = payload.reply_text || target.content || '已生成修改建议';
+              target.rawText = payload.raw_text || target.content;
+              target.applyPatch = payload.apply_patch || null;
+              target.streaming = false;
+              this.nodeChat.streaming = false;
+              this.nodeChat.abortController = null;
+            } else if (payload.type === 'error') {
+              target.content = payload.error || '节点对话生成失败';
+              target.streaming = false;
+              this.nodeChat.streaming = false;
+              this.nodeChat.abortController = null;
+              this.$message?.error(target.content);
+            }
+          });
+        }
+      } catch (error) {
+        const target = this.nodeChat.messages.find(item => item.id === assistantMessage.id);
+        const isAbort = error?.name === 'AbortError';
+        if (target) {
+          target.streaming = false;
+          if (isAbort) {
+            target.content = target.content || '已停止本次生成';
+          } else {
+            target.content = error.message || '节点对话生成失败';
+            this.$message?.error(target.content);
+          }
+        }
+      } finally {
+        const target = this.nodeChat.messages.find(item => item.id === assistantMessage.id);
+        if (target) {
+          target.streaming = false;
+        }
+        this.nodeChat.streaming = false;
+        this.nodeChat.abortController = null;
+      }
+    },
+    async applyNodeChatMessage(message) {
+      if (!message?.applyPatch) {
+        return;
+      }
+      this.nodeChat.applying = true;
+      try {
+        if (this.nodeChat.type === 'storyboard') {
+          this.handleSaveStoryboard({
+            storyboardId: this.nodeChat.storyboardId,
+            data: message.applyPatch,
+            silent: false,
+          });
+        } else {
+          this.handleSaveCamera({
+            cameraId: this.nodeChat.cameraId,
+            data: message.applyPatch,
+            silent: false,
+          });
+        }
+        this.nodeChat.messages = this.nodeChat.messages.map(item => ({
+          ...item,
+          applied: item.id === message.id ? true : item.applied,
+        }));
+      } finally {
+        this.nodeChat.applying = false;
       }
     },
     toggleAssetDrawer() {
