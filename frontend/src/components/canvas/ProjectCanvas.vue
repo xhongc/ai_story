@@ -374,6 +374,38 @@
             @save="handleSaveStoryboard"
           />
 
+          <!-- 多宫格节点 -->
+          <multi-grid-image-node
+            v-if="showMultiGridNode(storyboard)"
+            :key="`multi-grid-${index}`"
+            :status="getMultiGridStatus(storyboard)"
+            :position="calculateMultiGridPosition(index)"
+            :source-image-url="getMultiGridSourceUrl(storyboard)"
+            :tasks="getMultiGridTasks(storyboard)"
+            :media-width="getStoryboardMediaDimensions(storyboard).width"
+            :media-height="getStoryboardMediaDimensions(storyboard).height"
+            :storyboard-id="storyboard.id"
+            @node-dblclick="focusCanvasNode(`multi-grid-${index}`)"
+            @generate="handleGenerateMultiGridImage"
+            @media-loaded="handleImageMediaLoaded"
+          />
+
+          <!-- 图片编辑节点 -->
+          <image-edit-node
+            v-if="showImageEditNode(storyboard)"
+            :key="`image-edit-${index}`"
+            :status="getImageEditStatus(storyboard)"
+            :position="calculateImageEditPosition(index)"
+            :results="getImageEditResults(storyboard)"
+            :media-width="getStoryboardMediaDimensions(storyboard).width"
+            :media-height="getStoryboardMediaDimensions(storyboard).height"
+            :storyboard-id="storyboard.id"
+            :can-generate="getMultiGridStatus(storyboard) === 'completed'"
+            @node-dblclick="focusCanvasNode(`image-edit-${index}`)"
+            @generate="handleGenerateImageEdit"
+            @media-loaded="handleImageMediaLoaded"
+          />
+
           <!-- 运镜节点 -->
           <camera-node
             v-if="showCameraNode(storyboard)"
@@ -384,7 +416,7 @@
             :movement-params="getCameraMovementParams(storyboard)"
             :storyboard-id="storyboard.id"
             :camera-id="getCameraId(storyboard)"
-            :can-generate="getImageStatus(storyboard) === 'completed'"
+            :can-generate="getCameraInputStatus(storyboard) === 'completed'"
             :is-highlighted="Boolean(nodeHighlights.cameras[getCameraId(storyboard) || storyboard.id])"
             @node-dblclick="focusCanvasNode(`camera-${index}`)"
             @generate="handleGenerateCamera"
@@ -403,7 +435,7 @@
             :media-width="getStoryboardMediaDimensions(storyboard).width"
             :media-height="getStoryboardMediaDimensions(storyboard).height"
             :storyboard-id="storyboard.id"
-            :can-generate="getCameraStatus(storyboard) === 'completed'"
+            :can-generate="getCameraStatus(storyboard) === 'completed' && getCameraInputStatus(storyboard) === 'completed'"
             @node-dblclick="focusCanvasNode(`video-${index}`)"
             @generate="handleGenerateVideo"
           />
@@ -466,6 +498,8 @@ import FlowCanvas from './FlowCanvas.vue';
 import RewriteNodeExpanded from './RewriteNodeExpanded.vue';
 import StoryboardNode from './StoryboardNode.vue';
 import ImageGenNode from './ImageGenNode.vue';
+import MultiGridImageNode from './MultiGridImageNode.vue';
+import ImageEditNode from './ImageEditNode.vue';
 import CameraNode from './CameraNode.vue';
 import VideoGenNode from './VideoGenNode.vue';
 import NodeChatDrawer from './NodeChatDrawer.vue';
@@ -482,6 +516,8 @@ export default {
     RewriteNodeExpanded,
     StoryboardNode,
     ImageGenNode,
+    MultiGridImageNode,
+    ImageEditNode,
     CameraNode,
     VideoGenNode,
     NodeChatDrawer,
@@ -511,6 +547,8 @@ export default {
       // 跟踪正在执行的节点
       executingNodes: {
         images: {}, // { storyboardId: true }
+        multiGridImages: {},
+        imageEdits: {},
         cameras: {}, // { storyboardId: true }
         videos: {} // { storyboardId: true }
       },
@@ -523,6 +561,8 @@ export default {
         rewrite: false,
         storyboard: false,
         image_generation: false,
+        multi_grid_image: false,
+        image_edit: false,
         camera_movement: false,
         video_generation: false
       },
@@ -624,6 +664,8 @@ export default {
         rewrite: { width: 620, height: 300 },
         storyboard: { width: 280, height: 250 },
         media: { width: 250, headerHeight: 50, minPreviewHeight: 140 },
+        multiGrid: { width: 250, headerHeight: 58, minPreviewHeight: 120, minTilesHeight: 110 },
+        imageEdit: { width: 250, headerHeight: 58, minPreviewHeight: 120, minResultsHeight: 80 },
         camera: { width: 250, height: 280 },
         startX: 80,
         startY: 60,
@@ -636,6 +678,8 @@ export default {
       const branchWidth = Math.max(
         this.nodeMetrics.storyboard.width,
         this.nodeMetrics.media.width,
+        this.nodeMetrics.multiGrid.width,
+        this.nodeMetrics.imageEdit.width,
         this.nodeMetrics.camera.width
       );
       const columnCount = Math.max(this.storyboards.length, 1);
@@ -662,6 +706,26 @@ export default {
             ...this.storyboards
               .filter(storyboard => this.showImageNode(storyboard))
               .map(storyboard => this.getImageNodeHeight(storyboard))
+          ),
+        },
+        {
+          key: 'multiGrid',
+          visible: this.storyboards.some(storyboard => this.showMultiGridNode(storyboard)),
+          height: Math.max(
+            this.nodeMetrics.multiGrid.headerHeight + this.nodeMetrics.multiGrid.minPreviewHeight + this.nodeMetrics.multiGrid.minTilesHeight,
+            ...this.storyboards
+              .filter(storyboard => this.showMultiGridNode(storyboard))
+              .map(storyboard => this.getMultiGridNodeHeight(storyboard))
+          ),
+        },
+        {
+          key: 'imageEdit',
+          visible: this.storyboards.some(storyboard => this.showImageEditNode(storyboard)),
+          height: Math.max(
+            this.nodeMetrics.imageEdit.headerHeight + this.nodeMetrics.imageEdit.minPreviewHeight + this.nodeMetrics.imageEdit.minResultsHeight,
+            ...this.storyboards
+              .filter(storyboard => this.showImageEditNode(storyboard))
+              .map(storyboard => this.getImageEditNodeHeight(storyboard))
           ),
         },
         {
@@ -790,7 +854,6 @@ export default {
 
       // 每个分镜的连接线
       this.storyboards.forEach((storyboard, index) => {
-        // 分镜 → 文生图
         if (this.showStoryboardNode && this.showImageNode(storyboard)) {
           conns.push({
             id: `storyboard-${index}-to-image-${index}`,
@@ -799,21 +862,47 @@ export default {
           });
         }
 
-        // 文生图 → 运镜
-        if (this.showImageNode(storyboard) && this.showCameraNode(storyboard)) {
+        if (this.showStoryboardNode && this.showMultiGridNode(storyboard)) {
           conns.push({
-            id: `image-${index}-to-camera-${index}`,
-            from: `image-${index}`,
-            to: `camera-${index}`
+            id: `storyboard-${index}-to-multi-grid-${index}`,
+            from: `storyboard-${index}`,
+            to: `multi-grid-${index}`
           });
         }
 
-        // 运镜 → 视频生成
+        if (this.showMultiGridNode(storyboard) && this.showImageEditNode(storyboard)) {
+          conns.push({
+            id: `multi-grid-${index}-to-image-edit-${index}`,
+            from: `multi-grid-${index}`,
+            to: `image-edit-${index}`
+          });
+        }
+
         if (this.showCameraNode(storyboard) && this.showVideoNode(storyboard)) {
           conns.push({
             id: `camera-${index}-to-video-${index}`,
             from: `camera-${index}`,
             to: `video-${index}`
+          });
+        }
+
+        if (this.showImageEditNode(storyboard) && this.showCameraNode(storyboard)) {
+          conns.push({
+            id: `image-edit-${index}-to-camera-${index}`,
+            from: `image-edit-${index}`,
+            to: `camera-${index}`
+          });
+        } else if (this.showMultiGridNode(storyboard) && this.showCameraNode(storyboard)) {
+          conns.push({
+            id: `multi-grid-${index}-to-camera-${index}`,
+            from: `multi-grid-${index}`,
+            to: `camera-${index}`
+          });
+        } else if (this.showImageNode(storyboard) && this.showCameraNode(storyboard)) {
+          conns.push({
+            id: `image-${index}-to-camera-${index}`,
+            from: `image-${index}`,
+            to: `camera-${index}`
           });
         }
       });
@@ -851,6 +940,26 @@ export default {
             y: imagePos.y,
             width: this.nodeMetrics.media.width,
             height: this.getImageNodeHeight(storyboard)
+          };
+        }
+
+        if (this.showMultiGridNode(storyboard)) {
+          const multiGridPos = this.calculateMultiGridPosition(index);
+          positions[`multi-grid-${index}`] = {
+            x: multiGridPos.x,
+            y: multiGridPos.y,
+            width: this.nodeMetrics.multiGrid.width,
+            height: this.getMultiGridNodeHeight(storyboard)
+          };
+        }
+
+        if (this.showImageEditNode(storyboard)) {
+          const imageEditPos = this.calculateImageEditPosition(index);
+          positions[`image-edit-${index}`] = {
+            x: imageEditPos.x,
+            y: imageEditPos.y,
+            width: this.nodeMetrics.imageEdit.width,
+            height: this.getImageEditNodeHeight(storyboard)
           };
         }
 
@@ -914,15 +1023,18 @@ export default {
 
         // 检查并清除已完成的执行状态
         newVal.forEach(storyboard => {
-          // 如果图片已生成,清除执行状态
           if (storyboard.image_generation?.images && storyboard.image_generation.images.length > 0) {
             this.$set(this.executingNodes.images, storyboard.id, false);
           }
-          // 如果运镜已生成,清除执行状态
+          if (storyboard.multi_grid_image?.tasks && storyboard.multi_grid_image.tasks.length > 0) {
+            this.$set(this.executingNodes.multiGridImages, storyboard.id, false);
+          }
+          if (storyboard.image_edit?.results && storyboard.image_edit.results.length > 0) {
+            this.$set(this.executingNodes.imageEdits, storyboard.id, false);
+          }
           if (storyboard.camera_movement?.data) {
             this.$set(this.executingNodes.cameras, storyboard.id, false);
           }
-          // 如果视频已生成,清除执行状态
           if (storyboard.video_generation?.videos && storyboard.video_generation.videos.length > 0) {
             this.$set(this.executingNodes.videos, storyboard.id, false);
           }
@@ -1327,6 +1439,14 @@ export default {
       return storyboard?.image_generation?.template_enabled !== false;
     },
 
+    showMultiGridNode(storyboard) {
+      return storyboard?.multi_grid_image?.template_enabled !== false;
+    },
+
+    showImageEditNode(storyboard) {
+      return storyboard?.image_edit?.template_enabled !== false;
+    },
+
     showCameraNode(storyboard) {
       return storyboard?.camera_movement?.template_enabled !== false;
     },
@@ -1392,9 +1512,11 @@ export default {
       }
 
       const image = storyboard?.image_generation?.images?.[0];
+      const multiGridSource = storyboard?.multi_grid_image?.tasks?.[0];
+      const imageEdit = storyboard?.image_edit?.results?.[0];
       const video = storyboard?.video_generation?.videos?.[0];
-      const width = Number(image?.width || video?.width);
-      const height = Number(image?.height || video?.height);
+      const width = Number(imageEdit?.width || multiGridSource?.split_config?.source_width || image?.width || video?.width);
+      const height = Number(imageEdit?.height || multiGridSource?.split_config?.source_height || image?.height || video?.height);
 
       if (width > 0 && height > 0) {
         return { width, height };
@@ -1430,6 +1552,14 @@ export default {
       return this.nodeMetrics.media.headerHeight + this.getMediaPreviewHeight(storyboard);
     },
 
+    getMultiGridNodeHeight(storyboard) {
+      return this.nodeMetrics.multiGrid.headerHeight + this.getMediaPreviewHeight(storyboard) + this.nodeMetrics.multiGrid.minTilesHeight;
+    },
+
+    getImageEditNodeHeight(storyboard) {
+      return this.nodeMetrics.imageEdit.headerHeight + this.getMediaPreviewHeight(storyboard) + this.nodeMetrics.imageEdit.minResultsHeight;
+    },
+
     getVideoNodeHeight(storyboard) {
       return this.nodeMetrics.media.headerHeight + this.getMediaPreviewHeight(storyboard);
     },
@@ -1457,6 +1587,20 @@ export default {
     },
 
     // 计算运镜节点位置（第四行横向排列）
+    calculateMultiGridPosition(index) {
+      return {
+        x: this.getBranchNodeX(index, this.nodeMetrics.multiGrid.width),
+        y: this.treeLayout.rowY.multiGrid || this.nodeMetrics.startY
+      };
+    },
+
+    calculateImageEditPosition(index) {
+      return {
+        x: this.getBranchNodeX(index, this.nodeMetrics.imageEdit.width),
+        y: this.treeLayout.rowY.imageEdit || this.nodeMetrics.startY
+      };
+    },
+
     calculateCameraPosition(index) {
       return {
         x: this.getBranchNodeX(index, this.nodeMetrics.camera.width),
@@ -1499,6 +1643,64 @@ export default {
         return images[0].image_url;
       }
       return '';
+    },
+
+    getMultiGridStatus(storyboard) {
+      if (this.executingStages.multi_grid_image && this.executingNodes.multiGridImages[storyboard.id]) {
+        return 'processing';
+      }
+      if (this.executingNodes.multiGridImages[storyboard.id]) {
+        return 'processing';
+      }
+      if (storyboard.multi_grid_image?.tasks && storyboard.multi_grid_image.tasks.length > 0) {
+        return 'completed';
+      }
+      return 'pending';
+    },
+
+    getMultiGridTasks(storyboard) {
+      return storyboard.multi_grid_image?.tasks || [];
+    },
+
+    getMultiGridSourceUrl(storyboard) {
+      return storyboard.multi_grid_image?.tasks?.[0]?.source_image_url || '';
+    },
+
+    getImageEditStatus(storyboard) {
+      if (this.executingStages.image_edit && this.executingNodes.imageEdits[storyboard.id]) {
+        return 'processing';
+      }
+      if (this.executingNodes.imageEdits[storyboard.id]) {
+        return 'processing';
+      }
+      if (storyboard.image_edit?.results && storyboard.image_edit.results.length > 0) {
+        return 'completed';
+      }
+      return 'pending';
+    },
+
+    getImageEditResults(storyboard) {
+      return storyboard.image_edit?.results || [];
+    },
+
+    getCameraInputStatus(storyboard) {
+      if (this.showImageEditNode(storyboard)) {
+        return this.getImageEditStatus(storyboard);
+      }
+      if (this.showMultiGridNode(storyboard)) {
+        return this.getMultiGridStatus(storyboard);
+      }
+      return this.getImageStatus(storyboard);
+    },
+
+    getCameraInputUrl(storyboard) {
+      if (this.showImageEditNode(storyboard)) {
+        return storyboard.image_edit?.results?.[0]?.edited_image_url || '';
+      }
+      if (this.showMultiGridNode(storyboard)) {
+        return storyboard.multi_grid_image?.tasks?.[0]?.tiles?.[0]?.tile_image_url || '';
+      }
+      return storyboard.image_generation?.images?.[0]?.image_url || '';
     },
 
     // 获取运镜状态
@@ -1685,6 +1887,68 @@ export default {
       }
     },
 
+    async handleGenerateMultiGridImage({ storyboardId, forceRegenerate = false }) {
+      try {
+        const storyboard = this.storyboards.find(s => s.id === storyboardId);
+        if (!storyboard) {
+          this.$message?.error(`未找到分镜 ${storyboardId}`);
+          return;
+        }
+        this.$set(this.executingNodes.multiGridImages, storyboardId, true);
+        const inputData = {
+          storyboard_ids: [storyboardId],
+          scenes: [{
+            scene_number: storyboard.sequence_number,
+            narration: storyboard.narration_text,
+            visual_prompt: storyboard.image_prompt,
+            shot_type: storyboard.shot_type || '标准镜头',
+          }]
+        };
+        if (forceRegenerate) {
+          inputData.force_regenerate = true;
+        }
+        this.$emit('execute-stage', {
+          stageType: 'multi_grid_image',
+          inputData,
+          storyboardId
+        });
+      } catch (error) {
+        console.error('[ProjectCanvas] 生成多宫格图片失败:', error);
+        this.$message?.error(error.message || '生成多宫格图片失败');
+        this.$set(this.executingNodes.multiGridImages, storyboardId, false);
+      }
+    },
+
+    async handleGenerateImageEdit({ storyboardId, forceRegenerate = false }) {
+      try {
+        const storyboard = this.storyboards.find(s => s.id === storyboardId);
+        if (!storyboard) {
+          this.$message?.error(`未找到分镜 ${storyboardId}`);
+          return;
+        }
+        if (this.getMultiGridStatus(storyboard) !== 'completed') {
+          this.$message?.warning('请先生成多宫格切片');
+          return;
+        }
+        this.$set(this.executingNodes.imageEdits, storyboardId, true);
+        const inputData = {
+          storyboard_ids: [storyboardId],
+        };
+        if (forceRegenerate) {
+          inputData.force_regenerate = true;
+        }
+        this.$emit('execute-stage', {
+          stageType: 'image_edit',
+          inputData,
+          storyboardId
+        });
+      } catch (error) {
+        console.error('[ProjectCanvas] 执行图片编辑失败:', error);
+        this.$message?.error(error.message || '执行图片编辑失败');
+        this.$set(this.executingNodes.imageEdits, storyboardId, false);
+      }
+    },
+
     async handleGenerateCamera({ storyboardId, movementType }) {
       console.log('[ProjectCanvas] 生成运镜:', { storyboardId, movementType });
 
@@ -1700,7 +1964,7 @@ export default {
         this.$set(this.executingNodes.cameras, storyboardId, true);
 
         // 准备输入数据
-        const imageUrl = storyboard.image_generation?.images?.[0]?.image_url;
+        const imageUrl = this.getCameraInputUrl(storyboard);
         if (!imageUrl) {
           this.$message?.warning('请先生成图片');
           this.$set(this.executingNodes.cameras, storyboardId, false);
@@ -1748,8 +2012,8 @@ export default {
         }
 
         // 检查是否有图片
-        if (!storyboard.image_generation?.images || storyboard.image_generation.images.length === 0) {
-          this.$message?.warning('请先生成图片');
+        if (this.getCameraInputStatus(storyboard) !== 'completed') {
+          this.$message?.warning('请先完成上游出图');
           return;
         }
 
@@ -1757,7 +2021,7 @@ export default {
         this.$set(this.executingNodes.videos, storyboardId, true);
 
         // 准备输入数据
-        const imageUrl = storyboard.image_generation?.images?.[0]?.image_url;
+        const imageUrl = this.getCameraInputUrl(storyboard);
         if (!imageUrl) {
           this.$message?.warning('请先生成图片');
           this.$set(this.executingNodes.videos, storyboardId, false);
@@ -1941,6 +2205,10 @@ export default {
 
       if (itemType === 'image') {
         this.$set(this.executingNodes.images, storyboardId, isLoading);
+      } else if (itemType === 'multi_grid_image') {
+        this.$set(this.executingNodes.multiGridImages, storyboardId, isLoading);
+      } else if (itemType === 'image_edit') {
+        this.$set(this.executingNodes.imageEdits, storyboardId, isLoading);
       } else if (itemType === 'camera') {
         this.$set(this.executingNodes.cameras, storyboardId, isLoading);
       } else if (itemType === 'video') {
@@ -1965,6 +2233,8 @@ export default {
       };
       this.executingNodes = {
         images: {},
+        multiGridImages: {},
+        imageEdits: {},
         cameras: {},
         videos: {}
       };

@@ -638,6 +638,8 @@ export default {
               'rewrite': '文案改写',
               'storyboard': '分镜生成',
               'image_generation': '图片生成',
+              'multi_grid_image': '多宫格图片',
+              'image_edit': '图片编辑',
               'camera_movement': '运镜生成',
               'video_generation': '视频生成'
             };
@@ -662,6 +664,8 @@ export default {
               'rewrite': '文案改写',
               'storyboard': '分镜生成',
               'image_generation': '图片生成',
+              'multi_grid_image': '多宫格图片',
+              'image_edit': '图片编辑',
               'camera_movement': '运镜生成',
               'video_generation': '视频生成'
             };
@@ -679,6 +683,8 @@ export default {
           if (data.stage && data.current) {
             const stageToItemType = {
               'image_generation': 'image',
+              'multi_grid_image': 'multi_grid_image',
+              'image_edit': 'image_edit',
               'camera_movement': 'camera',
               'video_generation': 'video'
             };
@@ -701,6 +707,8 @@ export default {
           // 单个分镜的图片/运镜/视频生成完成，刷新画布
           const itemTypeNames = {
             'image': '图片',
+            'multi_grid_image': '多宫格图片',
+            'image_edit': '图片编辑',
             'camera': '运镜',
             'video': '视频'
           };
@@ -759,6 +767,8 @@ export default {
               'rewrite': '文案改写',
               'storyboard': '分镜生成',
               'image_generation': '图片生成',
+              'multi_grid_image': '多宫格图片',
+              'image_edit': '图片编辑',
               'camera_movement': '运镜生成',
               'video_generation': '视频生成'
             };

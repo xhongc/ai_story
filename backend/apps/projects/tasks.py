@@ -585,7 +585,7 @@ def execute_multi_grid_image_stage(
                 )
             elif chunk_type == 'multi_grid_generated':
                 publisher.publish_item_completed(
-                    item_type='image',
+                    item_type='multi_grid_image',
                     sequence_number=chunk.get('sequence_number', 0),
                     metadata={'sequence_number': chunk.get('sequence_number', 0)}
                 )
