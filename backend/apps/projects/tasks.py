@@ -12,9 +12,11 @@ from django.utils import timezone
 
 from core.redis import RedisStreamPublisher
 from core.services.jianying_draft_service import JianyingDraftGenerator
-from apps.content.models import GeneratedImage, GeneratedVideo, Storyboard
+from apps.content.models import EditedImage, GeneratedImage, GeneratedVideo, Storyboard
 from apps.content.processors.llm_stage import LLMStageProcessor
 from apps.content.processors.text2image_stage import Text2ImageStageProcessor
+from apps.content.processors.multi_grid_image_stage import MultiGridImageStageProcessor
+from apps.content.processors.image_edit_stage import ImageEditStageProcessor
 from apps.content.processors.image2video_stage import Image2VideoStageProcessor
 from apps.projects.models import Project, ProjectStage
 from apps.projects.queue_service import complete_episode_task_by_celery_id
@@ -519,6 +521,291 @@ def execute_text2image_stage(
     default_retry_delay=60,
     acks_late=True,
     reject_on_worker_lost=True,
+    soft_time_limit=600,
+    time_limit=900
+)
+def execute_multi_grid_image_stage(
+    self,
+    project_id: str,
+    storyboard_ids: list = None,
+    force_regenerate: bool = False,
+    user_id: int = None,
+    grid_rows: int = 2,
+    grid_cols: int = 2,
+    tile_gap: int = 0,
+    outer_padding: int = 0,
+) -> Dict[str, Any]:
+    """执行多宫格图片阶段任务"""
+    task_id = self.request.id
+    stage_name = 'multi_grid_image'
+    channel = f"ai_story:project:{project_id}:stage:{stage_name}"
+
+    logger.info(f"开始执行多宫格图片任务, 项目: {project_id}, 任务ID: {task_id}")
+    publisher = RedisStreamPublisher(project_id, stage_name)
+
+    try:
+        project = Project.objects.get(id=project_id)
+        stage = ProjectStage.objects.get(project=project, stage_type=stage_name)
+
+        if not is_stage_template_enabled(project, stage_name):
+            message = '多宫格图片提示词模板未开启，已跳过该阶段'
+            _skip_stage(stage, message)
+            publisher.publish_stage_update(status='skipped', progress=100, message=message)
+            publisher.publish_stage_completed({'stage_type': stage_name, 'status': 'skipped'})
+            return {
+                'success': True,
+                'task_id': task_id,
+                'channel': channel,
+                'skipped': True,
+                'message': message,
+            }
+
+        stage.status = 'processing'
+        stage.started_at = timezone.now()
+        stage.save()
+
+        publisher.publish_stage_update(status='processing', progress=0, message='开始生成多宫格图片')
+        processor = MultiGridImageStageProcessor()
+
+        for chunk in processor.process_stream(
+            project_id=project_id,
+            storyboard_ids=storyboard_ids,
+            force_regenerate=force_regenerate,
+            grid_rows=grid_rows,
+            grid_cols=grid_cols,
+            tile_gap=tile_gap,
+            outer_padding=outer_padding,
+        ):
+            chunk_type = chunk.get('type')
+            if chunk_type == 'progress':
+                publisher.publish_progress(
+                    current=chunk.get('current', 0),
+                    total=chunk.get('total', 0),
+                    item_name='multi_grid_image',
+                )
+            elif chunk_type == 'multi_grid_generated':
+                publisher.publish_item_completed(
+                    item_type='image',
+                    sequence_number=chunk.get('sequence_number', 0),
+                    metadata={'sequence_number': chunk.get('sequence_number', 0)}
+                )
+            elif chunk_type == 'stage_update':
+                publisher.publish_stage_update(
+                    status=chunk.get('status', 'processing'),
+                    progress=chunk.get('progress'),
+                    message=chunk.get('message')
+                )
+            elif chunk_type == 'done':
+                result_data = chunk.get('data', {})
+                stage_data = chunk.get('stage', {})
+                stage_status = stage_data.get('status', 'completed')
+                error_message = '' if stage_status == 'completed' else chunk.get('message', '多宫格图片阶段未完成')
+                ProjectStage.objects.filter(id=stage.id).update(
+                    status=stage_status,
+                    output_data=result_data,
+                    completed_at=timezone.now(),
+                    error_message=error_message,
+                )
+                if stage_status == 'completed':
+                    publisher.publish_done(metadata=result_data)
+                    publisher.publish_stage_completed(result_data)
+                else:
+                    publisher.publish_stage_update(status=stage_status, progress=100, message=error_message)
+            elif chunk_type == 'error':
+                raise Exception(chunk.get('error', '未知错误'))
+
+        stage.refresh_from_db()
+        if stage.status != 'completed':
+            return {
+                'success': False,
+                'task_id': task_id,
+                'channel': channel,
+                'error': stage.error_message or '多宫格图片阶段未完成'
+            }
+
+        return {
+            'success': True,
+            'task_id': task_id,
+            'channel': channel,
+            'result': stage.output_data,
+        }
+    except TaskRevokedError:
+        logger.info(f"多宫格图片任务已撤销, 项目: {project_id}, 任务ID: {task_id}")
+        _mark_stage_paused(project_id, stage_name)
+        return {'success': False, 'paused': True, 'error': '任务已暂停'}
+    except Exception as e:
+        if _is_project_paused(project_id):
+            logger.info(f"多宫格图片任务因项目暂停中断, 项目: {project_id}, 任务ID: {task_id}")
+            _mark_stage_paused(project_id, stage_name)
+            return {'success': False, 'paused': True, 'error': '任务已暂停'}
+
+        error_msg = f'多宫格图片任务失败: {str(e)}'
+        logger.exception(error_msg)
+        try:
+            stage = ProjectStage.objects.get(project_id=project_id, stage_type=stage_name)
+            stage.status = 'failed'
+            stage.error_message = error_msg
+            stage.retry_count += 1
+            stage.save()
+        except Exception:
+            pass
+        publisher.publish_error(error_msg, retry_count=self.request.retries)
+        return {'success': False, 'error': error_msg}
+    finally:
+        _unregister_project_task(project_id, task_id)
+        publisher.close()
+
+
+
+@app.task(
+    bind=True,
+    max_retries=0,
+    default_retry_delay=60,
+    acks_late=True,
+    reject_on_worker_lost=True,
+    soft_time_limit=900,
+    time_limit=1200
+)
+def execute_image_edit_stage(
+    self,
+    project_id: str,
+    storyboard_ids: list = None,
+    force_regenerate: bool = False,
+    user_id: int = None,
+    strength: float = 0.35,
+    width: int = None,
+    height: int = None,
+) -> Dict[str, Any]:
+    """执行图片编辑阶段任务"""
+    task_id = self.request.id
+    stage_name = 'image_edit'
+    channel = f"ai_story:project:{project_id}:stage:{stage_name}"
+
+    logger.info(f"开始执行图片编辑任务, 项目: {project_id}, 任务ID: {task_id}")
+    publisher = RedisStreamPublisher(project_id, stage_name)
+
+    try:
+        project = Project.objects.get(id=project_id)
+        stage = ProjectStage.objects.get(project=project, stage_type=stage_name)
+
+        if not is_stage_template_enabled(project, stage_name):
+            message = '图片编辑提示词模板未开启，已跳过该阶段'
+            _skip_stage(stage, message)
+            publisher.publish_stage_update(status='skipped', progress=100, message=message)
+            publisher.publish_stage_completed({'stage_type': stage_name, 'status': 'skipped'})
+            return {
+                'success': True,
+                'task_id': task_id,
+                'channel': channel,
+                'skipped': True,
+                'message': message,
+            }
+
+        stage.status = 'processing'
+        stage.started_at = timezone.now()
+        stage.save()
+
+        publisher.publish_stage_update(status='processing', progress=0, message='开始执行图片编辑')
+        processor = ImageEditStageProcessor()
+
+        for chunk in processor.process_stream(
+            project_id=project_id,
+            storyboard_ids=storyboard_ids,
+            force_regenerate=force_regenerate,
+            strength=strength,
+            width=width,
+            height=height,
+        ):
+            chunk_type = chunk.get('type')
+            if chunk_type == 'progress':
+                publisher.publish_progress(
+                    current=chunk.get('current', 0),
+                    total=chunk.get('total', 0),
+                    item_name='image_edit',
+                )
+            elif chunk_type == 'image_edited':
+                publisher.publish_item_completed(
+                    item_type='image_edit',
+                    sequence_number=chunk.get('sequence_number', 0),
+                    metadata={
+                        'sequence_number': chunk.get('sequence_number', 0),
+                        'tile_index': chunk.get('tile_index'),
+                        'edited_image_id': chunk.get('edited_image_id'),
+                    }
+                )
+            elif chunk_type == 'stage_update':
+                publisher.publish_stage_update(
+                    status=chunk.get('status', 'processing'),
+                    progress=chunk.get('progress'),
+                    message=chunk.get('message')
+                )
+            elif chunk_type == 'done':
+                result_data = chunk.get('data', {})
+                stage_data = chunk.get('stage', {})
+                stage_status = stage_data.get('status', 'completed')
+                error_message = '' if stage_status == 'completed' else chunk.get('message', '图片编辑阶段未完成')
+                ProjectStage.objects.filter(id=stage.id).update(
+                    status=stage_status,
+                    output_data=result_data,
+                    completed_at=timezone.now(),
+                    error_message=error_message,
+                )
+                if stage_status == 'completed':
+                    publisher.publish_done(metadata=result_data)
+                    publisher.publish_stage_completed(result_data)
+                else:
+                    publisher.publish_stage_update(status=stage_status, progress=100, message=error_message)
+            elif chunk_type == 'error':
+                raise Exception(chunk.get('error', '未知错误'))
+
+        stage.refresh_from_db()
+        if stage.status != 'completed':
+            return {
+                'success': False,
+                'task_id': task_id,
+                'channel': channel,
+                'error': stage.error_message or '图片编辑阶段未完成'
+            }
+
+        return {
+            'success': True,
+            'task_id': task_id,
+            'channel': channel,
+            'result': stage.output_data,
+        }
+    except TaskRevokedError:
+        logger.info(f"图片编辑任务已撤销, 项目: {project_id}, 任务ID: {task_id}")
+        _mark_stage_paused(project_id, stage_name)
+        return {'success': False, 'paused': True, 'error': '任务已暂停'}
+    except Exception as e:
+        if _is_project_paused(project_id):
+            logger.info(f"图片编辑任务因项目暂停中断, 项目: {project_id}, 任务ID: {task_id}")
+            _mark_stage_paused(project_id, stage_name)
+            return {'success': False, 'paused': True, 'error': '任务已暂停'}
+
+        error_msg = f'图片编辑任务失败: {str(e)}'
+        logger.exception(error_msg)
+        try:
+            stage = ProjectStage.objects.get(project_id=project_id, stage_type=stage_name)
+            stage.status = 'failed'
+            stage.error_message = error_msg
+            stage.retry_count += 1
+            stage.save()
+        except Exception:
+            pass
+        publisher.publish_error(error_msg, retry_count=self.request.retries)
+        return {'success': False, 'error': error_msg}
+    finally:
+        _unregister_project_task(project_id, task_id)
+        publisher.close()
+
+
+@app.task(
+    bind=True,
+    max_retries=0,
+    default_retry_delay=60,
+    acks_late=True,
+    reject_on_worker_lost=True,
     soft_time_limit=1200,  # 20分钟软超时 (视频生成较慢)
     time_limit=1500  # 25分钟硬超时
 )
@@ -935,8 +1222,19 @@ def run_full_pipeline_task(
                         user_id=user_id
                     )
 
-                elif stage_name in ['multi_grid_image', 'image_edit']:
-                    raise Exception(f'阶段 {stage_name} 暂未接入完整流程执行器')
+                elif stage_name == 'multi_grid_image':
+                    result = execute_multi_grid_image_stage(
+                        project_id=project_id,
+                        storyboard_ids=None,
+                        user_id=user_id,
+                    )
+
+                elif stage_name == 'image_edit':
+                    result = execute_image_edit_stage(
+                        project_id=project_id,
+                        storyboard_ids=None,
+                        user_id=user_id,
+                    )
 
                 elif stage_name == 'video_generation':
                     # 图生视频阶段

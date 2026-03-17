@@ -754,7 +754,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         Returns:
             dict: 整合后的 domain_data
         """
-        from apps.content.models import GeneratedImage, CameraMovement, GeneratedVideo
+        from apps.content.models import GeneratedImage, CameraMovement, GeneratedVideo, MultiGridImageTask, EditedImage
 
         stage_template_states = stage_template_states or {}
 
@@ -824,7 +824,45 @@ class ProjectViewSet(viewsets.ModelViewSet):
                         for img in images
                     ]
 
-                # 2. 整合 camera_movement 数据
+                # 2. 整合 multi_grid_image 数据
+                if multi_grid_stage:
+                    tasks = MultiGridImageTask.objects.filter(
+                        storyboard_id=storyboard_id
+                    ).select_related('model_provider').prefetch_related('tiles').order_by('-created_at')
+
+                    sb_data['multi_grid_image']['tasks'] = [
+                        {
+                            'id': str(task.id),
+                            'source_image_url': task.source_image_url,
+                            'grid_rows': task.grid_rows,
+                            'grid_cols': task.grid_cols,
+                            'tile_gap': task.tile_gap,
+                            'outer_padding': task.outer_padding,
+                            'status': task.status,
+                            'model_provider': {
+                                'id': str(task.model_provider.id) if task.model_provider else None,
+                                'name': task.model_provider.name if task.model_provider else None,
+                                'model_name': task.model_provider.model_name if task.model_provider else None,
+                            } if task.model_provider else None,
+                            'tiles': [
+                                {
+                                    'id': str(tile.id),
+                                    'tile_index': tile.tile_index,
+                                    'row_index': tile.row_index,
+                                    'col_index': tile.col_index,
+                                    'crop_box': tile.crop_box,
+                                    'tile_image_url': tile.tile_image_url,
+                                    'width': tile.width,
+                                    'height': tile.height,
+                                    'status': tile.status,
+                                }
+                                for tile in task.tiles.all().order_by('tile_index')
+                            ],
+                        }
+                        for task in tasks
+                    ]
+
+                # 3. 整合 camera_movement 数据
                 if camera_stage:
                     try:
                         camera = CameraMovement.objects.select_related('model_provider').get(
@@ -848,7 +886,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
                     except CameraMovement.DoesNotExist:
                         pass
 
-                # 3. 整合 video_generation 数据
+                # 4. 整合 video_generation 数据
                 if video_stage:
                     videos = GeneratedVideo.objects.filter(
                         storyboard_id=storyboard_id
@@ -878,6 +916,37 @@ class ProjectViewSet(viewsets.ModelViewSet):
                             'created_at': video.created_at.isoformat() if video.created_at else None,
                         }
                         for video in videos
+                    ]
+
+
+                # 5. 整合 image_edit 数据
+                if image_edit_stage:
+                    edited_images = EditedImage.objects.filter(
+                        storyboard_id=storyboard_id
+                    ).select_related('model_provider', 'multi_grid_task', 'multi_grid_tile').order_by('-created_at')
+
+                    sb_data['image_edit']['results'] = [
+                        {
+                            'id': str(item.id),
+                            'source_stage_type': item.source_stage_type,
+                            'source_image_url': item.source_image_url,
+                            'edited_image_url': item.edited_image_url,
+                            'status': item.status,
+                            'tile_index': item.multi_grid_tile.tile_index if item.multi_grid_tile else None,
+                            'row_index': item.multi_grid_tile.row_index if item.multi_grid_tile else None,
+                            'col_index': item.multi_grid_tile.col_index if item.multi_grid_tile else None,
+                            'width': item.width,
+                            'height': item.height,
+                            'model_provider': {
+                                'id': str(item.model_provider.id) if item.model_provider else None,
+                                'name': item.model_provider.name if item.model_provider else None,
+                                'model_name': item.model_provider.model_name if item.model_provider else None,
+                            } if item.model_provider else None,
+                            'generation_params': item.generation_params,
+                            'generation_metadata': item.generation_metadata,
+                            'created_at': item.created_at.isoformat() if item.created_at else None,
+                        }
+                        for item in edited_images
                     ]
 
             except Exception as e:
@@ -948,6 +1017,8 @@ class ProjectViewSet(viewsets.ModelViewSet):
         from apps.projects.tasks import (
             execute_image2video_stage,
             execute_llm_stage,
+            execute_image_edit_stage,
+            execute_multi_grid_image_stage,
             execute_text2image_stage,
         )
 
@@ -961,10 +1032,39 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 input_data=input_data,
                 user_id=self.request.user.id,
             )
-        elif stage_name in ["image_generation", "multi_grid_image", "image_edit"]:
-            return Response(
-                {"error": f"阶段 {stage_name} 暂未接入异步执行器"},
-                status=status.HTTP_400_BAD_REQUEST,
+        elif stage_name == "image_generation":
+            storyboard_ids = input_data.get("storyboard_ids", None)
+            force_regenerate = input_data.get("force_regenerate", False)
+            task = execute_text2image_stage.delay(
+                project_id=str(project.id),
+                storyboard_ids=storyboard_ids,
+                force_regenerate=force_regenerate,
+                user_id=self.request.user.id,
+            )
+        elif stage_name == "multi_grid_image":
+            storyboard_ids = input_data.get("storyboard_ids", None)
+            force_regenerate = input_data.get("force_regenerate", False)
+            task = execute_multi_grid_image_stage.delay(
+                project_id=str(project.id),
+                storyboard_ids=storyboard_ids,
+                force_regenerate=force_regenerate,
+                user_id=self.request.user.id,
+                grid_rows=input_data.get("grid_rows", 2),
+                grid_cols=input_data.get("grid_cols", 2),
+                tile_gap=input_data.get("tile_gap", 0),
+                outer_padding=input_data.get("outer_padding", 0),
+            )
+        elif stage_name == "image_edit":
+            storyboard_ids = input_data.get("storyboard_ids", None)
+            force_regenerate = input_data.get("force_regenerate", False)
+            task = execute_image_edit_stage.delay(
+                project_id=str(project.id),
+                storyboard_ids=storyboard_ids,
+                force_regenerate=force_regenerate,
+                user_id=self.request.user.id,
+                strength=input_data.get("strength", 0.35),
+                width=input_data.get("width", None),
+                height=input_data.get("height", None),
             )
         elif stage_name == "video_generation":
             # 图生视频阶段

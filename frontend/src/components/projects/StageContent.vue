@@ -423,7 +423,7 @@ export default {
 
     // 获取前一个阶段的数据
     getPreviousStage() {
-      const stageOrder = ['rewrite', 'storyboard', 'image_generation', 'multi_grid_image', 'camera_movement', 'video_generation', 'image_edit'];
+      const stageOrder = ['rewrite', 'storyboard', 'multi_grid_image', 'image_edit', 'image_generation', 'camera_movement', 'video_generation'];
       const currentIndex = stageOrder.indexOf(this.stageType);
       if (currentIndex > 0) {
         const previousType = stageOrder[currentIndex - 1];
@@ -693,6 +693,8 @@ export default {
         rewrite: '文案改写',
         storyboard: '分镜生成',
         image_generation: '文生图',
+        multi_grid_image: '多宫格图片',
+        image_edit: '图片编辑',
         camera_movement: '运镜生成',
         video_generation: '图生视频',
       };

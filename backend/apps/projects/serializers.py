@@ -7,7 +7,7 @@
 from django.db import transaction
 from rest_framework import serializers
 
-from apps.content.models import ContentRewrite
+from apps.content.models import ContentRewrite, EditedImage
 from apps.models.serializers import ModelProviderDetailSerializer
 from apps.prompts.serializers import GlobalVariableListSerializer
 from apps.projects.utils import parse_storyboard_json
@@ -84,7 +84,7 @@ class ProjectStageSerializer(serializers.ModelSerializer):
         Returns:
             dict: 包含领域模型数据的字典
         """
-        from apps.content.models import ContentRewrite, Storyboard, GeneratedImage, CameraMovement
+        from apps.content.models import ContentRewrite, Storyboard, GeneratedImage, CameraMovement, MultiGridImageTask
 
         stage_type = instance.stage_type
         project = instance.project
@@ -256,8 +256,84 @@ class ProjectStageSerializer(serializers.ModelSerializer):
                     })
                 return {'storyboards': result}
 
-            elif stage_type in ('multi_grid_image', 'image_edit'):
-                return instance.output_data or {'storyboards': []}
+            elif stage_type == 'multi_grid_image':
+                storyboards = Storyboard.objects.filter(project=project).order_by('sequence_number')
+                result = []
+                for sb in storyboards:
+                    tasks = MultiGridImageTask.objects.filter(storyboard=sb).select_related('model_provider').prefetch_related('tiles').order_by('-created_at')
+                    result.append({
+                        'storyboard_id': str(sb.id),
+                        'sequence_number': sb.sequence_number,
+                        'tasks': [
+                            {
+                                'id': str(task.id),
+                                'source_image_url': task.source_image_url,
+                                'grid_rows': task.grid_rows,
+                                'grid_cols': task.grid_cols,
+                                'tile_gap': task.tile_gap,
+                                'outer_padding': task.outer_padding,
+                                'status': task.status,
+                                'model_provider': {
+                                    'id': str(task.model_provider.id) if task.model_provider else None,
+                                    'name': task.model_provider.name if task.model_provider else None,
+                                    'model_name': task.model_provider.model_name if task.model_provider else None,
+                                } if task.model_provider else None,
+                                'tiles': [
+                                    {
+                                        'id': str(tile.id),
+                                        'tile_index': tile.tile_index,
+                                        'row_index': tile.row_index,
+                                        'col_index': tile.col_index,
+                                        'crop_box': tile.crop_box,
+                                        'tile_image_url': tile.tile_image_url,
+                                        'width': tile.width,
+                                        'height': tile.height,
+                                        'status': tile.status,
+                                    }
+                                    for tile in task.tiles.all().order_by('tile_index')
+                                ],
+                                'created_at': task.created_at.isoformat() if task.created_at else None,
+                            }
+                            for task in tasks
+                        ]
+                    })
+                return {'storyboards': result}
+
+            elif stage_type == 'image_edit':
+                storyboards = Storyboard.objects.filter(project=project).order_by('sequence_number')
+                result = []
+                for sb in storyboards:
+                    edited_images = EditedImage.objects.filter(storyboard=sb).select_related(
+                        'model_provider', 'multi_grid_task', 'multi_grid_tile'
+                    ).order_by('-created_at')
+                    result.append({
+                        'storyboard_id': str(sb.id),
+                        'sequence_number': sb.sequence_number,
+                        'results': [
+                            {
+                                'id': str(item.id),
+                                'source_stage_type': item.source_stage_type,
+                                'source_image_url': item.source_image_url,
+                                'edited_image_url': item.edited_image_url,
+                                'status': item.status,
+                                'tile_index': item.multi_grid_tile.tile_index if item.multi_grid_tile else None,
+                                'row_index': item.multi_grid_tile.row_index if item.multi_grid_tile else None,
+                                'col_index': item.multi_grid_tile.col_index if item.multi_grid_tile else None,
+                                'width': item.width,
+                                'height': item.height,
+                                'model_provider': {
+                                    'id': str(item.model_provider.id) if item.model_provider else None,
+                                    'name': item.model_provider.name if item.model_provider else None,
+                                    'model_name': item.model_provider.model_name if item.model_provider else None,
+                                } if item.model_provider else None,
+                                'generation_params': item.generation_params,
+                                'generation_metadata': item.generation_metadata,
+                                'created_at': item.created_at.isoformat() if item.created_at else None,
+                            }
+                            for item in edited_images
+                        ]
+                    })
+                return {'storyboards': result}
 
             return instance.output_data or {}
         except Exception:

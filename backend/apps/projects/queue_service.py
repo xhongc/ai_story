@@ -210,6 +210,8 @@ def _launch_queue_task(queue_task_id: str) -> EpisodeTaskQueue:
     from apps.projects.tasks import (
         execute_image2video_stage,
         execute_llm_stage,
+        execute_image_edit_stage,
+        execute_multi_grid_image_stage,
         execute_text2image_stage,
         run_full_pipeline_task,
     )
@@ -249,8 +251,27 @@ def _launch_queue_task(queue_task_id: str) -> EpisodeTaskQueue:
                 force_regenerate=payload.get('force_regenerate', False),
                 user_id=queue_task.created_by_id,
             )
-        elif stage_name in ['multi_grid_image', 'image_edit']:
-            raise ValueError(f'阶段 {stage_name} 暂未接入队列执行器')
+        elif stage_name == 'multi_grid_image':
+            task = execute_multi_grid_image_stage.delay(
+                project_id=str(project.id),
+                storyboard_ids=payload.get('storyboard_ids'),
+                force_regenerate=payload.get('force_regenerate', False),
+                user_id=queue_task.created_by_id,
+                grid_rows=payload.get('grid_rows', 2),
+                grid_cols=payload.get('grid_cols', 2),
+                tile_gap=payload.get('tile_gap', 0),
+                outer_padding=payload.get('outer_padding', 0),
+            )
+        elif stage_name == 'image_edit':
+            task = execute_image_edit_stage.delay(
+                project_id=str(project.id),
+                storyboard_ids=payload.get('storyboard_ids'),
+                force_regenerate=payload.get('force_regenerate', False),
+                user_id=queue_task.created_by_id,
+                strength=payload.get('strength', 0.35),
+                width=payload.get('width'),
+                height=payload.get('height'),
+            )
         else:
             raise ValueError(f'未知阶段类型: {stage_name}')
     else:
