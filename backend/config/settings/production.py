@@ -1,5 +1,5 @@
 """
-开发环境配置
+生产环境配置
 """
 
 from .base import *
@@ -7,14 +7,14 @@ from .base import *
 DEBUG = False
 ALLOWED_HOSTS = ['*']
 
-# CORS配置 - 开发环境允许所有源
+# CORS配置 - 按需放开来源
 CORS_ALLOW_ALL_ORIGINS = True
 
-# 数据库 - 开发环境使用SQLite
+# 数据库 - 生产环境默认使用SQLite，可通过环境变量覆盖路径
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': os.getenv('SQLITE_DB_PATH', str(BASE_DIR / 'data' / 'ai_story.db')),
     }
 }
 
@@ -29,6 +29,6 @@ LOGGING = {
     },
     'root': {
         'handlers': ['console'],
-        'level': 'DEBUG',
+        'level': 'INFO',
     },
 }

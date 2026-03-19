@@ -1,0 +1,43 @@
+services:
+
+  # Redis缓存和消息队列
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+
+  # Django后端
+  backend:
+    image: xhongc/ai_story-backend
+    restart: unless-stopped
+    volumes:
+      - ./data/backend:/app/backend/data
+      - ./storage:/app/storage
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.production
+      - REDIS_HOST=redis
+    depends_on:
+      - redis
+
+  # Celery Worker
+  celery:
+    image: xhongc/ai_story-backend
+    command: celery -A config worker -l info -P gevent
+    restart: unless-stopped
+    volumes:
+      - ./data/backend:/app/backend/data
+      - ./storage:/app/storage
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.production
+      - REDIS_HOST=redis
+    depends_on:
+      - redis
+
+  # Vue前端
+  frontend:
+    image: xhongc/ai_story-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
