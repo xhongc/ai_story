@@ -30,11 +30,11 @@ CAPABILITY_CLASSIFICATION_PATTERNS = {
     ],
     'vlm': [
         'vision', 'vlm', 'multimodal', 'omni', 'gpt-4o', 'gemini-pro-vision', 'qwen-vl',
-        'ui-tars', 'see',
+        'ui-tars', 'see', '-vl', '-VL'
     ],
     'text2image': [
         'gpt-image', 'dall-e', 'dalle', 'flux', 'sdxl', 'stable-diffusion', 'wanx',
-        'seedream', 'imagen', 't2i',
+        'seedream', 'imagen', 't2i', 'image', 'imagine'
     ],
     'image2video': [
         'video', 'i2v', 'veo', 'kling', 'seedance', 'wan', 's2v',

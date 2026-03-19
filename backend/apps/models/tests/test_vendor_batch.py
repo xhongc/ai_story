@@ -289,10 +289,13 @@ class ModelProviderVendorViewSetTestCase(APITestCase):
         self.assertIn('newapi', vendor_keys)
         self.assertIn('deepseek', vendor_keys)
         self.assertIn('minimax', vendor_keys)
+        self.assertIn('modelscope', vendor_keys)
         gemini = next(item for item in response.data['results'] if item['key'] == 'gemini')
         gemini_capability_keys = [item['key'] for item in gemini['capabilities']]
         self.assertIn('text2image', gemini_capability_keys)
         self.assertIn('image2video', gemini_capability_keys)
+        modelscope = next(item for item in response.data['results'] if item['key'] == 'modelscope')
+        self.assertEqual(modelscope['capabilities'][0]['api_url'], 'https://api-inference.modelscope.cn/v1/chat/completions')
         openai = next(item for item in response.data['results'] if item['key'] == 'openai')
         self.assertTrue(all(item['configurable_api_url'] for item in openai['capabilities']))
         newapi = next(item for item in response.data['results'] if item['key'] == 'newapi')

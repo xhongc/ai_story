@@ -147,7 +147,7 @@
             </label>
           </div>
 
-          <div class="discover-actions">
+          <div class="discover-actions mt-2">
             <button
               class="primary-action"
               :disabled="discovering || !canDiscover"
