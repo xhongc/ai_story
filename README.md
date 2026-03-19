@@ -69,7 +69,7 @@ docker-compose up -d
 
 或者
 
-dockercompose up -d
+docker compose up -d
 
 # 创建管理员账号
 docker-compose exec backend python backend/manage.py createsuperuser
