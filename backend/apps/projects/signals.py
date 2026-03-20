@@ -139,7 +139,7 @@ def _ensure_default_prompt_template_set():
         template_set, _ = PromptTemplateSet.objects.get_or_create(
             name='默认提示词模板集',
             defaults={
-                'description': '系统初始化生成的默认提示词模板集',
+                'description': '系统初始化生成的默认提示词模板集,可以参考提示词的写法，可以克隆一份使用，但不要直接应用这份，因为重新部署后会重置里面的配置。',
                 'is_active': True,
                 'is_default': True,
                 'created_by': system_user,

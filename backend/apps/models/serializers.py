@@ -297,6 +297,22 @@ class ModelProviderTestSerializer(serializers.Serializer):
         default="Hello, this is a test.",
         help_text="测试用的提示词"
     )
+    test_image_url = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text='测试用图片URL，图生视频模型可传'
+    )
+    test_image_base64 = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text='测试用图片base64，支持传入 data URL 或纯base64'
+    )
+    test_image_mime_type = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default='image/jpeg',
+        help_text='测试图片 MIME 类型'
+    )
 
     def validate(self, attrs):
         """验证模型提供商配置"""
@@ -311,6 +327,18 @@ class ModelProviderTestSerializer(serializers.Serializer):
 
         if not provider.is_active:
             raise serializers.ValidationError("模型提供商未激活")
+
+        test_image_base64 = (attrs.get('test_image_base64') or '').strip()
+        mime_type = (attrs.get('test_image_mime_type') or 'image/jpeg').strip() or 'image/jpeg'
+
+        if test_image_base64.startswith('data:') and ';base64,' in test_image_base64:
+            header, encoded = test_image_base64.split(';base64,', 1)
+            mime_type = header.split(':', 1)[1] if ':' in header else mime_type
+            test_image_base64 = encoded.strip()
+
+        attrs['test_image_url'] = (attrs.get('test_image_url') or '').strip()
+        attrs['test_image_base64'] = test_image_base64
+        attrs['test_image_mime_type'] = mime_type
 
         attrs['provider'] = provider
         return attrs

@@ -48,9 +48,9 @@ VENDOR_CATALOG: Dict[str, Dict[str, Any]] = {
             },
             'image2video': {
                 'provider_type': 'image2video',
-                'api_url': 'https://ark.cn-beijing.volces.com/api/v3/videos/generations',
+                'api_url': 'https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks',
                 'models_endpoint': 'https://ark.cn-beijing.volces.com/api/v3/models',
-                'executor_class': 'core.ai_client.image2video_client.VideoGeneratorClient',
+                'executor_class': 'core.ai_client.volcengine_image2video_client.VolcengineImage2VideoClient',
                 'model_filter': ['video', 'seedance'],
                 'recommended_patterns': ['seedance', 'video'],
                 'configurable_api_url': True,

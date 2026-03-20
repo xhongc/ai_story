@@ -108,7 +108,7 @@
               </p>
             </div>
             <span
-              class="badge badge-sm"
+              class="badge badge-sm card-type-badge"
               :class="getProviderTypeBadgeClass(provider.provider_type)"
             >
               {{ getProviderTypeLabel(provider.provider_type) }}
@@ -663,7 +663,14 @@ export default {
 }
 
 .card-main {
+  flex: 1;
   min-width: 0;
+}
+
+.card-type-badge {
+  flex-shrink: 0;
+  align-self: flex-start;
+  white-space: nowrap;
 }
 
 .card-title {

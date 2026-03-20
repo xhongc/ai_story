@@ -108,8 +108,8 @@ class ModelProviderVendorServiceTestCase(APITestCase):
         provider = ModelProvider.objects.get(model_name='seedance-1-0-lite-i2v')
         self.assertEqual(result['created_count'], 1)
         self.assertEqual(provider.provider_type, 'image2video')
-        self.assertEqual(provider.api_url, 'https://ark.cn-beijing.volces.com/api/v3/videos/generations')
-        self.assertEqual(provider.executor_class, 'core.ai_client.image2video_client.VideoGeneratorClient')
+        self.assertEqual(provider.api_url, 'https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks')
+        self.assertEqual(provider.executor_class, 'core.ai_client.volcengine_image2video_client.VolcengineImage2VideoClient')
 
     def test_batch_create_vendor_models_supports_gemini_multimodal(self):
         image_result = ModelProviderService.batch_create_vendor_models({

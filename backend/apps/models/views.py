@@ -42,7 +42,7 @@ class ModelProviderViewSet(viewsets.ModelViewSet):
     filterset_fields = ['provider_type', 'is_active']
     search_fields = ['name', 'model_name', 'api_url']
     ordering_fields = ['created_at', 'updated_at', 'priority', 'name']
-    ordering = ['-priority', '-created_at']
+    ordering = ['-created_at']
 
     def get_queryset(self):
         """获取所有模型提供商"""
@@ -169,11 +169,17 @@ class ModelProviderViewSet(viewsets.ModelViewSet):
             'test_prompt',
             'Hello, this is a test.'
         )
+        test_image_url = serializer.validated_data.get('test_image_url', '')
+        test_image_base64 = serializer.validated_data.get('test_image_base64', '')
+        test_image_mime_type = serializer.validated_data.get('test_image_mime_type', 'image/jpeg')
 
         # 异步测试转同步执行
         result = async_to_sync(ModelProviderService.test_provider_connection)(
             str(instance.id),
-            test_prompt
+            test_prompt,
+            test_image_url=test_image_url,
+            test_image_base64=test_image_base64,
+            test_image_mime_type=test_image_mime_type,
         )
 
         if result['success']:

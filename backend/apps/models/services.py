@@ -5,8 +5,10 @@
 """
 
 import inspect
+import base64
 import requests
 from typing import Dict, Any, Optional, List, Iterable
+from pathlib import Path
 from django.db import transaction
 from django.db.models import Q, Avg, Sum
 from asgiref.sync import sync_to_async
@@ -194,6 +196,8 @@ class ModelProviderService:
                 capability_config['models_endpoint'] = normalized_api_url[: -len('/videos/generations')] + '/models'
             elif path.endswith('/video/generations'):
                 capability_config['models_endpoint'] = normalized_api_url[: -len('/video/generations')] + '/models'
+            elif path.endswith('/contents/generations/tasks'):
+                capability_config['models_endpoint'] = normalized_api_url[: -len('/contents/generations/tasks')] + '/models'
             else:
                 capability_config['models_endpoint'] = normalized_api_url.rstrip('/') + '/models'
 
@@ -591,9 +595,40 @@ class ModelProviderService:
         }
 
     @staticmethod
+    def _load_default_image2video_test_image() -> Dict[str, str]:
+        """读取内置图生视频测试图片并转换为 base64。"""
+        image_path = Path(__file__).resolve().parent / 'test.jpeg'
+        image_bytes = image_path.read_bytes()
+        return {
+            'image_base64': base64.b64encode(image_bytes).decode('utf-8'),
+            'image_mime_type': 'image/jpeg',
+            'image_path': str(image_path),
+        }
+
+    @staticmethod
+    def _build_test_request_log(
+        test_prompt: str,
+        test_image_url: str = '',
+        test_image_base64: str = '',
+        test_image_mime_type: str = 'image/jpeg',
+    ) -> Dict[str, Any]:
+        """构造测试请求日志，避免写入整段图片 base64。"""
+        request_data: Dict[str, Any] = {'test_prompt': test_prompt}
+        if test_image_url:
+            request_data['test_image_url'] = test_image_url
+        if test_image_base64:
+            request_data['test_image_base64_provided'] = True
+            request_data['test_image_base64_length'] = len(test_image_base64)
+            request_data['test_image_mime_type'] = test_image_mime_type
+        return request_data
+
+    @staticmethod
     async def test_provider_connection(
         provider_id: str,
-        test_prompt: str = "Hello, this is a test."
+        test_prompt: str = "Hello, this is a test.",
+        test_image_url: str = '',
+        test_image_base64: str = '',
+        test_image_mime_type: str = 'image/jpeg',
     ) -> Dict[str, Any]:
         """
         测试模型提供商连接
@@ -635,6 +670,9 @@ class ModelProviderService:
                 result = await ModelProviderService._test_image2video_provider(
                     provider,
                     test_prompt,
+                    test_image_url=test_image_url,
+                    test_image_base64=test_image_base64,
+                    test_image_mime_type=test_image_mime_type,
                 )
             elif provider.provider_type == 'image_edit':
                 test_prompt = '图片编辑测试：提升图片清晰度并补充细节'
@@ -654,7 +692,12 @@ class ModelProviderService:
             # 记录使用日志
             await sync_to_async(ModelUsageLog.objects.create)(
                 model_provider=provider,
-                request_data={'test_prompt': test_prompt},
+                request_data=ModelProviderService._build_test_request_log(
+                    test_prompt=test_prompt,
+                    test_image_url=test_image_url,
+                    test_image_base64=test_image_base64,
+                    test_image_mime_type=test_image_mime_type,
+                ),
                 response_data=result.get('data', {}),
                 tokens_used=result.get('tokens_used', 0),
                 latency_ms=latency_ms,
@@ -677,7 +720,12 @@ class ModelProviderService:
             # 记录失败日志
             await sync_to_async(ModelUsageLog.objects.create)(
                 model_provider=provider,
-                request_data={'test_prompt': test_prompt},
+                request_data=ModelProviderService._build_test_request_log(
+                    test_prompt=test_prompt,
+                    test_image_url=test_image_url,
+                    test_image_base64=test_image_base64,
+                    test_image_mime_type=test_image_mime_type,
+                ),
                 response_data={},
                 latency_ms=latency_ms,
                 status='failed',
@@ -770,20 +818,33 @@ class ModelProviderService:
     async def _test_image2video_provider(
         provider: ModelProvider,
         prompt: str,
+        test_image_url: str = '',
+        test_image_base64: str = '',
+        test_image_mime_type: str = 'image/jpeg',
     ) -> Dict[str, Any]:
         """测试图生视频提供商"""
         from core.ai_client.base import AIResponse
         from core.ai_client.comfyui_client import ComfyUIClient
         from core.ai_client.mock_image2video_client import MockImage2VideoClient
         from core.ai_client.image2video_client import VideoGeneratorClient
+        from core.ai_client.volcengine_image2video_client import VolcengineImage2VideoClient
 
         extra_config = provider.extra_config or {}
+        used_default_test_image = False
+
+        if not test_image_base64 and not test_image_url:
+            default_test_image = ModelProviderService._load_default_image2video_test_image()
+            test_image_base64 = default_test_image['image_base64']
+            test_image_mime_type = default_test_image['image_mime_type']
+            used_default_test_image = True
+
         image_url = (
-            extra_config.get('test_image_url')
+            test_image_url
+            or extra_config.get('test_image_url')
             or extra_config.get('image_url')
             or extra_config.get('default_image_url')
         )
-        if not image_url:
+        if not image_url and not test_image_base64:
             image_url = "mock"
 
         duration = extra_config.get('duration', 5)
@@ -835,8 +896,13 @@ class ModelProviderService:
         elif executor_class_path in (
             'core.ai_client.image2video_client.VideoGeneratorClient',
             'core.ai_client.image2video_client.Image2VideoClient',
+            'core.ai_client.volcengine_image2video_client.VolcengineImage2VideoClient',
         ):
-            client = await sync_to_async(VideoGeneratorClient)(
+            client_class = VideoGeneratorClient
+            if executor_class_path == 'core.ai_client.volcengine_image2video_client.VolcengineImage2VideoClient':
+                client_class = VolcengineImage2VideoClient
+
+            client = await sync_to_async(client_class)(
                 api_url=provider.api_url,
                 api_token=provider.api_key,
                 model=provider.model_name,
@@ -845,6 +911,8 @@ class ModelProviderService:
                 'prompt': prompt,
                 'model': provider.model_name,
                 'image_uri': image_url,
+                'image_base64': test_image_base64 or None,
+                'image_mime_type': test_image_mime_type or 'image/jpeg',
                 'duration_seconds': duration,
                 'aspect_ratio': aspect_ratio,
                 'resolution': resolution,
@@ -901,6 +969,9 @@ class ModelProviderService:
                 'videos': data,
                 'metadata': metadata,
                 'test_image_url': image_url,
+                'test_image_base64_provided': bool(test_image_base64),
+                'test_image_mime_type': test_image_mime_type or 'image/jpeg',
+                'used_default_test_image': used_default_test_image,
             },
             'tokens_used': metadata.get('usage', {}).get('total_tokens', 0),
             'error': error,

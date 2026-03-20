@@ -74,11 +74,7 @@ class VideoGeneratorClient:
 
     def _build_create_video_url(self) -> str:
         """构建视频生成请求地址。"""
-        if self._is_chat_completions_endpoint(self.base_url):
-            return self.base_url
-        if self._is_video_generations_endpoint(self.base_url):
-            return self.base_url
-        return f"{self.base_url.rstrip('/')}/v1/videos/generations"
+        return self.base_url
 
     def _build_task_status_url(self, task_id: str) -> str:
         """构建任务状态查询地址。"""

@@ -3,6 +3,7 @@ from unittest.mock import Mock, patch
 from django.test import SimpleTestCase
 
 from core.ai_client.image2video_client import VideoGeneratorClient
+from core.ai_client.volcengine_image2video_client import VolcengineImage2VideoClient
 
 
 class VideoGeneratorClientTestCase(SimpleTestCase):
@@ -127,3 +128,102 @@ class VideoGeneratorClientTestCase(SimpleTestCase):
             mock_post.call_args.kwargs['json']['messages'][0]['content'][1]['image_url']['url'],
             'data:image/jpeg;base64,bG9jYWwtaW1hZ2UtYnl0ZXM=',
         )
+
+
+class VolcengineImage2VideoClientTestCase(SimpleTestCase):
+    @patch('core.ai_client.volcengine_image2video_client.VideoGeneratorClient._localize_video_data', side_effect=lambda data, timeout: data)
+    @patch('core.ai_client.volcengine_image2video_client.requests.get')
+    @patch('core.ai_client.volcengine_image2video_client.requests.post')
+    def test_generate_video_uses_volc_task_api(self, mock_post, mock_get, mock_localize):
+        create_response = Mock()
+        create_response.raise_for_status.return_value = None
+        create_response.json.return_value = {'id': 'task-123'}
+        mock_post.return_value = create_response
+
+        get_response = Mock()
+        get_response.raise_for_status.return_value = None
+        get_response.json.return_value = {
+            'status': 'succeeded',
+            'content': {'video_url': 'https://example.com/generated.mp4'},
+            'usage': {'total_tokens': 12},
+        }
+        mock_get.return_value = get_response
+
+        client = VolcengineImage2VideoClient(
+            api_url='https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks',
+            api_token='secret',
+            model='doubao-seedance-1-5-pro-251215',
+        )
+
+        result = client._generate_video(
+            prompt='小猫对着镜头打哈欠',
+            image_base64='ZmFrZV9pbWFnZQ==',
+            aspect_ratio='16:9',
+            duration_seconds=5,
+            resolution='720p',
+            seed=11,
+            generate_audio=True,
+            poll_interval=0,
+        )
+
+        self.assertTrue(result['success'])
+        self.assertEqual(result['data'], [{'url': 'https://example.com/generated.mp4'}])
+        self.assertEqual(
+            mock_post.call_args.args[0],
+            'https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks',
+        )
+        self.assertEqual(mock_post.call_args.kwargs['json']['model'], 'doubao-seedance-1-5-pro-251215')
+        self.assertEqual(mock_post.call_args.kwargs['json']['ratio'], '16:9')
+        self.assertEqual(mock_post.call_args.kwargs['json']['duration'], 5)
+        self.assertEqual(mock_post.call_args.kwargs['json']['resolution'], '720p')
+        self.assertTrue(mock_post.call_args.kwargs['json']['generate_audio'])
+        self.assertEqual(
+            mock_post.call_args.kwargs['json']['content'][1]['image_url']['url'],
+            'data:image/jpeg;base64,ZmFrZV9pbWFnZQ==',
+        )
+        self.assertEqual(
+            mock_get.call_args.args[0],
+            'https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks/task-123',
+        )
+
+    @patch('core.ai_client.volcengine_image2video_client.time.sleep', return_value=None)
+    def test_wait_volc_task_breaks_after_max_poll_attempts(self, mock_sleep):
+        client = VolcengineImage2VideoClient(
+            api_url='https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks',
+            api_token='secret',
+            model='doubao-seedance-1-5-pro-251215',
+        )
+
+        with patch.object(client, '_get_volc_task', return_value={'status': 'processing'}) as mock_get_task:
+            with self.assertRaises(TimeoutError) as exc:
+                client._wait_volc_task(
+                    task_id='task-123',
+                    poll_interval=0,
+                    max_wait_time=600,
+                    timeout=30,
+                    max_poll_attempts=3,
+                )
+
+        self.assertIn('轮询次数超过 3 次', str(exc.exception))
+        self.assertEqual(mock_get_task.call_count, 3)
+
+    @patch('core.ai_client.volcengine_image2video_client.time.sleep', return_value=None)
+    def test_wait_volc_task_breaks_after_consecutive_errors(self, mock_sleep):
+        client = VolcengineImage2VideoClient(
+            api_url='https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks',
+            api_token='secret',
+            model='doubao-seedance-1-5-pro-251215',
+        )
+
+        with patch.object(client, '_get_volc_task', side_effect=RuntimeError('network error')) as mock_get_task:
+            with self.assertRaises(RuntimeError) as exc:
+                client._wait_volc_task(
+                    task_id='task-123',
+                    poll_interval=0,
+                    max_wait_time=600,
+                    timeout=30,
+                    max_consecutive_errors=2,
+                )
+
+        self.assertIn('连续查询异常达到 2 次', str(exc.exception))
+        self.assertEqual(mock_get_task.call_count, 2)

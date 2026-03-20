@@ -4,8 +4,8 @@ Mock 图生视频客户端实现
 """
 
 import time
-from typing import Dict, Any
-from .base import Image2VideoClient, AIResponse
+
+from .base import AIResponse, Image2VideoClient
 
 
 class MockImage2VideoClient(Image2VideoClient):
@@ -28,7 +28,7 @@ class MockImage2VideoClient(Image2VideoClient):
         width: int = 512,
         height: int = 512,
         steps: int = 20,
-        **kwargs
+        **kwargs,
     ) -> AIResponse:
         """
         生成模拟的视频响应
@@ -49,9 +49,9 @@ class MockImage2VideoClient(Image2VideoClient):
         time.sleep(5.0)
 
         # 从kwargs获取参数
-        width = kwargs.get('width', 1280)
-        height = kwargs.get('height', 720)
-        model = kwargs.get('model', self.model_name)
+        width = kwargs.get("width", 1280)
+        height = kwargs.get("height", 720)
+        model = kwargs.get("model", self.model_name)
 
         # 根据图片URL哈希选择视频（保证相同图片返回相同视频）
         image_hash = hash(prompt) % len(self.MOCK_VIDEO_URLS)
@@ -64,7 +64,7 @@ class MockImage2VideoClient(Image2VideoClient):
             "height": height,
             "format": "mp4",
             "file_size": 1024 * 1024,  # 模拟1MB文件大小
-            "camera_movement": prompt
+            "camera_movement": prompt,
         }
 
         latency_ms = int((time.time() - start_time) * 1000)
@@ -73,10 +73,10 @@ class MockImage2VideoClient(Image2VideoClient):
             success=True,
             data=[video_data],
             metadata={
-                'latency_ms': latency_ms,
-                'model': model,
-                'is_mock': True,
-            }
+                "latency_ms": latency_ms,
+                "model": model,
+                "is_mock": True,
+            },
         )
 
     async def validate_config(self) -> bool:

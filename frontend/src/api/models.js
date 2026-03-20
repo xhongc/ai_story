@@ -91,13 +91,15 @@ export const modelProviderApi = {
   /**
    * 测试模型提供商连接
    * @param {string} id - 提供商ID
-   * @param {string} testPrompt - 测试提示词
+   * @param {string|Object} payload - 测试提示词或测试参数对象
    * @returns {Promise}
    */
-  testProviderConnection(id, testPrompt = 'Hello, this is a test.') {
-    return apiClient.post(`/models/providers/${id}/test_connection/`, {
-      test_prompt: testPrompt
-    })
+  testProviderConnection(id, payload = 'Hello, this is a test.') {
+    const requestBody = typeof payload === 'string'
+      ? { test_prompt: payload }
+      : { test_prompt: 'Hello, this is a test.', ...payload }
+
+    return apiClient.post(`/models/providers/${id}/test_connection/`, requestBody)
   },
 
   /**
