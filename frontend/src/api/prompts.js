@@ -536,6 +536,22 @@ export const globalVariableAPI = {
       },
     });
   },
+
+  generateImage(data) {
+    return apiClient({
+      url: '/prompts/variables/generate_image/',
+      method: 'post',
+      data,
+    });
+  },
+
+  createImageAsset(data) {
+    return apiClient({
+      url: '/prompts/variables/create_image_asset/',
+      method: 'post',
+      data,
+    });
+  },
 };
 
 /**

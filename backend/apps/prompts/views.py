@@ -7,7 +7,10 @@
 import asyncio
 import json
 import uuid
+from pathlib import Path
 
+import requests
+from django.core.files.base import ContentFile
 from django.db.models import Q
 from django.core.cache import cache
 from django_filters.rest_framework import DjangoFilterBackend
@@ -19,6 +22,9 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from django.http import StreamingHttpResponse
 
+from apps.models.models import ModelProvider
+from core.ai_client.factory import create_ai_client
+from core.utils.file_storage import image_storage
 from .models import (
     PromptTemplate,
     PromptTemplateSet,
@@ -429,6 +435,34 @@ class GlobalVariableViewSet(viewsets.ModelViewSet):
 
         super().perform_destroy(instance)
 
+    def _get_default_image_provider(self):
+        return ModelProvider.objects.filter(provider_type='text2image', is_active=True).first()
+
+    def _get_requested_image_provider(self, provider_id):
+        if provider_id:
+            return ModelProvider.objects.filter(
+                id=provider_id,
+                provider_type='text2image',
+                is_active=True,
+            ).first()
+        return self._get_default_image_provider()
+
+    def _build_image_asset_file(self, image_url):
+        if not image_url:
+            raise ValueError('缺少图片地址')
+
+        if image_url.startswith('/api/v1/content/storage/image/'):
+            relative_path = image_url.split('/api/v1/content/storage/image/', 1)[1]
+            file_path = image_storage.base_dir / relative_path
+            if not file_path.exists():
+                raise ValueError('生成图片不存在，无法保存为资产')
+            return ContentFile(file_path.read_bytes(), name=Path(relative_path).name)
+
+        response = requests.get(image_url, timeout=30)
+        response.raise_for_status()
+        filename = Path(image_url.split('?', 1)[0]).name or f'{uuid.uuid4().hex}.png'
+        return ContentFile(response.content, name=filename)
+
     @action(detail=False, methods=['get'])
     def groups(self, request):
         """
@@ -560,20 +594,11 @@ class GlobalVariableViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # 检查格式
-        import re
-        import keyword
-
-        if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', key):
+        key = str(key).strip()
+        if not key:
             return Response({
                 'valid': False,
-                'message': '变量键只能包含字母、数字、下划线，且必须以字母或下划线开头'
-            })
-
-        if keyword.iskeyword(key):
-            return Response({
-                'valid': False,
-                'message': f'"{key}" 是Python保留字，不能作为变量键'
+                'message': '变量键不能为空'
             })
 
         # 检查是否已存在
@@ -593,6 +618,115 @@ class GlobalVariableViewSet(viewsets.ModelViewSet):
             'valid': True,
             'message': '变量键可用'
         })
+
+    @action(detail=False, methods=['post'])
+    def generate_image(self, request):
+        prompt = str(request.data.get('prompt') or '').strip()
+        provider_id = request.data.get('provider_id')
+        if not prompt:
+            return Response({'error': '缺少生成提示词'}, status=status.HTTP_400_BAD_REQUEST)
+
+        provider = self._get_requested_image_provider(provider_id)
+        if not provider:
+            return Response({'error': '未配置可用的文生图模型'}, status=status.HTTP_400_BAD_REQUEST)
+
+        extra_config = provider.extra_config or {}
+        width = int(request.data.get('width') or extra_config.get('width') or 1024)
+        height = int(request.data.get('height') or extra_config.get('height') or 1024)
+        ratio = request.data.get('ratio') or extra_config.get('ratio') or '1:1'
+        resolution = request.data.get('resolution') or extra_config.get('resolution') or '2k'
+
+        client = create_ai_client(provider)
+        response = client.generate(
+            api_url=provider.api_url,
+            session_id=provider.api_key,
+            model=provider.model_name,
+            prompt=prompt,
+            ratio=ratio,
+            resolution=resolution,
+            width=width,
+            height=height,
+        )
+
+        images = response.data if hasattr(response, 'data') else None
+        if isinstance(images, dict):
+            images = [images]
+        if not response or not getattr(response, 'success', False) or not isinstance(images, list) or not images:
+            return Response(
+                {'error': getattr(response, 'error', None) or '文生图生成失败'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        preview = dict(images[0])
+        preview['prompt'] = prompt
+        preview['provider'] = {
+            'id': str(provider.id),
+            'name': provider.name,
+            'model_name': provider.model_name,
+        }
+
+        return Response({
+            'message': '图片预览已生成',
+            'preview': preview,
+        })
+
+    @action(detail=False, methods=['post'])
+    def create_image_asset(self, request):
+        asset_id = request.data.get('asset_id')
+        key = str(request.data.get('key') or '').strip()
+        prompt = str(request.data.get('prompt') or request.data.get('value') or '').strip()
+        preview_url = str(request.data.get('preview_url') or '').strip()
+        scope = request.data.get('scope') or 'user'
+
+        if not key:
+            return Response({'error': '资产键不能为空'}, status=status.HTTP_400_BAD_REQUEST)
+        if not preview_url:
+            return Response({'error': '缺少生成图片预览地址'}, status=status.HTTP_400_BAD_REQUEST)
+        if scope == 'system' and not request.user.is_staff:
+            return Response({'error': '只有管理员可以创建系统级变量'}, status=status.HTTP_403_FORBIDDEN)
+
+        asset = None
+        if asset_id:
+            asset = self.get_queryset().filter(pk=asset_id).first()
+            if not asset:
+                return Response({'error': '资产不存在或无权限访问'}, status=status.HTTP_404_NOT_FOUND)
+            if asset.scope == 'system' and not request.user.is_staff:
+                return Response({'error': '只有管理员可以修改系统级变量'}, status=status.HTTP_403_FORBIDDEN)
+
+        owner = asset.created_by if asset else request.user
+        queryset = GlobalVariable.objects.filter(
+            key=key,
+            created_by=owner,
+            scope=scope,
+        )
+        if asset:
+            queryset = queryset.exclude(pk=asset.pk)
+        if queryset.exists():
+            return Response({'error': f'变量键 "{key}" 在当前作用域下已存在'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            image_file = self._build_image_asset_file(preview_url)
+        except Exception as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        if asset is None:
+            asset = GlobalVariable(created_by=request.user)
+
+        asset.key = key
+        asset.value = prompt
+        asset.variable_type = 'image'
+        asset.scope = scope
+        asset.group = str(request.data.get('group') or '').strip()
+        asset.description = str(request.data.get('description') or '').strip()
+        asset.is_active = str(request.data.get('is_active', 'true')).lower() not in ('false', '0', 'off', 'no')
+        asset.image_file.save(image_file.name, image_file, save=False)
+        asset.save()
+
+        serializer = GlobalVariableSerializer(asset, context={'request': request})
+        return Response({
+            'message': '图片资产保存成功',
+            'asset': serializer.data,
+        }, status=status.HTTP_200_OK if asset_id else status.HTTP_201_CREATED)
 
 
 class PromptDebugSessionViewSet(viewsets.ModelViewSet):

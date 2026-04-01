@@ -355,23 +355,11 @@ class GlobalVariableSerializer(serializers.ModelSerializer):
         return None
 
     def validate_key(self, value):
-        """
-        验证变量键
-        1. 只能包含字母、数字、下划线
-        2. 必须以字母或下划线开头
-        3. 不能是Python保留字
-        """
-        import keyword
-
-        if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', value):
-            raise serializers.ValidationError(
-                '变量键只能包含字母、数字、下划线，且必须以字母或下划线开头'
-            )
-
-        if keyword.iskeyword(value):
-            raise serializers.ValidationError(f'"{value}" 是Python保留字，不能作为变量键')
-
-        return value
+        """验证变量键非空。"""
+        normalized = str(value or '').strip()
+        if not normalized:
+            raise serializers.ValidationError('变量键不能为空')
+        return normalized
 
     def validate_value(self, value):
         """
