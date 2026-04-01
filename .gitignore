@@ -51,3 +51,4 @@ npm-debug.log
 yarn-error.log
 /storage/
 /backend/storage/image/
+/backend/media

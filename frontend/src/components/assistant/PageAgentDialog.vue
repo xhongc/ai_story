@@ -111,14 +111,24 @@
           />
           <div class="composer-footer">
             <span class="composer-tip">⌘/Ctrl + Enter 发送</span>
-            <button
-              class="primary-action"
-              type="button"
-              :disabled="streaming || !value.trim()"
-              @click="$emit('submit')"
-            >
-              {{ streaming ? '处理中...' : '发送' }}
-            </button>
+            <div class="composer-actions">
+              <button
+                v-if="streaming"
+                class="secondary-action"
+                type="button"
+                @click="$emit('stop')"
+              >
+                停止
+              </button>
+              <button
+                class="primary-action"
+                type="button"
+                :disabled="streaming || !value.trim()"
+                @click="$emit('submit')"
+              >
+                {{ streaming ? '处理中...' : '发送' }}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -235,11 +245,17 @@ export default {
 
 .dialog-header,
 .composer-footer,
-.message-meta {
+.message-meta,
+.composer-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 0.75rem;
+}
+
+.dialog-header,
+.composer-footer,
+.message-meta {
+  justify-content: space-between;
 }
 
 .dialog-header-main {
@@ -282,7 +298,8 @@ export default {
 .dialog-close,
 .quick-action-btn,
 .suggestion-btn,
-.primary-action {
+.primary-action,
+.secondary-action {
   transition: all 0.2s ease;
 }
 
@@ -338,7 +355,8 @@ export default {
 }
 
 .quick-action-btn,
-.primary-action {
+.primary-action,
+.secondary-action {
   padding: 0.6rem 1rem;
   border-radius: 999px;
   border: 1px solid rgba(15, 23, 42, 0.12);
@@ -351,7 +369,8 @@ export default {
 .quick-action-btn:hover,
 .dialog-close:hover,
 .suggestion-btn:hover,
-.primary-action:hover {
+.primary-action:hover,
+.secondary-action:hover {
   border-color: rgba(20, 184, 166, 0.5);
   box-shadow: 0 12px 24px rgba(20, 184, 166, 0.16);
   transform: translateY(-1px);
@@ -360,6 +379,7 @@ export default {
 .layout-shell.theme-dark .dialog-close,
 .layout-shell.theme-dark .quick-action-btn,
 .layout-shell.theme-dark .primary-action,
+.layout-shell.theme-dark .secondary-action,
 .layout-shell.theme-dark .suggestion-btn {
   background: rgba(15, 23, 42, 0.96);
   color: #e2e8f0;

@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'apps.content',
     'apps.users',
     'apps.mock_api',
+    'apps.agent',
 ]
 
 MIDDLEWARE = [
@@ -145,6 +146,14 @@ REDIS_PUBSUB_URL = os.getenv('REDIS_PUBSUB_URL', f'redis://{REDIS_HOST}:{REDIS_P
 # CORS配置
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = ["http://127.0.0.1:3000"]
+
+AGENT_SERVER_BASE_URL = os.getenv('AGENT_SERVER_BASE_URL', 'http://127.0.0.1:9002').strip()
+AGENT_SERVER_USERNAME = os.getenv('AGENT_SERVER_USERNAME', 'opencode').strip()
+AGENT_SERVER_PASSWORD = os.getenv('AGENT_SERVER_PASSWORD', '').strip()
+AGENT_MODEL_PROVIDER_ID = os.getenv('AGENT_MODEL_PROVIDER_ID', 'opencode').strip()
+AGENT_MODEL_ID = os.getenv('AGENT_MODEL_ID', 'big-pickle').strip()
+AGENT_MODEL_VARIANT = os.getenv('AGENT_MODEL_VARIANT', '').strip()
+AGENT_REMOTE_AGENT_NAME = os.getenv('AGENT_REMOTE_AGENT_NAME', '').strip()
 
 # JWT配置
 SIMPLE_JWT = {

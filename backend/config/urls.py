@@ -15,6 +15,7 @@ urlpatterns = [
     path('api/v1/models/', include('apps.models.urls')),
     path('api/v1/content/', include('apps.content.urls')),
     path('api/v1/users/', include('apps.users.urls')),
+    path('api/v1/agent/', include('apps.agent.urls')),
     path('api/mock/', include('apps.mock_api.urls')),
 ]
 

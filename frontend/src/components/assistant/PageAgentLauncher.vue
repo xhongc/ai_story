@@ -12,6 +12,7 @@
       @close="close"
       @input="updateDraft"
       @submit="sendCurrentDraft"
+      @stop="abort"
       @quick-action="sendMessage"
       @execute-suggestion="executeSuggestion"
     />
@@ -70,7 +71,7 @@ export default {
     },
   },
   methods: {
-    ...mapActions('assistant', ['toggle', 'close', 'updateDraft', 'sendMessage', 'executeSuggestion', 'registerContext']),
+    ...mapActions('assistant', ['toggle', 'close', 'updateDraft', 'sendMessage', 'executeSuggestion', 'registerContext', 'abort']),
     ensureFallbackContext() {
       if (
         this.currentContext
