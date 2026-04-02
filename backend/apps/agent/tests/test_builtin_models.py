@@ -169,6 +169,55 @@ class AgentGatewayTestCase(TestCase):
         self.assertEqual(first_payload['agent'], 'build')
         self.assertNotIn('agent', second_payload)
 
+
+    def test_iter_sse_events_parses_text_stream(self):
+        gateway = AgentGateway()
+        response = Mock()
+        response.iter_lines.return_value = iter([
+            'data: {"type":"server.connected","properties":{}}',
+            '',
+            'data: {"type":"session.idle","properties":{"sessionID":"ses_1"}}',
+            '',
+        ])
+
+        events = list(gateway._iter_sse_events(response))
+
+        self.assertEqual(events, [
+            {'type': 'server.connected', 'properties': {}},
+            {'type': 'session.idle', 'properties': {'sessionID': 'ses_1'}},
+        ])
+
+    def test_iter_sse_events_accepts_bytes_lines(self):
+        gateway = AgentGateway()
+        response = Mock()
+        response.iter_lines.return_value = iter([
+            b'data: {"type":"server.connected","properties":{}}',
+            b'',
+        ])
+
+        events = list(gateway._iter_sse_events(response))
+
+        self.assertEqual(events, [
+            {'type': 'server.connected', 'properties': {}},
+        ])
+
+    def test_iter_sse_events_ignores_read_timeout_connection_error(self):
+        gateway = AgentGateway()
+        response = Mock()
+
+        def line_iter():
+            yield 'data: {"type":"server.connected","properties":{}}'
+            yield ''
+            raise requests.exceptions.ConnectionError('Read timed out.')
+
+        response.iter_lines.side_effect = line_iter
+
+        events = list(gateway._iter_sse_events(response))
+
+        self.assertEqual(events, [
+            {'type': 'server.connected', 'properties': {}},
+        ])
+
     @override_settings(AGENT_REMOTE_AGENT_NAME='build')
     def test_submit_prompt_keeps_error_when_it_is_not_schema_related(self):
         gateway = AgentGateway()
