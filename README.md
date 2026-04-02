@@ -243,7 +243,7 @@ AI分析每个场景，自动生成合适的镜头运动方案。
 
 ## 联系方式
 <div>
-<img  src="/img0325.jpg" width="250">  &nbsp;
+<img  src="/img0402.jpg" width="250">  &nbsp;
 </div>
 
 - 视频号：小小方圆669
