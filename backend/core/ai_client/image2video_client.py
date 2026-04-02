@@ -26,6 +26,7 @@ class TaskStatus(Enum):
     QUEUED = "Queued"
     RUNNING = "Running"
     COMPLETED = "Completed"
+    SUCCESS = "SUCCESS"
     FAILED = "Failed"
     UPLOADING = "Uploading"
     UNKNOWN = "Unknown"
@@ -375,10 +376,13 @@ class VideoGeneratorClient:
 
             task_info = self.get_task_status(task_id)
             status = task_info.get('status')
-
+            if status is None and "data" in task_info:
+                task_info = task_info["data"]
+                status = task_info.get("status")
             if callback:
                 callback(task_info)
-
+            if status == TaskStatus.SUCCESS.value:
+                return task_info
             if status == TaskStatus.COMPLETED.value:
                 return task_info
             if status == TaskStatus.FAILED.value:

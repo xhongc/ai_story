@@ -219,7 +219,7 @@ const actions = {
     commit('SET_DRAFT', '');
     commit('SET_STREAMING', true);
 
-    const pendingMessage = createStatusMessage('正在整理当前页面上下文...');
+    const pendingMessage = createStatusMessage('思考中...');
     commit('ADD_MESSAGE', pendingMessage);
 
     try {
