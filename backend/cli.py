@@ -222,19 +222,39 @@ async def generate_image(prompt: str, style: str = "anime", workflow_path: str =
 
     print(f"\n📁 Workflow: {wf_path.name}")
 
+    # 构建提示词
+    full_prompt = f"{prompt}, {style} style"
+    print(f"\n🎨 提示词: {full_prompt}")
+
+    # 将提示词注入到 workflow 的 TextEncode 节点
+    workflow_data = workflow_template.get('prompt', workflow_template)
+    prompt_injected = False
+    
+    # 查找 TextEncodeZImageOmni 节点并注入提示词
+    for node_id, node in workflow_data.items():
+        if node.get('class_type') == 'TextEncodeZImageOmni':
+            # 获取当前节点的 prompt
+            node_inputs = node.get('inputs', {})
+            current_prompt = node_inputs.get('prompt', '')
+            
+            # 如果当前 prompt 不是负面提示词（负面提示词通常包含"模糊"、"低清晰度"等）
+            if not any(keyword in current_prompt for keyword in ['模糊', '低清晰度', '水印', 'bad', 'low quality']):
+                # 替换为新的提示词
+                workflow_data[node_id]['inputs']['prompt'] = full_prompt
+                print(f"   📝 已注入到节点 {node_id} ({node['class_type']})")
+                prompt_injected = True
+
+    if not prompt_injected:
+        print("   ⚠️ 未找到 TextEncodeZImageOmni 节点，请检查 workflow 结构")
+
     # 创建客户端
     client = ComfyUIClient(
         api_url=config.COMFYUI_API_URL,
         api_key="",
         model_name="default",
-        workflow_template=workflow_template,
         timeout=300,
         save_images=True
     )
-
-    # 构建提示词
-    full_prompt = f"{prompt}, {style} style"
-    print(f"\n🎨 提示词: {full_prompt}")
 
     # 生成进度回调
     def progress_callback(progress: float):
@@ -244,8 +264,11 @@ async def generate_image(prompt: str, style: str = "anime", workflow_path: str =
         print(f"\r   [{bar}] {progress:.1f}%", end="", flush=True)
 
     print("\n⏳ 正在生成...")
+    
+    # 将修改后的 workflow 转为 JSON 字符串
+    workflow_json = json.dumps(workflow_data)
     result = client.generate(
-        prompt=json.dumps(workflow_template),  # 传入完整workflow
+        prompt=workflow_json,
         progress_callback=progress_callback
     )
 

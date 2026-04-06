@@ -1,15 +1,16 @@
 """
 oMLX 本地LLM客户端
-兼容 OpenAI API 接口，支持流式生成
-用于本地 Qwen3.5-9B 等模型
+兼容 OpenAI API 接口，支持流式生成和多模态（图像输入）
 
 地址: http://192.168.1.50:8080/v1
+模型: Qwen3.5-9B-MLX-4bit (多模态，支持图像base64输入)
 """
 
+import base64
 import requests
 import json
 import time
-from typing import Dict, Any, Generator, Optional, List
+from typing import Dict, Any, Generator, Optional, List, Union
 from .base import LLMClient, AIResponse
 
 
@@ -17,7 +18,7 @@ class oMLXClient(LLMClient):
     """
     oMLX 本地LLM客户端
     兼容 OpenAI API 接口格式
-    支持流式和非流式生成
+    支持流式/非流式生成，支持多模态图像输入
     """
 
     def __init__(
@@ -32,13 +33,14 @@ class oMLXClient(LLMClient):
 
         Args:
             api_url: API地址 (例如: http://192.168.1.50:8080/v1)
-            api_key: API密钥 (oMLX通常不需要，设置默认值即可)
+            api_key: API密钥
             model_name: 模型名称
             **kwargs: 其他配置参数
                 - timeout: 超时时间 (秒)
                 - system_prompt: 默认系统提示词
                 - max_tokens: 最大token数
                 - temperature: 温度参数
+                - multimodal: 是否支持多模态 (默认 True)
         """
         super().__init__(api_url, api_key, model_name, **kwargs)
         self.timeout = kwargs.get('timeout', 300)
@@ -46,6 +48,71 @@ class oMLXClient(LLMClient):
             'system_prompt',
             "你是一个专业的AI故事生成助手，擅长创作引人入胜的故事内容。"
         )
+        self.multimodal = kwargs.get('multimodal', True)  # 默认支持多模态
+
+    def _build_messages(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        image: Optional[Union[str, bytes]] = None,
+        image_type: str = "image/png"
+    ) -> List[Dict[str, Any]]:
+        """
+        构建消息列表，支持多模态内容
+
+        Args:
+            prompt: 文本提示词
+            system_prompt: 系统提示词
+            image: 图像数据 (base64字符串或bytes)
+            image_type: 图像MIME类型
+
+        Returns:
+            List[Dict]: OpenAI 格式的消息列表
+        """
+        messages = []
+
+        # 系统消息
+        if system_prompt or self.default_system_prompt:
+            messages.append({
+                'role': 'system',
+                'content': system_prompt or self.default_system_prompt
+            })
+
+        # 用户消息
+        if image and self.multimodal:
+            # 多模态模式：支持图像输入
+            content = []
+
+            # 文本部分
+            if prompt:
+                content.append({
+                    'type': 'text',
+                    'text': prompt
+                })
+
+            # 图像部分
+            if isinstance(image, bytes):
+                image_b64 = base64.b64encode(image).decode('utf-8')
+            else:
+                image_b64 = image
+
+            content.append({
+                'type': 'image_url',
+                'image_url': {
+                    'url': f'data:{image_type};base64,{image_b64}',
+                    'detail': 'high'  # high/low/lowest
+                }
+            })
+
+            messages.append({
+                'role': 'user',
+                'content': content
+            })
+        else:
+            # 纯文本模式
+            messages.append({'role': 'user', 'content': prompt})
+
+        return messages
 
     async def _generate_text(
         self,
@@ -53,6 +120,8 @@ class oMLXClient(LLMClient):
         max_tokens: int = 4096,
         temperature: float = 0.7,
         system_prompt: Optional[str] = None,
+        image: Optional[Union[str, bytes]] = None,
+        image_type: str = "image/png",
         **kwargs
     ) -> AIResponse:
         """
@@ -63,6 +132,8 @@ class oMLXClient(LLMClient):
             max_tokens: 最大token数
             temperature: 温度参数
             system_prompt: 系统提示词
+            image: 图像数据 (base64字符串或bytes)，支持多模态
+            image_type: 图像MIME类型
             **kwargs: 其他参数
 
         Returns:
@@ -75,13 +146,7 @@ class oMLXClient(LLMClient):
             'Content-Type': 'application/json'
         }
 
-        messages = []
-        if system_prompt or self.default_system_prompt:
-            messages.append({
-                'role': 'system',
-                'content': system_prompt or self.default_system_prompt
-            })
-        messages.append({'role': 'user', 'content': prompt})
+        messages = self._build_messages(prompt, system_prompt, image, image_type)
 
         payload = {
             'model': self.model_name,
@@ -114,6 +179,7 @@ class oMLXClient(LLMClient):
                         'tokens_used': result.get('usage', {}).get('total_tokens', 0),
                         'latency_ms': latency_ms,
                         'model': self.model_name,
+                        'multimodal': self.multimodal,
                     }
                 )
             else:
@@ -144,6 +210,8 @@ class oMLXClient(LLMClient):
         system_prompt: Optional[str] = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,
+        image: Optional[Union[str, bytes]] = None,
+        image_type: str = "image/png",
         **kwargs
     ) -> Generator[Dict[str, Any], None, None]:
         """
@@ -154,6 +222,8 @@ class oMLXClient(LLMClient):
             system_prompt: 系统提示词
             max_tokens: 最大token数
             temperature: 温度参数
+            image: 图像数据 (base64字符串或bytes)，支持多模态
+            image_type: 图像MIME类型
             **kwargs: 其他参数
 
         Yields:
@@ -164,13 +234,7 @@ class oMLXClient(LLMClient):
             'Content-Type': 'application/json'
         }
 
-        messages = []
-        if system_prompt or self.default_system_prompt:
-            messages.append({
-                'role': 'system',
-                'content': system_prompt or self.default_system_prompt
-            })
-        messages.append({'role': 'user', 'content': prompt})
+        messages = self._build_messages(prompt, system_prompt, image, image_type)
 
         payload = {
             'model': self.model_name,
@@ -240,7 +304,8 @@ class oMLXClient(LLMClient):
                                         'metadata': {
                                             'latency_ms': latency_ms,
                                             'model': self.model_name,
-                                            'finish_reason': finish_reason
+                                            'finish_reason': finish_reason,
+                                            'multimodal': self.multimodal,
                                         }
                                     }
 
@@ -269,12 +334,26 @@ class oMLXClient(LLMClient):
         max_tokens: int = 4096,
         temperature: float = 0.7,
         system_prompt: Optional[str] = None,
+        image: Optional[Union[str, bytes]] = None,
+        image_type: str = "image/png",
         **kwargs
     ) -> AIResponse:
         """
         生成文本 (异步接口，兼容基类)
+
+        Args:
+            prompt: 用户提示词
+            max_tokens: 最大token数
+            temperature: 温度参数
+            system_prompt: 系统提示词
+            image: 图像数据 (base64字符串或bytes)，支持多模态
+            image_type: 图像MIME类型
+            **kwargs: 其他参数
         """
-        return await self._generate_text(prompt, max_tokens, temperature, system_prompt, **kwargs)
+        return await self._generate_text(
+            prompt, max_tokens, temperature, system_prompt,
+            image, image_type, **kwargs
+        )
 
     def validate_config(self) -> bool:
         """
@@ -296,7 +375,7 @@ class oMLXClient(LLMClient):
 
     def extend_prompt(self, original_prompt: str, extra_context: str) -> str:
         """
-        扩展提示词 (测试通过，成功扩展提示词)
+        扩展提示词
 
         Args:
             original_prompt: 原始提示词
@@ -330,7 +409,8 @@ class oMLXClient(LLMClient):
                     'status': 'healthy',
                     'latency_ms': latency_ms,
                     'models': [m.get('id') for m in models[:5]],
-                    'server': self.api_url
+                    'server': self.api_url,
+                    'multimodal': self.multimodal,
                 }
             else:
                 return {
@@ -344,3 +424,33 @@ class oMLXClient(LLMClient):
                 'error': str(e),
                 'server': self.api_url
             }
+
+    @staticmethod
+    def encode_image_base64(image_data: Union[str, bytes], image_type: str = "image/png") -> str:
+        """
+        将图像编码为 base64 字符串
+
+        Args:
+            image_data: 图像数据 (文件路径、URL或bytes)
+            image_type: MIME类型
+
+        Returns:
+            str: data URI 格式的 base64 字符串
+        """
+        if isinstance(image_data, str):
+            if image_data.startswith('data:'):
+                return image_data
+            elif image_data.startswith('http'):
+                # 下载远程图像
+                response = requests.get(image_data, timeout=30)
+                image_data = response.content
+            else:
+                # 读取本地文件
+                with open(image_data, 'rb') as f:
+                    image_data = f.read()
+
+        if isinstance(image_data, bytes):
+            b64 = base64.b64encode(image_data).decode('utf-8')
+            return f"data:{image_type};base64,{b64}"
+
+        return image_data
