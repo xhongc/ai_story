@@ -30,8 +30,8 @@ class Config:
 
     # oMLX LLM 配置
     OMLX_API_URL = "http://192.168.1.50:8080/v1"
-    OMLX_API_KEY = "local"
-    OMLX_MODEL = "qwen3.5-9b"
+    OMLX_API_KEY = "niuniuai.apikey"
+    OMLX_MODEL = "Qwen3.5-9B-MLX-4bit"
 
     # ComfyUI 配置
     COMFYUI_API_URL = "http://192.168.1.37:8000"

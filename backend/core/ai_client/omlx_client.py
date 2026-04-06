@@ -23,8 +23,8 @@ class oMLXClient(LLMClient):
     def __init__(
         self,
         api_url: str,
-        api_key: str = "local",
-        model_name: str = "qwen3.5-9b",
+        api_key: str = "niuniuai.apikey",
+        model_name: str = "Qwen3.5-9B-MLX-4bit",
         **kwargs
     ):
         """
