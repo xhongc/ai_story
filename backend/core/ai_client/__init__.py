@@ -3,6 +3,7 @@
 from .base import BaseAIClient, LLMClient, Text2ImageClient, Image2VideoClient, ImageEditClient, AIResponse
 from .openai_client import OpenAIClient
 from .comfyui_client import ComfyUIClient
+from .omlx_client import oMLXClient
 
 __all__ = [
     'BaseAIClient',
@@ -13,4 +14,5 @@ __all__ = [
     'AIResponse',
     'OpenAIClient',
     'ComfyUIClient',
+    'oMLXClient',
 ]

@@ -1,0 +1,70 @@
+{
+  "workflow_version": "1.0",
+  "note": "示例文生图工作流 - 请替换为你实际的 ComfyUI workflow JSON",
+  "required_nodes": [
+    "CheckpointLoaderSimple",
+    "CLIPTextEncode",
+    "CLIPTextEncode (negative)",
+    "KSampler",
+    "VAEDecode",
+    "SaveImage"
+  ],
+  "nodes": {
+    "1": {
+      "class_type": "CheckpointLoaderSimple",
+      "inputs": {
+        "ckpt_name": "sd_xl_base_1.0.safetensors"
+      }
+    },
+    "2": {
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "text": "${PROMPT}",
+        "clip": ["1", 0]
+      }
+    },
+    "3": {
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "text": "low quality, worst quality, bad anatomy, blurry",
+        "clip": ["1", 0]
+      }
+    },
+    "4": {
+      "class_type": "KSampler",
+      "inputs": {
+        "model": ["1", 0],
+        "positive": ["2", 0],
+        "negative": ["3", 0],
+        "seed": 42,
+        "steps": 20,
+        "cfg": 7.0,
+        "sampler_name": "euler",
+        "scheduler": "normal"
+      }
+    },
+    "5": {
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": ["4", 0],
+        "vae": ["1", 2]
+      }
+    },
+    "6": {
+      "class_type": "SaveImage",
+      "inputs": {
+        "filename_prefix": "ai_story",
+        "images": ["5", 0]
+      }
+    }
+  },
+  "prompt_template": {
+    "placeholder": "请在 ComfyUI 界面中设计工作流并导出",
+    "instructions": [
+      "1. 打开 ComfyUI",
+      "2. 创建你的 LoRA 风格化工作流",
+      "3. 将完整的 workflow JSON 导出到本文件",
+      "4. 确保 ${PROMPT} 会被实际提示词替换"
+    ]
+  }
+}
