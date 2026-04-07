@@ -14,6 +14,15 @@ AI Story is an AI-powered platform for automated story video production. Simply 
 
 ### Start Everything with Docker Compose
 
+If you add a dedicated Celery service in your compose file, make sure it runs from `/app/backend`; otherwise Celery may fail with `Unable to load celery application. The module config was not found.`
+
+```yml
+  celery:
+    image: xhongc/ai_story-backend
+    working_dir: /app/backend
+    command: celery -A config worker -l info -P gevent
+```
+
 ```bash
 # Start all services
 docker-compose up -d

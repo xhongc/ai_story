@@ -49,6 +49,7 @@ services:
   # Celery Worker
   celery:
     image: xhongc/ai_story-backend
+    working_dir: /app/backend
     command: celery -A config worker -l info -P gevent
     restart: unless-stopped
     volumes:
@@ -69,6 +70,8 @@ services:
     depends_on:
       - backend
 ```
+
+> 注意：Celery 服务需要在 `/app/backend` 目录下启动，否则会报 `Unable to load celery application. The module config was not found.`。
 
 ```bash
 # 启动所有服务

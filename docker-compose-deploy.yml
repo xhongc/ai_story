@@ -22,6 +22,7 @@ services:
   # Celery Worker
   celery:
     image: xhongc/ai_story-backend
+    working_dir: /app/backend
     command: celery -A config worker -l info -P gevent
     restart: unless-stopped
     volumes:
