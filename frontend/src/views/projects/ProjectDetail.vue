@@ -23,6 +23,7 @@
           @pipeline-paused="handlePipelinePaused"
           @storyboard-generated="handleStoryboardGenerated"
           @asset-bindings-updated="handleAssetBindingsUpdated"
+          @template-updated="handleTemplateUpdated"
         />
       </div>
     </loading-container>
@@ -694,6 +695,13 @@ export default {
         await this.refreshCanvasData();
       } catch (error) {
         console.error('[ProjectDetail] 刷新项目资产绑定失败:', error);
+      }
+    },
+    async handleTemplateUpdated() {
+      try {
+        await this.refreshCanvasData();
+      } catch (error) {
+        console.error('[ProjectDetail] 刷新模板相关画布数据失败:', error);
       }
     },
 
