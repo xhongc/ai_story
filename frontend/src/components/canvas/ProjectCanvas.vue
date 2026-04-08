@@ -740,7 +740,12 @@ export default {
       });
     },
     editableTemplateStages() {
-      return STAGE_TYPES.filter((stage) => ['rewrite', 'asset_extraction', 'storyboard', 'image_generation', 'multi_grid_image', 'image_edit', 'camera_movement', 'video_generation'].includes(stage.value));
+      const enabledStageTypes = new Set(
+        this.templateDrawerTemplates
+          .filter((template) => template.is_active !== false)
+          .map((template) => template.stage_type)
+      );
+      return STAGE_TYPES.filter((stage) => enabledStageTypes.has(stage.value));
     },
     pipelineActionType() {
       if (this.project?.status === 'processing') {
@@ -1438,18 +1443,19 @@ export default {
         const templates = response.results || response || [];
         this.templateDrawerTemplates = templates;
 
-        if (!templates.length) {
-          this.templateDrawerError = '当前提示词集下暂无可编辑模板';
+        const enabledTemplates = templates.filter((template) => template.is_active !== false);
+        if (!enabledTemplates.length) {
+          this.templateDrawerError = '当前提示词集下暂无已启用模板';
           this.selectedTemplateStage = '';
           this.templateDrawerActiveTemplateId = null;
           return;
         }
 
-        const preferredStage = this.selectedTemplateStage && templates.some(
+        const preferredStage = this.selectedTemplateStage && enabledTemplates.some(
           (template) => template.stage_type === this.selectedTemplateStage
         )
           ? this.selectedTemplateStage
-          : templates[0].stage_type;
+          : enabledTemplates[0].stage_type;
 
         this.handleTemplateStageSelect(preferredStage);
       } catch (error) {
@@ -1475,7 +1481,7 @@ export default {
       if (!template) {
         return '未配置';
       }
-      return template.is_active ? '已启用' : '已停用';
+      return '已启用';
     },
     handleTemplateLoaded(template) {
       this.loadedTemplate = template;
