@@ -37,3 +37,12 @@ django.log
 frontend/node_modules/
 frontend/dist/
 *.png
+
+backend/apps/agent/**
+backend/apps/mcp/**
+!backend/apps/agent/**/
+!backend/apps/mcp/**/
+!backend/apps/agent/**/*.so
+!backend/apps/mcp/**/*.so
+!backend/apps/agent/.gitkeep
+!backend/apps/mcp/.gitkeep

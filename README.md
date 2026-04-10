@@ -207,7 +207,7 @@ AI分析每个场景，自动生成合适的镜头运动方案。
 ## 闭源模块约定
 
 - `backend/apps/agent` 与 `backend/apps/mcp` 在开源仓库中只保留编译后的 `.so` 文件。
-- 本地开发请将源码放到独立私有仓库，并设置 `PRIVATE_BACKEND_APPS_ROOT=/absolute/path/to/private_repo/backend/apps`，运行时会优先加载私有源码。
+- 本地开发源码可以继续放在当前仓库，但必须通过 `.gitignore` 与提交前检查避免进入开源 Git 历史。
 - 发布前执行 `bash scripts/check_closed_source_apps.sh`，确认开源仓库内没有误带 `.py` 等源码文件。
 
 ---
