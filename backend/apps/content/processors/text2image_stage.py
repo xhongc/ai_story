@@ -24,6 +24,7 @@ from django.utils import timezone
 from apps.content.models import GeneratedImage, Storyboard
 from apps.models.models import ModelProvider
 from apps.projects.models import Project, ProjectStage
+from apps.prompts.client_param_resolver import resolve_stage_client_params
 
 logger = logging.getLogger(__name__)
 
@@ -706,6 +707,20 @@ class Text2ImageStageProcessor(StageProcessor):
         支持全局变量注入
         """
         return self._build_generation_prompt_payload(project, storyboard)['prompt']
+
+    def _resolve_generation_client_params(
+        self,
+        project: Project,
+        provider: ModelProvider,
+        runtime_overrides: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        template = self._get_prompt_template(project)
+        return resolve_stage_client_params(
+            self.stage_type,
+            template=template,
+            provider=provider,
+            runtime_overrides=runtime_overrides or {},
+        )
             
     def _generate_single_image(
         self,
@@ -737,15 +752,26 @@ class Text2ImageStageProcessor(StageProcessor):
             model_name = provider.model_name
             api_key = provider.api_key
             api_url = provider.api_url
+            client_params = self._resolve_generation_client_params(
+                project,
+                provider,
+                runtime_overrides={
+                    'ratio': ratio,
+                    'resolution': resolution,
+                },
+            )
             generation_params = {
                 'model': model_name,
                 'prompt': prompt,
                 'image': prompt_payload['image'],
-                'ratio': ratio,
-                'resolution': resolution
+                'ratio': client_params.get('ratio', ratio),
+                'resolution': client_params.get('resolution', resolution),
+                'width': client_params.get('width', 1024),
+                'height': client_params.get('height', 1024),
+                'steps': client_params.get('steps', 20),
+                'negative_prompt': client_params.get('negative_prompt', ''),
+                'sample_count': client_params.get('sample_count', 1),
             }
-            height = provider.extra_config.get("height", "1024")
-            width = provider.extra_config.get("width", "1024")
             client = create_ai_client(provider)
             # 调用generate (同步函数)
             response = client.generate(
@@ -754,10 +780,13 @@ class Text2ImageStageProcessor(StageProcessor):
                 model=model_name,
                 prompt=prompt,
                 image=prompt_payload['image'],
-                ratio=ratio,
-                resolution=resolution,
-                height=height,
-                width=width
+                ratio=client_params.get('ratio', ratio),
+                resolution=client_params.get('resolution', resolution),
+                height=client_params.get('height', 1024),
+                width=client_params.get('width', 1024),
+                steps=client_params.get('steps', 20),
+                negative_prompt=client_params.get('negative_prompt', ''),
+                sample_count=client_params.get('sample_count', 1),
             )
 
             if not response:

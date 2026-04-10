@@ -12,6 +12,7 @@ from jinja2 import Template, TemplateError
 
 from apps.content.models import EditedImage, MultiGridTile, Storyboard
 from apps.projects.models import Project, ProjectStage
+from apps.prompts.client_param_resolver import resolve_stage_client_params
 from core.ai_client.factory import create_ai_client
 
 from .text2image_stage import Text2ImageStageProcessor
@@ -68,6 +69,20 @@ class ImageEditStageProcessor(Text2ImageStageProcessor):
         if storyboard_ids:
             tiles = tiles.filter(task__storyboard_id__in=storyboard_ids)
         return list(tiles)
+
+    def _resolve_edit_client_params(
+        self,
+        project: Project,
+        provider,
+        runtime_overrides: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        template = self._get_prompt_template(project)
+        return resolve_stage_client_params(
+            self.stage_type,
+            template=template,
+            provider=provider,
+            runtime_overrides=runtime_overrides or {},
+        )
 
     def process_stream(
         self,
@@ -169,8 +184,17 @@ class ImageEditStageProcessor(Text2ImageStageProcessor):
                     'grid_cols': tile.task.grid_cols,
                 }
                 prompt = self._build_prompt(project, prompt_payload)
-                output_width = width or tile.width or provider.extra_config.get('width', 1024)
-                output_height = height or tile.height or provider.extra_config.get('height', 1024)
+                client_params = self._resolve_edit_client_params(
+                    project,
+                    provider,
+                    runtime_overrides={
+                        'strength': strength,
+                        'width': width or tile.width,
+                        'height': height or tile.height,
+                    },
+                )
+                output_width = client_params.get('width', tile.width or 1024)
+                output_height = client_params.get('height', tile.height or 1024)
 
                 yield {
                     'type': 'progress',
@@ -182,9 +206,11 @@ class ImageEditStageProcessor(Text2ImageStageProcessor):
                 response = client.generate(
                     image_url=tile.tile_image_url,
                     prompt=prompt,
-                    strength=strength,
+                    strength=client_params.get('strength', strength),
                     width=output_width,
                     height=output_height,
+                    mask_url=client_params.get('mask_url', ''),
+                    negative_prompt=client_params.get('negative_prompt', ''),
                 )
                 response_data = getattr(response, 'data', None) if not isinstance(response, dict) else response.get('data')
                 response_error = getattr(response, 'error', None) if not isinstance(response, dict) else response.get('error')
@@ -201,8 +227,10 @@ class ImageEditStageProcessor(Text2ImageStageProcessor):
                             'edited_image_url': tile.tile_image_url,
                             'prompt_used': prompt,
                             'generation_params': {
-                                'strength': strength,
+                                'strength': client_params.get('strength', strength),
                                 'tile_index': tile.tile_index,
+                                'mask_url': client_params.get('mask_url', ''),
+                                'negative_prompt': client_params.get('negative_prompt', ''),
                             },
                             'generation_metadata': {'error': response_error or 'empty response'},
                             'model_provider': provider,
@@ -224,8 +252,10 @@ class ImageEditStageProcessor(Text2ImageStageProcessor):
                         'edited_image_url': first_item.get('url', ''),
                         'prompt_used': prompt,
                         'generation_params': {
-                            'strength': strength,
+                            'strength': client_params.get('strength', strength),
                             'tile_index': tile.tile_index,
+                            'mask_url': client_params.get('mask_url', ''),
+                            'negative_prompt': client_params.get('negative_prompt', ''),
                         },
                         'generation_metadata': {
                             **(getattr(response, 'metadata', None) or {}),

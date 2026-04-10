@@ -156,6 +156,18 @@
                       <p class="text-sm text-base-content/60 line-clamp-2">
                         {{ template.template_content }}
                       </p>
+                      <div
+                        v-if="formatClientParams(template).length"
+                        class="mt-3 flex flex-wrap gap-2"
+                      >
+                        <span
+                          v-for="item in formatClientParams(template)"
+                          :key="`${template.id}-${item.key}`"
+                          class="badge badge-ghost badge-sm"
+                        >
+                          {{ item.key }}={{ item.value }}
+                        </span>
+                      </div>
                       <div class="text-xs text-base-content/40 mt-2">
                         更新于 {{ formatDate(template.updated_at) }}
                       </div>
@@ -440,6 +452,14 @@ export default {
       'partialUpdatePromptTemplate',
     ]),
     formatDate,
+
+    formatClientParams(template) {
+      const clientParams = template?.client_params || {};
+      return Object.entries(clientParams).map(([key, value]) => ({
+        key,
+        value: typeof value === 'object' ? JSON.stringify(value) : String(value),
+      }));
+    },
 
     async loadData() {
       this.loading = true;

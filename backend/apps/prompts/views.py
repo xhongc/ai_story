@@ -52,6 +52,7 @@ from .serializers import (
 )
 from .services import PromptEvaluationService
 from .debug_services import PromptDebugService
+from .client_param_specs import STAGE_CLIENT_PARAM_SPECS
 
 class ServerSentEventRenderer(renderers.BaseRenderer):
     media_type = 'text/event-stream'
@@ -129,8 +130,10 @@ class PromptTemplateSetViewSet(viewsets.ModelViewSet):
             PromptTemplate.objects.create(
                 template_set=new_set,
                 stage_type=template.stage_type,
+                model_provider=template.model_provider,
                 template_content=template.template_content,
                 variables=template.variables,
+                client_params=template.client_params,
                 version=1,
                 is_active=True
             )
@@ -268,8 +271,10 @@ class PromptTemplateViewSet(viewsets.ModelViewSet):
         new_template = PromptTemplate.objects.create(
             template_set=original_template.template_set,
             stage_type=original_template.stage_type,
+            model_provider=serializer.validated_data.get('model_provider', original_template.model_provider),
             template_content=serializer.validated_data['template_content'],
             variables=serializer.validated_data.get('variables', {}),
+            client_params=serializer.validated_data.get('client_params', {}),
             version=original_template.version + 1,
             is_active=True
         )
@@ -381,6 +386,19 @@ class PromptTemplateViewSet(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+    @action(detail=False, methods=['get'])
+    def client_param_schema(self, request):
+        stage_type = request.query_params.get('stage_type', '').strip()
+        if stage_type:
+            return Response({
+                'stage_type': stage_type,
+                'schema': STAGE_CLIENT_PARAM_SPECS.get(stage_type, []),
+            })
+
+        return Response({
+            'schema': STAGE_CLIENT_PARAM_SPECS,
+        })
 
 
 class GlobalVariableViewSet(viewsets.ModelViewSet):
@@ -877,7 +895,7 @@ class PromptDebugSessionViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def save_template(self, request, pk=None):
         session = self.get_object()
-        serializer = PromptDebugSaveTemplateSerializer(data=request.data)
+        serializer = PromptDebugSaveTemplateSerializer(data=request.data, context={'session': session})
         serializer.is_valid(raise_exception=True)
         validated = serializer.validated_data
 
@@ -886,6 +904,7 @@ class PromptDebugSessionViewSet(viewsets.ModelViewSet):
                 session=session,
                 template_content=validated['template_content'],
                 variables=validated.get('variables') or {},
+                client_params=validated.get('client_params') or {},
                 model_provider_id=validated.get('model_provider_id'),
             )
         except Exception as exc:
@@ -896,7 +915,7 @@ class PromptDebugSessionViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def save_as_version(self, request, pk=None):
         session = self.get_object()
-        serializer = PromptDebugSaveTemplateSerializer(data=request.data)
+        serializer = PromptDebugSaveTemplateSerializer(data=request.data, context={'session': session})
         serializer.is_valid(raise_exception=True)
         validated = serializer.validated_data
 
@@ -905,6 +924,7 @@ class PromptDebugSessionViewSet(viewsets.ModelViewSet):
                 session=session,
                 template_content=validated['template_content'],
                 variables=validated.get('variables') or {},
+                client_params=validated.get('client_params') or {},
                 model_provider_id=validated.get('model_provider_id'),
             )
         except Exception as exc:

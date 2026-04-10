@@ -532,6 +532,7 @@ class ImageEditStageExecutionTestCase(APITestCase):
             stage_type='image_edit',
             model_provider=provider,
             template_content='高清修复 {{ tile_image_url }}',
+            client_params={'strength': 0.2, 'negative_prompt': '噪点'},
             is_active=True,
         )
         self.project.prompt_template_set = template_set
@@ -557,3 +558,5 @@ class ImageEditStageExecutionTestCase(APITestCase):
         self.assertEqual(edited_image.edited_image_url, 'https://example.com/edited-tile-1.png')
         self.assertEqual(edited_image.width, 2048)
         self.assertEqual(edited_image.height, 2048)
+        self.assertEqual(edited_image.generation_params.get('strength'), 0.5)
+        self.assertEqual(edited_image.generation_params.get('negative_prompt'), '噪点')

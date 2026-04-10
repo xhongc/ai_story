@@ -52,3 +52,13 @@ yarn-error.log
 /storage/
 /backend/storage/image/
 /backend/media
+
+# Closed-source backend apps: only compiled .so files are allowed in the OSS repo.
+backend/apps/agent/**
+backend/apps/mcp/**
+!backend/apps/agent/**/
+!backend/apps/mcp/**/
+!backend/apps/agent/**/*.so
+!backend/apps/mcp/**/*.so
+!backend/apps/agent/.gitkeep
+!backend/apps/mcp/.gitkeep

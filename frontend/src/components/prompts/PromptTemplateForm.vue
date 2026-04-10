@@ -301,6 +301,103 @@
           </div>
         </div>
 
+        <div class="card bg-base-100 border border-base-300">
+          <div class="card-body">
+            <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
+              <h3 class="card-title text-base">
+                常量参数
+              </h3>
+              <div class="text-xs text-base-content/60">
+                固定 key 由阶段定义，值会作为 Client 调用参数传入。
+              </div>
+            </div>
+
+            <div
+              v-if="clientParamSchema.length > 0"
+              class="space-y-3"
+            >
+              <div
+                v-for="param in clientParamSchema"
+                :key="param.key"
+                class="rounded-lg border border-base-300 bg-base-200/70 p-4"
+              >
+                <div class="flex items-start justify-between gap-3 mb-3 flex-wrap">
+                  <div>
+                    <div class="font-medium">
+                      {{ param.label }}
+                      <span class="text-xs text-base-content/50 ml-1">{{ param.key }}</span>
+                    </div>
+                    <div class="text-xs text-base-content/60 mt-1">
+                      {{ param.description || '该参数会在执行时透传给 Client。' }}
+                    </div>
+                  </div>
+                  <div class="text-xs text-base-content/50 text-right">
+                    <div>默认值: {{ formatClientParamValue(param.default) }}</div>
+                    <div v-if="param.provider_default !== null && param.provider_default !== undefined">
+                      模型默认: {{ formatClientParamValue(param.provider_default) }}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-control">
+                  <input
+                    v-if="isTextClientParam(param)"
+                    v-model="formData.client_params[param.key]"
+                    type="text"
+                    class="input input-bordered input-sm"
+                    :placeholder="formatClientParamPlaceholder(param)"
+                  >
+                  <input
+                    v-else-if="param.type === 'integer'"
+                    v-model.number="formData.client_params[param.key]"
+                    type="number"
+                    class="input input-bordered input-sm"
+                    :min="param.min"
+                    :max="param.max"
+                    :step="param.step || 1"
+                    :placeholder="formatClientParamPlaceholder(param)"
+                  >
+                  <input
+                    v-else-if="param.type === 'number'"
+                    v-model.number="formData.client_params[param.key]"
+                    type="number"
+                    class="input input-bordered input-sm"
+                    :min="param.min"
+                    :max="param.max"
+                    :step="param.step || 0.1"
+                    :placeholder="formatClientParamPlaceholder(param)"
+                  >
+                  <label
+                    v-else-if="param.type === 'boolean'"
+                    class="label cursor-pointer justify-start gap-3"
+                  >
+                    <input
+                      v-model="formData.client_params[param.key]"
+                      type="checkbox"
+                      class="toggle toggle-primary toggle-sm"
+                    >
+                    <span class="label-text">启用</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div
+              v-else
+              class="text-center py-8 text-base-content/60 text-sm"
+            >
+              当前阶段暂无可配置常量参数
+            </div>
+
+            <label
+              v-if="errors.client_params"
+              class="label"
+            >
+              <span class="label-text-alt text-error">{{ errors.client_params }}</span>
+            </label>
+          </div>
+        </div>
+
         <div
           v-if="validationResult"
           class="alert"
@@ -457,7 +554,7 @@
 <script>
 import { mapActions, mapState } from 'vuex';
 import LoadingContainer from '@/components/common/LoadingContainer.vue';
-import { STAGE_TYPES, VARIABLE_TYPES } from '@/api/prompts';
+import { promptTemplateAPI, STAGE_TYPES, VARIABLE_TYPES } from '@/api/prompts';
 import { modelProviderApi } from '@/api/models';
 
 export default {
@@ -515,6 +612,7 @@ export default {
         model_provider: '',
         template_content: '',
         variables: {},
+        client_params: {},
         is_active: true,
       },
       variableList: [],
@@ -533,6 +631,7 @@ export default {
       stageTypes: STAGE_TYPES,
       variableTypes: VARIABLE_TYPES,
       availableModels: [],
+      clientParamSchema: [],
       stageToProviderType: {
         rewrite: 'llm',
         asset_extraction: 'llm',
@@ -634,6 +733,7 @@ export default {
 
       if (this.formData.stage_type) {
         await this.loadAvailableModels(this.formData.stage_type);
+        await this.loadClientParamSchema(this.formData.stage_type);
       }
 
       if (this.isEdit) {
@@ -648,6 +748,7 @@ export default {
         model_provider: '',
         template_content: '',
         variables: {},
+        client_params: {},
         is_active: true,
       };
       this.variableList = [];
@@ -659,6 +760,7 @@ export default {
       this.previewResult = null;
       this.previewError = '';
       this.availableModels = [];
+      this.clientParamSchema = [];
     },
 
     applyInitialValues() {
@@ -683,8 +785,11 @@ export default {
             model_provider: this.currentTemplate.model_provider || '',
             template_content: this.currentTemplate.template_content,
             variables: this.currentTemplate.variables || {},
+            client_params: this.currentTemplate.client_params || {},
             is_active: this.currentTemplate.is_active,
           };
+
+          this.clientParamSchema = this.currentTemplate.client_param_schema || [];
 
           this.variableList = Object.entries(this.currentTemplate.variables || {}).map(
             ([name, type]) => ({ name, type })
@@ -733,9 +838,57 @@ export default {
       }
     },
 
+    async loadClientParamSchema(stageType) {
+      if (!stageType) {
+        this.clientParamSchema = [];
+        return;
+      }
+
+      try {
+        const response = await promptTemplateAPI.getClientParamSchema(stageType);
+        this.clientParamSchema = response.schema || [];
+      } catch (error) {
+        console.error('加载常量参数配置失败:', error);
+        this.clientParamSchema = [];
+      }
+    },
+
     async handleStageTypeChange() {
       this.formData.model_provider = '';
+      this.formData.client_params = {};
+      this.clientParamSchema = [];
       await this.loadAvailableModels(this.formData.stage_type);
+      await this.loadClientParamSchema(this.formData.stage_type);
+    },
+
+    isTextClientParam(param) {
+      return ['string', 'json'].includes(param.type);
+    },
+
+    formatClientParamPlaceholder(param) {
+      return `默认值: ${this.formatClientParamValue(param.default)}`;
+    },
+
+    formatClientParamValue(value) {
+      if (value === null || value === undefined || value === '') {
+        return '空';
+      }
+      if (typeof value === 'object') {
+        return JSON.stringify(value);
+      }
+      return String(value);
+    },
+
+    buildClientParamsPayload() {
+      const payload = {};
+      this.clientParamSchema.forEach((param) => {
+        const value = this.formData.client_params[param.key];
+        if (value === '' || value === null || value === undefined) {
+          return;
+        }
+        payload[param.key] = value;
+      });
+      return payload;
     },
 
     getModelTypeHint() {
@@ -865,12 +1018,17 @@ export default {
       this.formError = '';
       this.formSuccess = '';
 
+      const submitData = {
+        ...this.formData,
+        client_params: this.buildClientParamsPayload(),
+      };
+
       try {
         let response;
         if (this.isEdit) {
           response = await this.updatePromptTemplate({
             id: this.templateId,
-            data: this.formData,
+            data: submitData,
           });
           this.formSuccess = '模板更新成功!';
         } else {
@@ -901,7 +1059,7 @@ export default {
             }
           }
 
-          response = await this.createPromptTemplate(this.formData);
+          response = await this.createPromptTemplate(submitData);
           this.formSuccess = '模板创建成功!';
         }
 

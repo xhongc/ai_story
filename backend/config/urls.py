@@ -10,6 +10,7 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('mcp/', include('apps.mcp.urls')),
     path('api/v1/projects/', include('apps.projects.urls')),
     path('api/v1/prompts/', include('apps.prompts.urls')),
     path('api/v1/models/', include('apps.models.urls')),

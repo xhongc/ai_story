@@ -40,6 +40,7 @@ class PromptDebugServiceText2ImageTestCase(TestCase):
             model_provider=self.provider,
             template_content='{{ visual_prompt }}',
             variables={'visual_prompt': 'string'},
+            client_params={'ratio': '9:16', 'steps': 28, 'negative_prompt': '模糊'},
             is_active=True,
         )
         self.session = PromptDebugService.get_or_create_session(self.template, self.user)
@@ -87,5 +88,7 @@ class PromptDebugServiceText2ImageTestCase(TestCase):
         self.assertEqual(len(generate_kwargs['image']), 2)
         self.assertTrue(generate_kwargs['image'][0].startswith('data:image/png;base64,'))
         self.assertTrue(generate_kwargs['image'][1].startswith('data:image/png;base64,'))
+        self.assertEqual(generate_kwargs['ratio'], '9:16')
+        self.assertEqual(generate_kwargs['steps'], 28)
+        self.assertEqual(generate_kwargs['negative_prompt'], '模糊')
         self.assertEqual(run.rendered_prompt, '请参考图1和图2，并再次强调图1')
-

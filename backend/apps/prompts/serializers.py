@@ -13,6 +13,11 @@ from .models import (
     PromptDebugRun,
     PromptDebugArtifact,
 )
+from .client_param_resolver import (
+    resolve_stage_client_params,
+    serialize_stage_client_param_schema,
+    validate_stage_client_params,
+)
 import re
 import json
 from jinja2 import Template, TemplateSyntaxError, Environment, meta
@@ -47,6 +52,8 @@ class PromptTemplateSerializer(serializers.ModelSerializer):
     stage_type_display = serializers.CharField(source='get_stage_type_display', read_only=True)
     extracted_variables = serializers.SerializerMethodField()
     model_provider_detail = ModelProviderSerializer(source='model_provider', read_only=True)
+    client_param_schema = serializers.SerializerMethodField()
+    resolved_client_params = serializers.SerializerMethodField()
 
     class Meta:
         model = PromptTemplate
@@ -54,6 +61,7 @@ class PromptTemplateSerializer(serializers.ModelSerializer):
             'id', 'template_set', 'stage_type', 'stage_type_display',
             'model_provider', 'model_provider_detail',
             'template_content', 'variables', 'extracted_variables',
+            'client_params', 'client_param_schema', 'resolved_client_params',
             'version', 'is_active', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'version']
@@ -70,6 +78,12 @@ class PromptTemplateSerializer(serializers.ModelSerializer):
             return list(variables)
         except Exception:
             return []
+
+    def get_client_param_schema(self, obj):
+        return serialize_stage_client_param_schema(obj.stage_type, provider=obj.model_provider)
+
+    def get_resolved_client_params(self, obj):
+        return resolve_stage_client_params(obj.stage_type, template=obj, provider=obj.model_provider)
 
     def validate_template_content(self, value):
         """
@@ -100,6 +114,16 @@ class PromptTemplateSerializer(serializers.ModelSerializer):
                 )
 
         return value
+
+    def validate_client_params(self, value):
+        stage_type = self.initial_data.get('stage_type') or (self.instance.stage_type if self.instance else None)
+        if not stage_type:
+            return value or {}
+
+        try:
+            return validate_stage_client_params(stage_type, value)
+        except ValueError as exc:
+            raise serializers.ValidationError(str(exc))
 
     def validate(self, attrs):
         """
@@ -173,14 +197,23 @@ class PromptTemplateListSerializer(serializers.ModelSerializer):
 
     stage_type_display = serializers.CharField(source='get_stage_type_display', read_only=True)
     model_provider_detail = ModelProviderSerializer(source='model_provider', read_only=True)
+    client_param_schema = serializers.SerializerMethodField()
+    resolved_client_params = serializers.SerializerMethodField()
 
     class Meta:
         model = PromptTemplate
         fields = [
             'id', 'stage_type', 'stage_type_display',
             'model_provider', 'model_provider_detail',
-            'template_content', 'version', 'is_active', 'updated_at'
+            'template_content', 'client_params', 'client_param_schema', 'resolved_client_params',
+            'version', 'is_active', 'updated_at'
         ]
+
+    def get_client_param_schema(self, obj):
+        return serialize_stage_client_param_schema(obj.stage_type, provider=obj.model_provider)
+
+    def get_resolved_client_params(self, obj):
+        return resolve_stage_client_params(obj.stage_type, template=obj, provider=obj.model_provider)
 
 
 class PromptTemplateSetSerializer(serializers.ModelSerializer):
@@ -529,7 +562,7 @@ class PromptDebugSessionSerializer(serializers.ModelSerializer):
         model = PromptDebugSession
         fields = [
             'id', 'prompt_template', 'prompt_template_detail', 'template_set',
-            'name', 'stage_type', 'draft_template_content', 'draft_variables',
+            'name', 'stage_type', 'draft_template_content', 'draft_variables', 'draft_client_params',
             'model_provider', 'model_provider_detail', 'latest_variable_values',
             'latest_input_payload', 'latest_source_artifact', 'latest_source_artifact_detail',
             'last_run_at', 'recent_runs', 'created_at', 'updated_at'
@@ -563,6 +596,7 @@ class PromptDebugSaveTemplateSerializer(serializers.Serializer):
 
     template_content = serializers.CharField()
     variables = serializers.JSONField(required=False)
+    client_params = serializers.JSONField(required=False)
     model_provider_id = serializers.UUIDField(required=False, allow_null=True)
 
     def validate_variables(self, value):
@@ -571,3 +605,20 @@ class PromptDebugSaveTemplateSerializer(serializers.Serializer):
         if not isinstance(value, dict):
             raise serializers.ValidationError('变量定义必须是字典格式')
         return value
+
+    def validate_client_params(self, value):
+        if value is None:
+            return {}
+
+        stage_type = None
+        session = self.context.get('session')
+        if session:
+            stage_type = session.stage_type
+
+        if not stage_type:
+            return value
+
+        try:
+            return validate_stage_client_params(stage_type, value)
+        except ValueError as exc:
+            raise serializers.ValidationError(str(exc))

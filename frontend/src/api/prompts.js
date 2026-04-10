@@ -155,6 +155,14 @@ export const promptTemplateAPI = {
     });
   },
 
+  getClientParamSchema(stageType) {
+    return apiClient({
+      url: '/prompts/templates/client_param_schema/',
+      method: 'get',
+      params: stageType ? { stage_type: stageType } : {},
+    });
+  },
+
   /**
    * 创建提示词模板
    * @param {Object} data - {template_set, stage_type, template_content, variables, is_active}

@@ -55,6 +55,7 @@ class Text2ImageAssetPromptTestCase(APITestCase):
             model_provider=self.provider,
             template_content='{{ visual_prompt }}',
             variables={'visual_prompt': 'string'},
+            client_params={'ratio': '16:9', 'steps': 32, 'negative_prompt': '低质量'},
             is_active=True,
         )
 
@@ -101,4 +102,6 @@ class Text2ImageAssetPromptTestCase(APITestCase):
         self.assertEqual(len(generate_kwargs['image']), 2)
         self.assertTrue(generate_kwargs['image'][0].startswith('data:image/png;base64,'))
         self.assertTrue(generate_kwargs['image'][1].startswith('data:image/png;base64,'))
-
+        self.assertEqual(generate_kwargs['ratio'], '16:9')
+        self.assertEqual(generate_kwargs['steps'], 32)
+        self.assertEqual(generate_kwargs['negative_prompt'], '低质量')

@@ -30,6 +30,7 @@ from .models import (
     PromptDebugSession,
     PromptTemplate,
 )
+from .client_param_resolver import resolve_stage_client_params
 
 
 class PromptDebugService:
@@ -63,6 +64,9 @@ class PromptDebugService:
             if not session.draft_variables:
                 session.draft_variables = template.variables
                 update_fields.append('draft_variables')
+            if not session.draft_client_params:
+                session.draft_client_params = template.client_params
+                update_fields.append('draft_client_params')
             if session.model_provider_id != template.model_provider_id:
                 session.model_provider = template.model_provider
                 update_fields.append('model_provider')
@@ -76,6 +80,7 @@ class PromptDebugService:
             stage_type=template.stage_type,
             draft_template_content=template.template_content,
             draft_variables=template.variables,
+            draft_client_params=template.client_params,
             model_provider=template.model_provider,
             created_by=user,
         )
@@ -334,14 +339,28 @@ class PromptDebugService:
         return {'text': raw_text}
 
     @classmethod
-    def _run_llm(cls, provider: ModelProvider, rendered_prompt: str) -> Dict[str, Any]:
+    def _run_llm(
+        cls,
+        provider: ModelProvider,
+        rendered_prompt: str,
+        stage_type: str,
+        template: Optional[PromptTemplate] = None,
+        input_payload: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         start_time = time.time()
         client = create_ai_client(provider)
+        runtime_overrides = input_payload if isinstance(input_payload, dict) else {}
+        client_params = resolve_stage_client_params(
+            stage_type,
+            template=template,
+            provider=provider,
+            runtime_overrides=runtime_overrides,
+        )
         response = client._generate_text(
             prompt=rendered_prompt,
-            max_tokens=provider.max_tokens,
-            temperature=provider.temperature,
-            top_p=provider.top_p,
+            max_tokens=client_params.get('max_tokens', provider.max_tokens),
+            temperature=client_params.get('temperature', provider.temperature),
+            top_p=client_params.get('top_p', provider.top_p),
         )
         if inspect.isawaitable(response):
             response = asyncio.run(response)
@@ -364,20 +383,27 @@ class PromptDebugService:
         rendered_prompt: str,
         input_payload: Dict[str, Any],
         input_images: Optional[list] = None,
+        template: Optional[PromptTemplate] = None,
+        stage_type: str = 'image_generation',
     ) -> Dict[str, Any]:
         start_time = time.time()
         client = create_ai_client(provider)
-        extra_config = provider.extra_config or {}
+        client_params = resolve_stage_client_params(
+            stage_type,
+            template=template,
+            provider=provider,
+            runtime_overrides=input_payload,
+        )
         response = client.generate(
             prompt=rendered_prompt,
             image=input_images or [],
-            negative_prompt=input_payload.get('negative_prompt', extra_config.get('negative_prompt', '')),
-            width=input_payload.get('width', extra_config.get('width', 1024)),
-            height=input_payload.get('height', extra_config.get('height', 1024)),
-            steps=input_payload.get('steps', extra_config.get('steps', 20)),
-            ratio=input_payload.get('ratio', extra_config.get('ratio', '1:1')),
-            resolution=input_payload.get('resolution', extra_config.get('resolution', '2k')),
-            sample_count=input_payload.get('sample_count', extra_config.get('sample_count', 1)),
+            negative_prompt=client_params.get('negative_prompt', ''),
+            width=client_params.get('width', 1024),
+            height=client_params.get('height', 1024),
+            steps=client_params.get('steps', 20),
+            ratio=client_params.get('ratio', '1:1'),
+            resolution=client_params.get('resolution', '2k'),
+            sample_count=client_params.get('sample_count', 1),
         )
         latency_ms = int((time.time() - start_time) * 1000)
         if not response.success:
@@ -400,6 +426,7 @@ class PromptDebugService:
         provider: ModelProvider,
         rendered_prompt: str,
         input_payload: Dict[str, Any],
+        template: Optional[PromptTemplate] = None,
     ) -> Dict[str, Any]:
         start_time = time.time()
         client = create_ai_client(provider)
@@ -407,13 +434,21 @@ class PromptDebugService:
         if not image_url:
             raise ValueError('图片编辑调试缺少 image_url')
 
+        client_params = resolve_stage_client_params(
+            'image_edit',
+            template=template,
+            provider=provider,
+            runtime_overrides=input_payload,
+        )
+
         response = client.generate(
             image_url=image_url,
             prompt=rendered_prompt,
-            mask_url=input_payload.get('mask_url', ''),
-            strength=input_payload.get('strength', 0.35),
-            width=input_payload.get('width', 1024),
-            height=input_payload.get('height', 1024),
+            mask_url=client_params.get('mask_url', ''),
+            strength=client_params.get('strength', 0.35),
+            width=client_params.get('width', 1024),
+            height=client_params.get('height', 1024),
+            negative_prompt=client_params.get('negative_prompt', ''),
         )
         if inspect.isawaitable(response):
             response = asyncio.run(response)
@@ -440,6 +475,7 @@ class PromptDebugService:
         provider: ModelProvider,
         rendered_prompt: str,
         input_payload: Dict[str, Any],
+        template: Optional[PromptTemplate] = None,
     ) -> Dict[str, Any]:
         start_time = time.time()
         client = create_ai_client(provider)
@@ -448,13 +484,26 @@ class PromptDebugService:
             raise ValueError('图生视频调试缺少 image_url')
 
         camera_movement = input_payload.get('camera_movement', {})
+        client_params = resolve_stage_client_params(
+            'video_generation',
+            template=template,
+            provider=provider,
+            runtime_overrides=input_payload,
+        )
         response = None
         if hasattr(client, '_generate_video'):
             response = client._generate_video(
                 image_url=image_url,
+                image_uri=image_url,
                 camera_movement=camera_movement,
-                duration=input_payload.get('duration', 5),
-                fps=input_payload.get('fps', 24),
+                duration=client_params.get('duration', 5),
+                duration_seconds=client_params.get('duration', 5),
+                fps=client_params.get('fps', 24),
+                aspect_ratio=client_params.get('aspect_ratio', '16:9'),
+                resolution=client_params.get('resolution') or None,
+                negative_prompt=client_params.get('negative_prompt', ''),
+                poll_interval=client_params.get('poll_interval', 5),
+                max_wait_time=client_params.get('max_wait_time', provider.timeout),
                 prompt=rendered_prompt,
             )
             if inspect.isawaitable(response):
@@ -463,8 +512,11 @@ class PromptDebugService:
             response = client.generate(
                 image_url=image_url,
                 camera_movement=camera_movement,
-                duration=input_payload.get('duration', 5),
-                fps=input_payload.get('fps', 24),
+                duration=client_params.get('duration', 5),
+                fps=client_params.get('fps', 24),
+                aspect_ratio=client_params.get('aspect_ratio', '16:9'),
+                resolution=client_params.get('resolution') or None,
+                negative_prompt=client_params.get('negative_prompt', ''),
                 prompt=rendered_prompt,
             )
             if inspect.isawaitable(response):
@@ -492,7 +544,7 @@ class PromptDebugService:
             },
             'latency_ms': response_metadata.get('latency_ms', latency_ms),
             'parsed_output': {
-                'videos': response.data,
+                'videos': response_data,
             },
         }
 
@@ -679,13 +731,14 @@ class PromptDebugService:
 
         session.draft_template_content = template_content
         session.draft_variables = session.draft_variables or session.prompt_template.variables
+        session.draft_client_params = session.draft_client_params or session.prompt_template.client_params
         session.model_provider = provider
         session.latest_variable_values = variable_values or {}
         session.latest_input_payload = input_payload or {}
         session.latest_source_artifact = source_artifact
         session.last_run_at = timezone.now()
         session.save(update_fields=[
-            'draft_template_content', 'draft_variables', 'model_provider',
+            'draft_template_content', 'draft_variables', 'draft_client_params', 'model_provider',
             'latest_variable_values', 'latest_input_payload', 'latest_source_artifact',
             'last_run_at', 'updated_at'
         ])
@@ -743,8 +796,21 @@ class PromptDebugService:
         }
 
         client = create_ai_client(provider)
+        runtime_overrides = input_payload if isinstance(input_payload, dict) else {}
+        stream_client_params = resolve_stage_client_params(
+            session.stage_type,
+            template=session.prompt_template,
+            provider=provider,
+            runtime_overrides=runtime_overrides,
+        )
         if not hasattr(client, 'generate_stream'):
-            result = cls._run_llm(provider, rendered_prompt)
+            result = cls._run_llm(
+                provider,
+                rendered_prompt,
+                session.stage_type,
+                template=session.prompt_template,
+                input_payload=runtime_overrides,
+            )
             parsed_output = cls.parse_output(session.stage_type, result['raw_text'])
             cls.finalize_run(
                 session=session,
@@ -774,9 +840,9 @@ class PromptDebugService:
             stream = client.generate_stream(
                 prompt=user_prompt,
                 system_prompt=rendered_prompt,
-                max_tokens=provider.max_tokens,
-                temperature=provider.temperature,
-                top_p=provider.top_p,
+                max_tokens=stream_client_params.get('max_tokens', provider.max_tokens),
+                temperature=stream_client_params.get('temperature', provider.temperature),
+                top_p=stream_client_params.get('top_p', provider.top_p),
             )
             for chunk in stream:
                 chunk_type = chunk.get('type')
@@ -872,16 +938,39 @@ class PromptDebugService:
         )
 
         if session.stage_type in ('rewrite', 'asset_extraction', 'storyboard', 'camera_movement'):
-            result = cls._run_llm(provider, rendered_prompt)
+            result = cls._run_llm(
+                provider,
+                rendered_prompt,
+                session.stage_type,
+                template=session.prompt_template,
+                input_payload=input_payload if isinstance(input_payload, dict) else {},
+            )
             parsed_output = cls.parse_output(session.stage_type, result['raw_text'])
         elif session.stage_type in ('image_generation', 'multi_grid_image'):
-            result = cls._run_text2image(provider, rendered_prompt, input_payload or {}, input_images=input_images)
+            result = cls._run_text2image(
+                provider,
+                rendered_prompt,
+                input_payload or {},
+                input_images=input_images,
+                template=session.prompt_template,
+                stage_type=session.stage_type,
+            )
             parsed_output = result['parsed_output']
         elif session.stage_type == 'video_generation':
-            result = cls._run_image2video(provider, rendered_prompt, input_payload or {})
+            result = cls._run_image2video(
+                provider,
+                rendered_prompt,
+                input_payload or {},
+                template=session.prompt_template,
+            )
             parsed_output = result['parsed_output']
         elif session.stage_type == 'image_edit':
-            result = cls._run_image_edit(provider, rendered_prompt, input_payload or {})
+            result = cls._run_image_edit(
+                provider,
+                rendered_prompt,
+                input_payload or {},
+                template=session.prompt_template,
+            )
             parsed_output = result['parsed_output']
         else:
             raise ValueError('暂不支持的调试阶段')
@@ -907,6 +996,7 @@ class PromptDebugService:
         session: PromptDebugSession,
         template_content: str,
         variables: Dict[str, Any],
+        client_params: Dict[str, Any],
         model_provider_id: Optional[str],
     ) -> PromptTemplate:
         provider = None
@@ -916,13 +1006,15 @@ class PromptDebugService:
         template = session.prompt_template
         template.template_content = template_content
         template.variables = variables
+        template.client_params = client_params
         template.model_provider = provider or session.model_provider
         template.save()
 
         session.draft_template_content = template_content
         session.draft_variables = variables
+        session.draft_client_params = client_params
         session.model_provider = template.model_provider
-        session.save(update_fields=['draft_template_content', 'draft_variables', 'model_provider', 'updated_at'])
+        session.save(update_fields=['draft_template_content', 'draft_variables', 'draft_client_params', 'model_provider', 'updated_at'])
 
         return template
 
@@ -933,6 +1025,7 @@ class PromptDebugService:
         session: PromptDebugSession,
         template_content: str,
         variables: Dict[str, Any],
+        client_params: Dict[str, Any],
         model_provider_id: Optional[str],
     ) -> PromptTemplate:
         provider = None
@@ -945,6 +1038,7 @@ class PromptDebugService:
             stage_type=current_template.stage_type,
             template_content=template_content,
             variables=variables,
+            client_params=client_params,
             version=current_template.version + 1,
             is_active=True,
             model_provider=provider or session.model_provider or current_template.model_provider,
@@ -958,10 +1052,11 @@ class PromptDebugService:
         session.stage_type = new_template.stage_type
         session.draft_template_content = template_content
         session.draft_variables = variables
+        session.draft_client_params = client_params
         session.model_provider = new_template.model_provider
         session.save(update_fields=[
             'prompt_template', 'template_set', 'stage_type', 'draft_template_content',
-            'draft_variables', 'model_provider', 'updated_at'
+            'draft_variables', 'draft_client_params', 'model_provider', 'updated_at'
         ])
 
         return new_template
