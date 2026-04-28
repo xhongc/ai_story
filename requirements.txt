@@ -58,6 +58,8 @@ cryptography==46.0.5
     #   autobahn
     #   pyopenssl
     #   service-identity
+cython==3.2.4
+    # via ai-story (pyproject.toml)
 daphne==4.2.1
     # via ai-story (pyproject.toml)
 django==3.2.15

@@ -1,6 +1,22 @@
 # 闭源模块发布说明
 
-`backend/apps/agent` 和 `backend/apps/mcp` 采用“源码在私有仓库开发、开源仓库只保留编译产物”的模式。
+`backend/apps/agent` 和 `backend/apps/mcp` 支持通过 Cython 生成编译产物，当前仓库允许同时保留源码和 `.so`/`.pyd` 文件。
+
+## 编译命令
+
+在 Docker 容器或本地后端环境中执行：
+
+```bash
+cd /app/backend
+python manage.py setup_in_docker
+```
+
+命令行为：
+
+1. 仅扫描 `backend/apps/agent`、`backend/apps/mcp`。
+2. 仅编译普通 `.py` 文件，自动跳过 `__init__.py`、`migrations`、`tests`、`__pycache__`。
+3. 生成 `.so` 或 `.pyd` 后会清理中间 `.c` 和 `build/` 目录。
+4. 不删除原始 `.py` 源码。
 
 ## 本地开发
 
@@ -10,9 +26,9 @@
 
 ## 发布约束
 
-1. 开源仓库中的 `backend/apps/agent`、`backend/apps/mcp` 目录只允许保留 `.so` 文件。
-2. 不要将 `.py`、`.pyi`、测试、文档、源码生成脚本提交到上述目录。
-3. 构建完成后，仅同步编译产物到开源仓库，再执行检查脚本。
+1. 当前仓库中的 `backend/apps/agent`、`backend/apps/mcp` 允许同时保留源码和编译产物。
+2. 如果后续切换回纯编译产物发布模式，需要同步调整检查脚本和本说明。
+3. 构建完成后，可按需提交源码与编译产物，或仅在发布流程中使用编译产物。
 
 ## 检查命令
 
@@ -20,7 +36,7 @@
 bash scripts/check_closed_source_apps.sh
 ```
 
-检查脚本会扫描以下目录并在发现非 `.so` 文件时返回非零退出码：
+如果你仍在使用旧版检查脚本，需要注意它可能默认要求目录内只保留 `.so` 文件：
 
 - `backend/apps/agent`
 - `backend/apps/mcp`

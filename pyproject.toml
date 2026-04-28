@@ -7,6 +7,7 @@ requires-python = ">=3.11"
 dependencies = [
     "aiohttp>=3.13.0",
     "celery==5.5.0b2",
+    "cython>=3.0.0",
     "daphne>=4.2.1",
     "django==3.2.15",
     "django-celery-beat==2.2.1",

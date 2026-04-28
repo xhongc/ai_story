@@ -130,9 +130,22 @@ docker-compose exec backend python manage.py migrate
 # 创建超级用户
 docker-compose exec backend python manage.py createsuperuser
 
+# 编译闭源应用为 so/pyd，并保留源码
+docker-compose exec backend sh -c 'cd /app/backend && python manage.py setup_in_docker'
+
 # 停止服务
 docker-compose down
 ```
+
+## 编译 agent / mcp 模块
+
+如果需要只对 `apps.agent` 和 `apps.mcp` 生成编译产物，可在后端环境中执行：
+
+```bash
+python manage.py setup_in_docker
+```
+
+该命令只会扫描 `backend/apps/agent` 和 `backend/apps/mcp`，生成 `.so`/`.pyd` 文件，清理中间 `build/` 与 `.c` 文件，但不会删除原始 `.py` 源码。
 
 ## 核心设计原则
 
