@@ -12,7 +12,9 @@ AI Story is an AI-powered platform for automated story video production. Simply 
 
 ## Text2Image Model
 <div>
-<img  src="/302_en.jpg" width="600" href="https://share.302.ai/d6IJUM">  &nbsp;
+  <a href="https://share.302.ai/d6IJUM" target="_blank" rel="noopener noreferrer">
+    <img src="/302_en.jpg" width="600" alt="302 AI" style="max-width: 100%;">
+  </a>
 </div>
 
 [302.AI](https://share.302.ai/d6IJUM) is a pay-as-you-go enterprise AI resource hub that offers the latest and most comprehensive AI models and APIs on the market, along with a variety of ready-to-use online AI applications.
