@@ -39,6 +39,27 @@ class ModelProviderVendorServiceTestCase(APITestCase):
         self.assertTrue(result['models'][0]['is_capability_match'])
         self.assertTrue(result['models'][1]['is_capability_match'])
 
+    @patch('apps.models.services.requests.get')
+    def test_discover_vendor_models_supports_302ai(self, mock_get):
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'data': [
+                {'id': 'gpt-4o-mini', 'owned_by': 'openai'},
+                {'id': 'claude-3-7-sonnet', 'owned_by': 'anthropic'},
+                {'id': 'tts-1', 'owned_by': 'openai'},
+            ]
+        }
+        mock_get.return_value = mock_response
+
+        result = ModelProviderService.discover_vendor_models('302ai', 'llm', 'sk-test')
+
+        self.assertEqual(result['vendor'], '302ai')
+        self.assertEqual(result['vendor_label'], '302.AI')
+        self.assertEqual(result['api_url'], 'https://api.302.ai/v1/chat/completions')
+        self.assertEqual([item['id'] for item in result['models']], ['claude-3-7-sonnet', 'gpt-4o-mini'])
+        self.assertTrue(all(item['is_capability_match'] for item in result['models']))
+
     def test_batch_create_vendor_models_skips_existing(self):
         ModelProvider.objects.create(
             name='OpenAI / gpt-4o-mini',
@@ -89,6 +110,28 @@ class ModelProviderVendorServiceTestCase(APITestCase):
         self.assertEqual(result['created_count'], 1)
         self.assertEqual(provider.provider_type, 'text2image')
         self.assertEqual(provider.api_url, 'https://ark.cn-beijing.volces.com/api/v3/images/generations')
+        self.assertEqual(provider.executor_class, 'core.ai_client.text2image_client.Text2ImageClient')
+
+    def test_batch_create_vendor_models_supports_302ai_text2image(self):
+        result = ModelProviderService.batch_create_vendor_models({
+            'vendor': '302ai',
+            'capability': 'text2image',
+            'api_key': 'sk-test',
+            'model_names': ['gpt-image-1'],
+            'is_active': True,
+            'timeout': 60,
+            'max_tokens': 4096,
+            'temperature': 0.7,
+            'top_p': 1.0,
+            'rate_limit_rpm': 60,
+            'rate_limit_rpd': 1000,
+            'priority': 0,
+        })
+
+        provider = ModelProvider.objects.get(model_name='gpt-image-1')
+        self.assertEqual(result['created_count'], 1)
+        self.assertEqual(provider.provider_type, 'text2image')
+        self.assertEqual(provider.api_url, 'https://api.302.ai/302/images/generations')
         self.assertEqual(provider.executor_class, 'core.ai_client.text2image_client.Text2ImageClient')
 
     def test_batch_create_vendor_models_supports_volcengine_image2video(self):
@@ -289,9 +332,17 @@ class ModelProviderVendorViewSetTestCase(APITestCase):
         self.assertIn('gemini', vendor_keys)
         self.assertIn('grok', vendor_keys)
         self.assertIn('newapi', vendor_keys)
+        self.assertIn('302ai', vendor_keys)
         self.assertIn('deepseek', vendor_keys)
         self.assertIn('minimax', vendor_keys)
         self.assertIn('modelscope', vendor_keys)
+        vendor_302ai = next(item for item in response.data['results'] if item['key'] == '302ai')
+        self.assertEqual(vendor_302ai['label'], '302.AI')
+        self.assertEqual(vendor_302ai['capabilities'][0]['api_url'], 'https://api.302.ai/v1/chat/completions')
+        vendor_302ai_capability_keys = [item['key'] for item in vendor_302ai['capabilities']]
+        self.assertIn('text2image', vendor_302ai_capability_keys)
+        text2image_capability = next(item for item in vendor_302ai['capabilities'] if item['key'] == 'text2image')
+        self.assertEqual(text2image_capability['api_url'], 'https://api.302.ai/302/images/generations')
         gemini = next(item for item in response.data['results'] if item['key'] == 'gemini')
         gemini_capability_keys = [item['key'] for item in gemini['capabilities']]
         self.assertIn('text2image', gemini_capability_keys)

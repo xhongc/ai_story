@@ -4,6 +4,27 @@ from typing import Any, Dict
 
 
 VENDOR_CATALOG: Dict[str, Dict[str, Any]] = {
+    '302ai': {
+        'label': '302.AI',
+        'capabilities': {
+            'llm': {
+                'provider_type': 'llm',
+                'api_url': 'https://api.302.ai/v1/chat/completions',
+                'models_endpoint': 'https://api.302.ai/v1/models',
+                'executor_class': 'core.ai_client.openai_client.OpenAIClient',
+                'recommended_patterns': ['gpt', 'claude', 'gemini', 'deepseek', 'qwen', 'grok', 'llama'],
+                'configurable_api_url': True,
+            },
+            'text2image': {
+                'provider_type': 'text2image',
+                'api_url': 'https://api.302.ai/302/images/generations',
+                'models_endpoint': 'https://api.302.ai/v1/models',
+                'executor_class': 'core.ai_client.text2image_client.Text2ImageClient',
+                'recommended_patterns': ['gpt-image', 'flux', 'sdxl', 'wanx', 'imagen'],
+                'configurable_api_url': True,
+            },
+        },
+    },
     'deepseek': {
         'label': 'DeepSeek',
         'capabilities': {
