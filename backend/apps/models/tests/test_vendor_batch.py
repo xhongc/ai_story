@@ -463,6 +463,11 @@ class ModelProviderVendorViewSetTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['api_url'], 'https://newapi.example.com/v1/chat/completions')
+        mock_get.assert_called_once()
+        self.assertEqual(
+            mock_get.call_args.args[0],
+            'https://newapi.example.com/v1/models',
+        )
 
     def test_batch_create_vendor_models_supports_newapi_llm(self):
         response = self.client.post('/api/v1/models/providers/batch_create_vendor_models/', {
@@ -507,6 +512,11 @@ class ModelProviderVendorViewSetTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['api_url'], 'https://gateway.example.com/v1/chat/completions')
+        mock_get.assert_called_once()
+        self.assertEqual(
+            mock_get.call_args.args[0],
+            'https://gateway.example.com/v1/models',
+        )
 
     def test_batch_create_vendor_models_supports_newapi_text2image(self):
         response = self.client.post('/api/v1/models/providers/batch_create_vendor_models/', {

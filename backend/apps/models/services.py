@@ -178,6 +178,29 @@ class ModelProviderService:
 
 
     @staticmethod
+    def _derive_models_endpoint(api_url: str) -> str:
+        normalized_api_url = api_url.rstrip('/')
+        parsed_url = urlparse(normalized_api_url)
+        path = parsed_url.path.rstrip('/')
+        suffixes = (
+            '/chat/completions',
+            '/images/generations',
+            '/images/edits',
+            '/videos/generations',
+            '/video/generations',
+            '/contents/generations/tasks',
+        )
+
+        for suffix in suffixes:
+            if path.endswith(suffix):
+                models_path = f"{path[:-len(suffix)]}/models"
+                break
+        else:
+            models_path = f"{path}/models"
+
+        return parsed_url._replace(path=models_path, params='', query='', fragment='').geturl()
+
+    @staticmethod
     def _resolve_capability_config(
         vendor: str,
         capability: str,
@@ -189,21 +212,9 @@ class ModelProviderService:
         if capability_config.get('configurable_api_url') and api_url_override:
             normalized_api_url = api_url_override.rstrip('/')
             capability_config['api_url'] = normalized_api_url
-            path = urlparse(normalized_api_url).path.rstrip('/')
-            # if path.endswith('/chat/completions'):
-            #     capability_config['models_endpoint'] = normalized_api_url[: -len('/chat/completions')] + '/models'
-            # elif path.endswith('/images/generations'):
-            #     capability_config['models_endpoint'] = normalized_api_url[: -len('/images/generations')] + '/models'
-            # elif path.endswith('/images/edits'):
-            #     capability_config['models_endpoint'] = normalized_api_url[: -len('/images/edits')] + '/models'
-            # elif path.endswith('/videos/generations'):
-            #     capability_config['models_endpoint'] = normalized_api_url[: -len('/videos/generations')] + '/models'
-            # elif path.endswith('/video/generations'):
-            #     capability_config['models_endpoint'] = normalized_api_url[: -len('/video/generations')] + '/models'
-            # elif path.endswith('/contents/generations/tasks'):
-            #     capability_config['models_endpoint'] = normalized_api_url[: -len('/contents/generations/tasks')] + '/models'
-            # else:
-            #     capability_config['models_endpoint'] = normalized_api_url.rstrip('/') + '/models'
+            capability_config['models_endpoint'] = ModelProviderService._derive_models_endpoint(
+                normalized_api_url
+            )
 
         return capability_config
 
