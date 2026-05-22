@@ -104,23 +104,31 @@
           >
             <div class="screenplay-episodes-header">
               <span class="field-label">剧本分集（{{ screenplayEpisodes.length }}集）</span>
-              <button
-                type="button"
-                class="import-btn"
-                @click="importFromScreenplay"
-              >
-                导入到批量列表
-              </button>
+              <div class="header-actions">
+                <button
+                  v-if="form.mode === 'batch'"
+                  type="button"
+                  class="import-btn"
+                  @click="importFromScreenplay"
+                >
+                  全部导入
+                </button>
+              </div>
             </div>
             <div class="screenplay-episodes-list">
               <div
                 v-for="ep in screenplayEpisodes"
                 :key="ep.id"
                 class="screenplay-episode-item"
+                role="button"
+                tabindex="0"
+                @click="applyEpisodeToForm(ep)"
+                @keyup.enter="applyEpisodeToForm(ep)"
               >
                 <span class="episode-num">第{{ ep.episode_number }}集</span>
                 <span class="episode-title">{{ ep.episode_title || '未命名' }}</span>
                 <span class="episode-chars">{{ ep.content_word_count || 0 }}字</span>
+                <span class="episode-apply-hint">{{ form.mode === 'batch' ? '添加' : '应用' }}</span>
               </div>
             </div>
           </div>
@@ -552,6 +560,27 @@ export default {
       }
 
       this.$message.success(`已导入 ${this.screenplayEpisodes.length} 集`);
+    },
+    applyEpisodeToForm(episode) {
+      if (this.form.mode === 'batch') {
+        // 批量模式：添加到批量列表
+        this.form.batch_episodes.push({
+          key: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          episode_title: episode.episode_title || '',
+          name: '',
+          original_topic: episode.content || '',
+          titleTouched: !!episode.episode_title,
+        });
+        this.$message.success(`已添加「${episode.episode_title || '第' + episode.episode_number + '集'}」到批量列表`);
+      } else {
+        // 单集模式：填入单集表单
+        this.form.episode_number = episode.episode_number || 1;
+        this.form.episode_title = episode.episode_title || '';
+        this.form.original_topic = episode.content || '';
+        this.form.name = `第${episode.episode_number || 1}集`;
+        this.singleTitleTouched = !!episode.episode_title;
+        this.$message.success(`已应用「${episode.episode_title || '第' + episode.episode_number + '集'}」`);
+      }
     },
     getLatestEpisode(episodes = []) {
       if (!episodes.length) {
@@ -1210,5 +1239,34 @@ export default {
   color: #94a3b8;
   font-size: 0.8rem;
   white-space: nowrap;
+}
+
+.episode-apply-hint {
+  padding: 0.2rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: rgba(20, 184, 166, 0.12);
+  color: #0d9488;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.layout-shell.theme-dark .episode-apply-hint {
+  background: rgba(94, 234, 212, 0.15);
+  color: #5eead4;
+}
+
+.screenplay-episode-item:hover .episode-apply-hint {
+  opacity: 1;
+}
+
+.screenplay-episode-item:hover {
+  background: rgba(20, 184, 166, 0.1);
+  cursor: pointer;
+}
+
+.layout-shell.theme-dark .screenplay-episode-item:hover {
+  background: rgba(94, 234, 212, 0.12);
 }
 </style>
