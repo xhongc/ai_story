@@ -196,6 +196,7 @@ class PromptTemplateListSerializer(serializers.ModelSerializer):
     """提示词模板列表序列化器 - 简化版本"""
 
     stage_type_display = serializers.CharField(source='get_stage_type_display', read_only=True)
+    template_set_name = serializers.CharField(source='template_set.name', read_only=True)
     model_provider_detail = ModelProviderSerializer(source='model_provider', read_only=True)
     client_param_schema = serializers.SerializerMethodField()
     resolved_client_params = serializers.SerializerMethodField()
@@ -203,7 +204,7 @@ class PromptTemplateListSerializer(serializers.ModelSerializer):
     class Meta:
         model = PromptTemplate
         fields = [
-            'id', 'stage_type', 'stage_type_display',
+            'id', 'template_set', 'template_set_name', 'stage_type', 'stage_type_display',
             'model_provider', 'model_provider_detail',
             'template_content', 'client_params', 'client_param_schema', 'resolved_client_params',
             'version', 'is_active', 'updated_at'

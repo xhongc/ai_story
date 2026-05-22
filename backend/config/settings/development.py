@@ -3,8 +3,8 @@
 """
 
 from .base import *
-CELERY_ALWAYS_EAGER = True
-CELERY_TASK_ALWAYS_EAGER = True
+# CELERY_ALWAYS_EAGER = True
+# CELERY_TASK_ALWAYS_EAGER = True
 
 DEBUG = True
 ALLOWED_HOSTS = ['*']
