@@ -129,7 +129,7 @@ class ModelProviderViewSet(viewsets.ModelViewSet):
     def toggle_status(self, request, pk=None):
         """
         切换模型提供商激活状态
-        POST /api/v1/models/providers/{id}/toggle-status/
+        POST /api/v1/models/providers/{id}/toggle_status/
         """
         instance = self.get_object()
         provider = ModelProviderService.toggle_provider_status(str(instance.id))
@@ -155,7 +155,7 @@ class ModelProviderViewSet(viewsets.ModelViewSet):
     def test_connection(self, request, pk=None):
         """
         测试模型提供商连接
-        POST /api/v1/models/providers/{id}/test-connection/
+        POST /api/v1/models/providers/{id}/test_connection/
         Body: {"test_prompt": "Hello, this is a test."}
         """
         instance = self.get_object()
@@ -202,7 +202,7 @@ class ModelProviderViewSet(viewsets.ModelViewSet):
     def usage_logs(self, request, pk=None):
         """
         获取模型提供商的使用日志
-        GET /api/v1/models/providers/{id}/usage-logs/
+        GET /api/v1/models/providers/{id}/usage_logs/
         """
         instance = self.get_object()
         limit = int(request.query_params.get('limit', 100))
@@ -222,7 +222,7 @@ class ModelProviderViewSet(viewsets.ModelViewSet):
     def active_providers(self, request):
         """
         获取所有激活的模型提供商
-        GET /api/v1/models/providers/active-providers/
+        GET /api/v1/models/providers/active_providers/
         Query: ?provider_type=llm
         """
         provider_type = request.query_params.get('provider_type')
@@ -238,7 +238,7 @@ class ModelProviderViewSet(viewsets.ModelViewSet):
     def by_type(self, request):
         """
         按类型分组获取模型提供商
-        GET /api/v1/models/providers/by-type/
+        GET /api/v1/models/providers/by_type/
         """
         llm_providers = ModelProvider.objects.filter(
             provider_type='llm',
@@ -272,7 +272,7 @@ class ModelProviderViewSet(viewsets.ModelViewSet):
     def simple_list(self, request):
         """
         获取简化的模型列表(仅id和name) - 用于下拉选择
-        GET /api/v1/models/providers/simple-list/
+        GET /api/v1/models/providers/simple_list/
         Query: ?provider_type=llm
         """
         provider_type = request.query_params.get('provider_type')
@@ -294,7 +294,7 @@ class ModelProviderViewSet(viewsets.ModelViewSet):
     def executor_choices(self, request):
         """
         获取执行器选项列表
-        GET /api/v1/models/providers/executor-choices/
+        GET /api/v1/models/providers/executor_choices/
         Query: ?provider_type=llm
 
         返回格式:
@@ -463,7 +463,7 @@ class ModelUsageLogViewSet(viewsets.ReadOnlyModelViewSet):
     def by_project(self, request):
         """
         按项目获取使用日志
-        GET /api/v1/models/usage-logs/by-project/
+        GET /api/v1/models/usage-logs/by_project/
         Query: ?project_id=xxx&stage_type=rewrite
         """
         project_id = request.query_params.get('project_id')
@@ -486,7 +486,7 @@ class ModelUsageLogViewSet(viewsets.ReadOnlyModelViewSet):
     def failed_logs(self, request):
         """
         获取失败的使用日志
-        GET /api/v1/models/usage-logs/failed-logs/
+        GET /api/v1/models/usage-logs/failed_logs/
         """
         limit = int(request.query_params.get('limit', 100))
         logs = ModelUsageLogService.get_failed_logs(limit=limit)
