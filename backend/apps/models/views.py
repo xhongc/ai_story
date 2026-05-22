@@ -7,7 +7,7 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.shortcuts import get_object_or_404
@@ -26,6 +26,7 @@ from .serializers import (
     VendorModelBatchCreateSerializer,
     VendorConnectionConfigSerializer,
     VendorConnectionConfigQuerySerializer,
+    PublicModelProviderSerializer,
 )
 from .services import ModelProviderService, ModelUsageLogService
 
@@ -265,6 +266,33 @@ class ModelProviderViewSet(viewsets.ModelViewSet):
             'text2image': ModelProviderListSerializer(text2image_providers, many=True).data,
             'image2video': ModelProviderListSerializer(image2video_providers, many=True).data,
             'image_edit': ModelProviderListSerializer(image_edit_providers, many=True).data,
+        })
+
+    @action(detail=False, methods=['get'], permission_classes=[AllowAny], url_path='public-marketplace')
+    def public_marketplace(self, request):
+        """
+        获取 linknow 等前端使用的公开只读模型列表
+        GET /api/v1/models/providers/public-marketplace/
+        """
+        provider_types = ('llm', 'text2image', 'image2video')
+        providers = (
+            ModelProvider.objects
+            .filter(provider_type__in=provider_types, is_active=True)
+            .order_by('provider_type', '-priority', 'name')
+        )
+
+        grouped = {
+            'llm': [],
+            'text2image': [],
+            'image2video': [],
+        }
+        for provider in providers:
+            grouped[provider.provider_type].append(provider)
+
+        return Response({
+            'chat': PublicModelProviderSerializer(grouped['llm'], many=True).data,
+            'image': PublicModelProviderSerializer(grouped['text2image'], many=True).data,
+            'video': PublicModelProviderSerializer(grouped['image2video'], many=True).data,
         })
 
     @action(detail=False, methods=['get'])

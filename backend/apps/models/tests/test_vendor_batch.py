@@ -627,3 +627,64 @@ class ModelProviderVendorViewSetTestCase(APITestCase):
         config = VendorConnectionConfig.objects.get(user=self.user, vendor='moonshot', capability='llm')
         self.assertEqual(config.api_key, 'sk-batch')
         self.assertEqual(config.api_url, 'https://api.moonshot.cn/v1/chat/completions')
+
+
+class PublicModelMarketplaceTestCase(APITestCase):
+    def test_public_marketplace_returns_active_read_only_lists(self):
+        llm = ModelProvider.objects.create(
+            name='OpenAI / GPT-4.1',
+            provider_type='llm',
+            api_url='https://api.openai.com/v1/chat/completions',
+            api_key='sk-test',
+            model_name='gpt-4.1',
+            executor_class='core.ai_client.openai_client.OpenAIClient',
+            is_active=True,
+            priority=20,
+        )
+        image = ModelProvider.objects.create(
+            name='OpenAI / GPT Image 1',
+            provider_type='text2image',
+            api_url='https://api.openai.com/v1/images/generations',
+            api_key='sk-test',
+            model_name='gpt-image-1',
+            executor_class='core.ai_client.executors.openai_images_generation_executor.OpenAIImagesGenerationExecutor',
+            is_active=True,
+            priority=10,
+        )
+        video = ModelProvider.objects.create(
+            name='Google / Veo 3',
+            provider_type='image2video',
+            api_url='https://example.com/v1/videos/generations',
+            api_key='sk-test',
+            model_name='veo-3',
+            executor_class='core.ai_client.image2video_client.VideoGeneratorClient',
+            is_active=True,
+            priority=5,
+        )
+        ModelProvider.objects.create(
+            name='Disabled / Hidden',
+            provider_type='llm',
+            api_url='https://example.com/v1/chat/completions',
+            api_key='sk-test',
+            model_name='hidden-model',
+            executor_class='core.ai_client.openai_client.OpenAIClient',
+            is_active=False,
+        )
+        ModelProvider.objects.create(
+            name='Edit Only / Hidden',
+            provider_type='image_edit',
+            api_url='https://example.com/v1/images/edits',
+            api_key='sk-test',
+            model_name='edit-model',
+            executor_class='core.ai_client.executors.openai_images_edit_executor.OpenAIImagesEditExecutor',
+            is_active=True,
+        )
+
+        response = self.client.get('/api/v1/models/providers/public-marketplace/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([item['id'] for item in response.data['chat']], [str(llm.id)])
+        self.assertEqual([item['id'] for item in response.data['image']], [str(image.id)])
+        self.assertEqual([item['id'] for item in response.data['video']], [str(video.id)])
+        self.assertNotIn('api_key', response.data['chat'][0])
+        self.assertEqual(response.data['chat'][0]['provider_type'], 'llm')

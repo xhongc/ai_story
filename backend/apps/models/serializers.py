@@ -265,6 +265,23 @@ class ModelProviderSimpleSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'name']
 
 
+class PublicModelProviderSerializer(serializers.ModelSerializer):
+    """公开模型列表序列化器 - 提供给 linknow 等只读场景"""
+
+    provider_type_display = serializers.CharField(
+        source='get_provider_type_display',
+        read_only=True
+    )
+
+    class Meta:
+        model = ModelProvider
+        fields = [
+            'id', 'name', 'provider_type', 'provider_type_display',
+            'model_name', 'is_active', 'priority', 'updated_at'
+        ]
+        read_only_fields = fields
+
+
 class ModelUsageLogSerializer(serializers.ModelSerializer):
     """模型使用日志序列化器"""
 
