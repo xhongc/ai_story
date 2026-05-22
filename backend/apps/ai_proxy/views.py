@@ -432,11 +432,12 @@ class VideosGenerationsProxyView(APIView):
     def post(self, request):
         prompt = request.data.get('prompt', '')
         model = request.data.get('model', '')
+        image_inputs = _ensure_list(request.data.get('images') or request.data.get('source_images'))
         image_input = request.data.get('image_url') or request.data.get('image')
+        if image_input and image_input not in image_inputs:
+            image_inputs.insert(0, image_input)
         image_base64 = request.data.get('image_base64')
-        if isinstance(image_input, str) and image_input.startswith('data:') and ';base64,' in image_input and not image_base64:
-            image_base64 = image_input.split(';base64,', 1)[1]
-            image_input = ''
+        image_base64s = _ensure_list(request.data.get('image_base64s'))
 
         if not prompt:
             return Response(
@@ -456,8 +457,10 @@ class VideosGenerationsProxyView(APIView):
             raw_result = client._generate_video(
                 prompt=prompt,
                 model=provider.model_name,
-                image_uri=image_input,
+                image_uri=image_inputs[0] if image_inputs else '',
+                image_uris=image_inputs,
                 image_base64=image_base64,
+                image_base64s=image_base64s,
                 image_mime_type=request.data.get('image_mime_type', 'image/jpeg'),
                 duration_seconds=_parse_int(request.data.get('duration_seconds'), _parse_int(request.data.get('duration'), 5)) or 5,
                 sample_count=_parse_int(request.data.get('sample_count'), _parse_int(request.data.get('n'), 1)) or 1,

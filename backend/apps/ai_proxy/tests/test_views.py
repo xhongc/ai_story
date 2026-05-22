@@ -145,7 +145,10 @@ class AIProxyViewTests(APITestCase):
             {
                 'model': 'video-test',
                 'prompt': '让角色走起来',
-                'image_url': '/api/v1/content/storage/image/a.png',
+                'images': [
+                    '/api/v1/content/storage/image/a.png',
+                    '/api/v1/content/storage/image/b.png',
+                ],
                 'duration': 8,
             },
             format='json',
@@ -156,3 +159,7 @@ class AIProxyViewTests(APITestCase):
         self.assertEqual(response.data['provider']['id'], str(provider.id))
         self.assertEqual(response.data['data'][0]['url'], '/api/v1/content/storage/video/a.mp4')
         fake_client._generate_video.assert_called_once()
+        self.assertEqual(
+            fake_client._generate_video.call_args.kwargs['image_uris'],
+            ['/api/v1/content/storage/image/a.png', '/api/v1/content/storage/image/b.png'],
+        )

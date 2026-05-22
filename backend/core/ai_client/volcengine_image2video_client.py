@@ -134,12 +134,26 @@ class VolcengineImage2VideoClient(VideoGeneratorClient):
         """构建火山方舟图生视频请求体。"""
         timeout = int(kwargs.get('timeout', self.timeout))
         image_uri = kwargs.get('image_uri')
+        image_uris = kwargs.get('image_uris')
         image_base64 = kwargs.get('image_base64')
+        image_base64s = kwargs.get('image_base64s')
         image_mime_type = kwargs.get('image_mime_type', 'image/jpeg')
         negative_prompt = kwargs.get('negative_prompt')
         camera_movement_description = kwargs.get('camera_movement_description')
 
-        resolved_image_base64 = self._resolve_image_base64(image_uri, image_base64, timeout)
+        normalized_image_uris = list(image_uris or [])
+        if image_uri and image_uri not in normalized_image_uris:
+            normalized_image_uris.insert(0, image_uri)
+
+        normalized_image_base64s = list(image_base64s or [])
+        if image_base64 and image_base64 not in normalized_image_base64s:
+            normalized_image_base64s.insert(0, image_base64)
+
+        resolved_image_base64s = self._resolve_image_base64s(
+            normalized_image_uris,
+            normalized_image_base64s,
+            timeout,
+        )
         final_prompt = self._build_prompt_text(
             prompt=prompt,
             negative_prompt=negative_prompt,
@@ -147,7 +161,7 @@ class VolcengineImage2VideoClient(VideoGeneratorClient):
         )
 
         content: List[Dict[str, Any]] = [{'type': 'text', 'text': final_prompt}]
-        if resolved_image_base64:
+        for resolved_image_base64 in resolved_image_base64s:
             content.append(
                 {
                     'type': 'image_url',
