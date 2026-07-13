@@ -90,6 +90,30 @@ class ModelProviderVendorServiceTestCase(APITestCase):
         self.assertEqual(result['provider_type'], 'llm')
         self.assertTrue(ModelProvider.objects.filter(model_name='gpt-4.1-mini').exists())
 
+    def test_batch_create_vendor_models_supports_atlascloud_llm(self):
+        result = ModelProviderService.batch_create_vendor_models({
+            'vendor': 'atlascloud',
+            'capability': 'llm',
+            'api_key': 'sk-test',
+            'model_names': ['qwen/qwen3.5-flash'],
+            'is_active': True,
+            'timeout': 60,
+            'max_tokens': 4096,
+            'temperature': 0.7,
+            'top_p': 1.0,
+            'rate_limit_rpm': 60,
+            'rate_limit_rpd': 1000,
+            'priority': 0,
+        })
+
+        provider = ModelProvider.objects.get(model_name='qwen/qwen3.5-flash')
+        self.assertEqual(result['created_count'], 1)
+        self.assertEqual(result['vendor_label'], 'Atlas Cloud')
+        self.assertEqual(provider.provider_type, 'llm')
+        self.assertEqual(provider.api_url, 'https://api.atlascloud.ai/v1/chat/completions')
+        self.assertEqual(provider.executor_class, 'core.ai_client.openai_client.OpenAIClient')
+        self.assertEqual(provider.extra_config['vendor'], 'atlascloud')
+
     def test_batch_create_vendor_models_supports_volcengine_text2image(self):
         result = ModelProviderService.batch_create_vendor_models({
             'vendor': 'volcengine',
@@ -195,6 +219,27 @@ class ModelProviderVendorServiceTestCase(APITestCase):
         self.assertEqual(video_provider.provider_type, 'image2video')
         self.assertEqual(video_provider.executor_class, 'core.ai_client.image2video_client.VideoGeneratorClient')
 
+
+    @patch('apps.models.services.requests.get')
+    def test_discover_vendor_models_supports_atlascloud(self, mock_get):
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'data': [
+                {'id': 'deepseek-ai/deepseek-v4-pro', 'owned_by': 'deepseek'},
+                {'id': 'qwen/qwen3.5-flash', 'owned_by': 'qwen'},
+                {'id': 'tts-1', 'owned_by': 'openai'},
+            ]
+        }
+        mock_get.return_value = mock_response
+
+        result = ModelProviderService.discover_vendor_models('atlascloud', 'llm', 'sk-test')
+
+        self.assertEqual(result['vendor'], 'atlascloud')
+        self.assertEqual(result['vendor_label'], 'Atlas Cloud')
+        self.assertEqual(result['api_url'], 'https://api.atlascloud.ai/v1/chat/completions')
+        self.assertEqual([item['id'] for item in result['models']], ['deepseek-ai/deepseek-v4-pro', 'qwen/qwen3.5-flash'])
+        self.assertTrue(all(item['is_capability_match'] for item in result['models']))
 
     @patch('apps.models.services.requests.get')
     def test_discover_vendor_models_excludes_audio_and_rerank_models(self, mock_get):
@@ -333,6 +378,7 @@ class ModelProviderVendorViewSetTestCase(APITestCase):
         self.assertIn('grok', vendor_keys)
         self.assertIn('newapi', vendor_keys)
         self.assertIn('302ai', vendor_keys)
+        self.assertIn('atlascloud', vendor_keys)
         self.assertIn('deepseek', vendor_keys)
         self.assertIn('minimax', vendor_keys)
         self.assertIn('modelscope', vendor_keys)

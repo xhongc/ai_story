@@ -25,6 +25,20 @@ VENDOR_CATALOG: Dict[str, Dict[str, Any]] = {
             },
         },
     },
+    'atlascloud': {
+        'label': 'Atlas Cloud',
+        'capabilities': {
+            'llm': {
+                'provider_type': 'llm',
+                'api_url': 'https://api.atlascloud.ai/v1/chat/completions',
+                'models_endpoint': 'https://api.atlascloud.ai/v1/models',
+                'executor_class': 'core.ai_client.openai_client.OpenAIClient',
+                'model_filter': ['qwen', 'deepseek'],
+                'recommended_patterns': ['qwen/qwen3.5-flash', 'deepseek-ai/deepseek-v4-pro'],
+                'configurable_api_url': True,
+            },
+        },
+    },
     'deepseek': {
         'label': 'DeepSeek',
         'capabilities': {
