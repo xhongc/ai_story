@@ -221,6 +221,17 @@ def _infer_variable_type(variable_name):
     return 'string'
 
 
+def _ensure_admin_user():
+    """确保首次迁移后存在默认管理员账户。"""
+    User = apps.get_model('auth', 'User')
+    if not User.objects.filter(username='admin').exists():
+        User.objects.create_superuser(
+            username='admin',
+            email='admin@example.com',
+            password='aistory',
+        )
+
+
 def run_post_migrate_initialization(sender, **kwargs):
     """在 migrate 执行完成后触发初始化逻辑。"""
     User = apps.get_model('auth', 'User')
@@ -229,6 +240,9 @@ def run_post_migrate_initialization(sender, **kwargs):
     PromptTemplate = apps.get_model('prompts', 'PromptTemplate')
 
     existing_tables = set(connection.introspection.table_names())
+
+    if User._meta.db_table in existing_tables:
+        _ensure_admin_user()
 
     if ModelProvider._meta.db_table in existing_tables:
         create_mock_providers()
