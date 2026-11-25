@@ -117,7 +117,10 @@ class VideoGeneratorClient:
     def _read_storage_image_as_base64(self, image_url: str) -> str:
         """读取本地 storage/image 下的图片并转换为 base64。"""
         relative_path = image_url.split('/api/v1/content/storage/image/', 1)[1]
-        image_path = Path(settings.STORAGE_ROOT) / 'image' / relative_path
+        image_root = (Path(settings.STORAGE_ROOT) / 'image').resolve()
+        image_path = (image_root / relative_path).resolve()
+        if not image_path.is_relative_to(image_root):
+            raise ValueError('图片路径超出本地存储目录')
         image_bytes = image_path.read_bytes()
         return base64.b64encode(image_bytes).decode('utf-8')
 

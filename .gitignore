@@ -52,6 +52,7 @@ node_modules/
 npm-debug.log
 yarn-error.log
 /storage/
+/data/mysql/
 /backend/storage/image/
 /backend/media
 

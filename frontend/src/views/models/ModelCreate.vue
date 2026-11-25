@@ -134,7 +134,11 @@
                 :placeholder="getApiUrlPlaceholder()"
                 @blur="handleVendorConnectionBlur"
               >
-              <span class="field-hint">默认已带出预设地址，可按当前模型能力改成你的自定义网关地址</span>
+              <span
+                v-if="vendorForm.vendor === 'metaso'"
+                class="field-hint"
+              >秘塔 H3 直连地址，已自动填入</span>
+              <span v-else class="field-hint">默认已带出预设地址，可按当前模型能力改成你的自定义网关地址</span>
             </label>
 
             <label class="field-block field-block-wide">
@@ -147,6 +151,10 @@
                 placeholder="请输入该厂商 API Key"
                 @blur="handleVendorConnectionBlur"
               >
+              <span
+                v-if="vendorForm.vendor === 'metaso'"
+                class="field-hint"
+              >填写秘塔 AI 的 API Key</span>
             </label>
           </div>
 
@@ -1053,7 +1061,7 @@ export default {
         const savedApiKey = (response.api_key || '').trim()
         const savedApiUrl = (response.api_url || '').trim()
         this.vendorForm.api_key = savedApiKey
-        if (savedApiUrl) {
+        if (savedApiUrl && this.vendorForm.vendor !== 'metaso') {
           this.vendorForm.api_url = savedApiUrl
         } else {
           this.syncVendorApiUrl()

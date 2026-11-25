@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 from django.test import SimpleTestCase
 
 from core.ai_client.image2video_client import VideoGeneratorClient
+from core.ai_client.metaso_h3_client import MetasoH3Client
 from core.ai_client.volcengine_image2video_client import VolcengineImage2VideoClient
 
 
@@ -28,6 +29,114 @@ class VideoGeneratorClientTestCase(SimpleTestCase):
         )
 
         self.assertEqual(result, [{'url': 'http://xxx'}])
+
+    @patch('core.ai_client.image2video_client.VideoGeneratorClient._localize_video_data', side_effect=lambda data, timeout: data)
+    @patch('core.ai_client.metaso_h3_client.requests.get')
+    @patch('core.ai_client.metaso_h3_client.requests.post')
+    def test_metaso_h3_direct_video_lifecycle(self, mock_post, mock_get, mock_localize):
+        mock_post.return_value.json.return_value = {'task_id': 'task-123'}
+        mock_get.return_value.json.return_value = {
+            'task': {'id': 'task-123', 'status': 'succeeded',
+                     'content': {'url': 'https://example.com/video.mp4'}},
+        }
+        client = MetasoH3Client(
+            api_url='https://metaso.cn/api/minimax/v2/video_generation',
+            api_token='sk-metaso', model='MiniMax-H3',
+        )
+
+        result = client._generate_video(
+            prompt='雨中行走的猫', model='MiniMax-H3', duration_seconds=8,
+            aspect_ratio='9:16', image_uri='https://example.com/cat.jpg',
+        )
+
+        self.assertTrue(result['success'])
+        self.assertEqual(mock_post.call_args.kwargs['json'], {
+            'model': 'MiniMax-H3',
+            'content': [
+                {'type': 'text', 'text': '雨中行走的猫'},
+                {'type': 'image_url', 'image_url': {'url': 'https://example.com/cat.jpg'},
+                 'role': 'first_frame'},
+            ],
+            'resolution': '768P', 'duration': 8, 'ratio': 'adaptive', 'fast_mode': False,
+        })
+        self.assertEqual(mock_post.call_args.args[0], 'https://metaso.cn/api/minimax/v2/video_generation')
+        self.assertEqual(mock_post.call_args.kwargs['headers']['Authorization'], 'Bearer sk-metaso')
+        self.assertEqual(mock_get.call_args.args[0], 'https://metaso.cn/api/minimax/v2/query/video_generation/task-123')
+        self.assertEqual(result['data'], [{'url': 'https://example.com/video.mp4'}])
+
+    @patch('core.ai_client.image2video_client.Path.read_bytes', return_value=b'local-image')
+    @patch('core.ai_client.metaso_h3_client.requests.post')
+    def test_metaso_h3_uses_local_storyboard_image(self, mock_post, mock_read_bytes):
+        mock_post.return_value.json.return_value = {'task_id': 'task-123'}
+        client = MetasoH3Client(
+            api_url='https://metaso.cn/api/minimax/v2/video_generation',
+            api_token='sk-metaso', model='MiniMax-H3',
+        )
+
+        client.create_video_task(
+            prompt='猫走路', model='MiniMax-H3', duration_seconds=4,
+            image_uri='/api/v1/content/storage/image/storyboard.jpg',
+        )
+
+        self.assertEqual(
+            mock_post.call_args.kwargs['json']['content'][1]['image_url']['url'],
+            'data:image/jpeg;base64,bG9jYWwtaW1hZ2U=',
+        )
+        mock_read_bytes.assert_called_once()
+
+    def test_metaso_h3_rejects_image_path_outside_storage(self):
+        client = MetasoH3Client(
+            api_url='https://metaso.cn/api/minimax/v2/video_generation',
+            api_token='sk-metaso', model='MiniMax-H3',
+        )
+
+        with self.assertRaises(ValueError):
+            client._read_storage_image_as_base64(
+                '/api/v1/content/storage/image/../../private.txt',
+            )
+
+    @patch('core.ai_client.metaso_h3_client.requests.post')
+    def test_metaso_h3_supports_2k_landscape(self, mock_post):
+        mock_post.return_value.json.return_value = {'task_id': 'task-123'}
+        client = MetasoH3Client(
+            api_url='https://metaso.cn/api/minimax/v2/video_generation',
+            api_token='sk-metaso', model='MiniMax-H3',
+        )
+
+        client.create_video_task(
+            prompt='列车', model='MiniMax-H3', duration_seconds=8,
+            aspect_ratio='16:9', resolution='2k',
+            image_uri='https://example.com/train.jpg',
+        )
+
+        self.assertEqual(mock_post.call_args.kwargs['json']['resolution'], '2K')
+
+    @patch('core.ai_client.metaso_h3_client.requests.post')
+    def test_metaso_h3_passes_silent_video_option(self, mock_post):
+        mock_post.return_value.json.return_value = {'task_id': 'task-123'}
+        client = MetasoH3Client(
+            api_url='https://metaso.cn/api/minimax/v2/video_generation',
+            api_token='sk-metaso', model='MiniMax-H3',
+        )
+
+        client.create_video_task(
+            prompt='列车', image_uri='https://example.com/train.jpg',
+            generate_audio=False,
+        )
+
+        self.assertIs(mock_post.call_args.kwargs['json']['generate_audio'], False)
+
+    @patch('core.ai_client.metaso_h3_client.requests.get')
+    def test_metaso_h3_rejects_missing_task_status(self, mock_get):
+        mock_get.return_value.json.return_value = {'task': {'id': 'task-123'}}
+        client = MetasoH3Client(
+            api_url='https://metaso.cn/api/minimax/v2/video_generation',
+            api_token='sk-metaso', model='MiniMax-H3',
+        )
+
+        with self.assertRaisesRegex(ValueError, 'task.status'):
+            client.get_task_status('task-123')
+
 
     @patch('core.ai_client.image2video_client.VideoGeneratorClient._localize_video_data', side_effect=lambda data, timeout: data)
     @patch('core.ai_client.image2video_client.requests.post')

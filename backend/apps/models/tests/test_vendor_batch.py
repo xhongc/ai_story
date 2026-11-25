@@ -60,6 +60,24 @@ class ModelProviderVendorServiceTestCase(APITestCase):
         self.assertEqual([item['id'] for item in result['models']], ['claude-3-7-sonnet', 'gpt-4o-mini'])
         self.assertTrue(all(item['is_capability_match'] for item in result['models']))
 
+    @patch('apps.models.services.requests.get')
+    def test_discover_metaso_h3_models_uses_fixed_endpoint(self, mock_get):
+        result = ModelProviderService.discover_vendor_models('metaso', 'image2video', 'sk-metaso')
+
+        self.assertEqual(result['models'][0]['id'], 'MiniMax-H3')
+        self.assertTrue(result['models'][0]['is_capability_match'])
+        self.assertEqual(result['api_url'], 'https://metaso.cn/api/minimax/v2/video_generation')
+        mock_get.assert_not_called()
+
+        created = ModelProviderService.batch_create_vendor_models({
+            'vendor': 'metaso', 'capability': 'image2video',
+            'api_key': 'sk-metaso', 'model_names': ['MiniMax-H3'],
+        })
+        self.assertEqual(created['created_count'], 1)
+        provider = created['created'][0]
+        self.assertEqual(provider.executor_class, 'core.ai_client.metaso_h3_client.MetasoH3Client')
+        self.assertEqual(provider.api_url, 'https://metaso.cn/api/minimax/v2/video_generation')
+
     def test_batch_create_vendor_models_skips_existing(self):
         ModelProvider.objects.create(
             name='OpenAI / gpt-4o-mini',

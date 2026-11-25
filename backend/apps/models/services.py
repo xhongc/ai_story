@@ -189,6 +189,7 @@ class ModelProviderService:
             '/videos/generations',
             '/video/generations',
             '/contents/generations/tasks',
+            '/videos',
         )
 
         for suffix in suffixes:
@@ -362,6 +363,20 @@ class ModelProviderService:
             capability,
             api_url_override=api_url,
         )
+        if vendor == 'metaso':
+            return {
+                'vendor': vendor,
+                'vendor_label': vendor_config['label'],
+                'capability': capability,
+                'provider_type': capability_config['provider_type'],
+                'api_url': capability_config['api_url'],
+                'models': [{
+                    'id': 'MiniMax-H3', 'name': 'MiniMax-H3', 'owned_by': '秘塔 AI',
+                    'context_length': None, 'classified_capability': 'image2video',
+                    'classified_capability_label': CAPABILITY_LABELS['image2video'],
+                    'is_capability_match': True, 'is_recommended': True,
+                }],
+            }
         headers = {
             'Authorization': f'Bearer {api_key}',
             'Content-Type': 'application/json',
@@ -868,6 +883,7 @@ class ModelProviderService:
         from core.ai_client.mock_image2video_client import MockImage2VideoClient
         from core.ai_client.image2video_client import VideoGeneratorClient
         from core.ai_client.volcengine_image2video_client import VolcengineImage2VideoClient
+        from core.ai_client.metaso_h3_client import MetasoH3Client
 
         extra_config = provider.extra_config or {}
         used_default_test_image = False
@@ -937,10 +953,13 @@ class ModelProviderService:
             'core.ai_client.image2video_client.VideoGeneratorClient',
             'core.ai_client.image2video_client.Image2VideoClient',
             'core.ai_client.volcengine_image2video_client.VolcengineImage2VideoClient',
+            'core.ai_client.metaso_h3_client.MetasoH3Client',
         ):
             client_class = VideoGeneratorClient
             if executor_class_path == 'core.ai_client.volcengine_image2video_client.VolcengineImage2VideoClient':
                 client_class = VolcengineImage2VideoClient
+            elif executor_class_path == 'core.ai_client.metaso_h3_client.MetasoH3Client':
+                client_class = MetasoH3Client
 
             client = await sync_to_async(client_class)(
                 api_url=provider.api_url,

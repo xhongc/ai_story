@@ -121,6 +121,18 @@ VENDOR_CATALOG: Dict[str, Dict[str, Any]] = {
             },
         },
     },
+    'metaso': {
+        'label': '秘塔 AI H3',
+        'capabilities': {
+            'image2video': {
+                'provider_type': 'image2video',
+                'api_url': 'https://metaso.cn/api/minimax/v2/video_generation',
+                'executor_class': 'core.ai_client.metaso_h3_client.MetasoH3Client',
+                'recommended_patterns': ['MiniMax-H3'],
+                'configurable_api_url': False,
+            },
+        },
+    },
     'openai': {
         'label': 'OpenAI',
         'capabilities': {
