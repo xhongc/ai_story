@@ -39,14 +39,18 @@ def execute_video_generation(input_payload: Dict[str, Any], user_id=None) -> Dic
         if prepared_base64 not in image_base64s:
             image_base64s.append(prepared_base64)
 
-    if not prompt:
-        raise RuntimeError('prompt 不能为空')
-    if not image_inputs and not image_base64 and not image_base64s:
-        raise RuntimeError('缺少可用于生成视频的图片输入')
-
     provider = _pick_provider('image2video', model)
     if not provider:
         raise RuntimeError('没有可用的视频模型提供商')
+    is_ucloud = getattr(provider, 'executor_class', '') == 'core.ai_client.ucloud_h3_client.UCloudH3Client'
+    if not prompt.strip() and not (
+        is_ucloud and (input_payload.get('content') or image_inputs or image_base64 or image_base64s)
+    ):
+        raise RuntimeError('prompt 不能为空')
+    if not image_inputs and not image_base64 and not image_base64s and not (
+        is_ucloud and (input_payload.get('content') or prompt.strip())
+    ):
+        raise RuntimeError('缺少可用于生成视频的图片输入')
 
     client = create_ai_client_for_user(provider, user_id=user_id)
     raw_result = client._generate_video(
@@ -69,6 +73,10 @@ def execute_video_generation(input_payload: Dict[str, Any], user_id=None) -> Dic
             or input_payload.get('cameraMovementDescription')
             or ''
         ),
+        **{key: input_payload[key] for key in (
+            'content', 'callback_url', 'callback_token', 'use_context_ir',
+            'skill_id', 'mute_audio', 'aigc_watermark', 'idempotency_key',
+        ) if key in input_payload},
     )
     result = normalize_video_result(raw_result)
     if not result['success']:
@@ -86,6 +94,7 @@ def execute_video_generation(input_payload: Dict[str, Any], user_id=None) -> Dic
     video_url = extract_video_url(output_payload)
     if not video_url:
         raise RuntimeError('模型未返回可用视频地址')
+    delivered_resolution = result['data'][0].get('resolution') if isinstance(result['data'][0], dict) else None
 
     normalized_output = {
         'videoUrl': video_url,
@@ -94,7 +103,7 @@ def execute_video_generation(input_payload: Dict[str, Any], user_id=None) -> Dic
         'model': model or provider.model_name,
         'duration': input_payload.get('duration') or '5s',
         'aspectRatio': input_payload.get('aspect_ratio') or input_payload.get('aspectRatio') or '16:9',
-        'resolution': input_payload.get('resolution') or '720p',
+        'resolution': delivered_resolution or input_payload.get('resolution') or '720p',
         'image_urls': prepared_images['original_urls'],
         'text': input_payload.get('text') or '',
     }

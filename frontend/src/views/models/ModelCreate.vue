@@ -135,9 +135,9 @@
                 @blur="handleVendorConnectionBlur"
               >
               <span
-                v-if="vendorForm.vendor === 'metaso'"
+                v-if="['metaso', 'ucloud'].includes(vendorForm.vendor)"
                 class="field-hint"
-              >秘塔 H3 直连地址，已自动填入</span>
+              >H3 直连地址，已自动填入</span>
               <span v-else class="field-hint">默认已带出预设地址，可按当前模型能力改成你的自定义网关地址</span>
             </label>
 
@@ -155,6 +155,7 @@
                 v-if="vendorForm.vendor === 'metaso'"
                 class="field-hint"
               >填写秘塔 AI 的 API Key</span>
+              <span v-if="vendorForm.vendor === 'ucloud'" class="field-hint">填写视频工作台创建的 sk-ml- API Key</span>
             </label>
           </div>
 
@@ -1061,7 +1062,7 @@ export default {
         const savedApiKey = (response.api_key || '').trim()
         const savedApiUrl = (response.api_url || '').trim()
         this.vendorForm.api_key = savedApiKey
-        if (savedApiUrl && this.vendorForm.vendor !== 'metaso') {
+        if (savedApiUrl && !['metaso', 'ucloud'].includes(this.vendorForm.vendor)) {
           this.vendorForm.api_url = savedApiUrl
         } else {
           this.syncVendorApiUrl()

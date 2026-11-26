@@ -32,6 +32,22 @@ class ModelProviderServiceLLMTestCase(TestCase):
 
 
 class ModelProviderServiceImage2VideoTestCase(TestCase):
+    async def test_image2video_provider_uses_ucloud_executor(self):
+        provider = ModelProvider(
+            name='优云智算 H3', provider_type='image2video',
+            api_url='https://cp.compshare.cn/minimax/v2/video_generation',
+            api_key='sk-ml-test', model_name='MiniMax-H3',
+            executor_class='core.ai_client.ucloud_h3_client.UCloudH3Client',
+            extra_config={'test_image_url': 'https://example.com/first.png'},
+        )
+        with patch('core.ai_client.ucloud_h3_client.UCloudH3Client._generate_video', return_value={
+            'success': True, 'data': [{'url': 'https://example.com/video.mp4'}], 'metadata': {},
+        }) as mock_generate:
+            result = await ModelProviderService._test_image2video_provider(provider, '猫走路')
+
+        self.assertTrue(result['success'])
+        self.assertEqual(mock_generate.call_args.kwargs['image_uri'], 'https://example.com/first.png')
+
     async def test_image2video_provider_uses_comfyui_executor(self):
         provider = ModelProvider(
             name='ComfyUI Video',

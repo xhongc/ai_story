@@ -78,6 +78,21 @@ class ModelProviderVendorServiceTestCase(APITestCase):
         self.assertEqual(provider.executor_class, 'core.ai_client.metaso_h3_client.MetasoH3Client')
         self.assertEqual(provider.api_url, 'https://metaso.cn/api/minimax/v2/video_generation')
 
+    @patch('apps.models.services.requests.get')
+    def test_discover_ucloud_h3_models_uses_fixed_endpoint(self, mock_get):
+        result = ModelProviderService.discover_vendor_models('ucloud', 'image2video', 'sk-ml-test')
+        self.assertEqual(result['models'][0]['id'], 'MiniMax-H3')
+        self.assertEqual(result['api_url'], 'https://cp.compshare.cn/minimax/v2/video_generation')
+        mock_get.assert_not_called()
+
+        created = ModelProviderService.batch_create_vendor_models({
+            'vendor': 'ucloud', 'capability': 'image2video',
+            'api_key': 'sk-ml-test', 'model_names': ['MiniMax-H3'],
+        })
+        provider = created['created'][0]
+        self.assertEqual(provider.executor_class, 'core.ai_client.ucloud_h3_client.UCloudH3Client')
+        self.assertEqual(provider.api_url, result['api_url'])
+
     def test_batch_create_vendor_models_skips_existing(self):
         ModelProvider.objects.create(
             name='OpenAI / gpt-4o-mini',

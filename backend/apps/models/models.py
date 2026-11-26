@@ -39,6 +39,7 @@ class ModelProvider(models.Model):
         ('core.ai_client.image2video_client.VideoGeneratorClient', '图生视频客户端'),
         ('core.ai_client.volcengine_image2video_client.VolcengineImage2VideoClient', '火山引擎图生视频客户端'),
         ('core.ai_client.metaso_h3_client.MetasoH3Client', '秘塔 H3 视频客户端'),
+        ('core.ai_client.ucloud_h3_client.UCloudH3Client', '优云智算 H3 视频客户端'),
         ('core.ai_client.comfyui_client.ComfyUIClient', 'ComfyUI客户端'),
         ('core.ai_client.mock_image2video_client.MockImage2VideoClient', 'Mock 图生视频客户端（测试用）'),
     ]

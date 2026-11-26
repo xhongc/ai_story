@@ -163,3 +163,31 @@ class AIProxyViewTests(APITestCase):
             fake_client._generate_video.call_args.kwargs['image_uris'],
             ['/api/v1/content/storage/image/a.png', '/api/v1/content/storage/image/b.png'],
         )
+
+    @patch('apps.ai_proxy.views.create_ai_client_for_user')
+    def test_ucloud_video_passes_documented_content_and_options(self, mock_create_client):
+        provider = ModelProvider.objects.create(
+            name='优云智算 H3', provider_type='image2video',
+            api_url='https://cp.compshare.cn/minimax/v2/video_generation',
+            api_key='sk-ml-test', model_name='MiniMax-H3',
+            executor_class='core.ai_client.ucloud_h3_client.UCloudH3Client',
+        )
+        mock_create_client.return_value._generate_video.return_value = {
+            'success': True,
+            'data': [{'url': 'https://example.com/video.mp4', 'resolution': '768P'}],
+            'metadata': {'task_id': 'task-1'},
+        }
+        content = [{'type': 'text', 'text': '一只猫在海边奔跑'}]
+
+        response = self.client.post(reverse('ai-videos-generations'), {
+            'model': str(provider.id), 'content': content, 'duration': 30,
+            'resolution': '4K', 'use_context_ir': True, 'mute_audio': True,
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        kwargs = mock_create_client.return_value._generate_video.call_args.kwargs
+        self.assertEqual(kwargs['content'], content)
+        self.assertEqual(kwargs['duration_seconds'], 30)
+        self.assertIs(kwargs['use_context_ir'], True)
+        self.assertIs(kwargs['mute_audio'], True)
+        self.assertEqual(response.data['data'][0]['resolution'], '768P')

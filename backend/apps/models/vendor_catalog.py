@@ -133,6 +133,18 @@ VENDOR_CATALOG: Dict[str, Dict[str, Any]] = {
             },
         },
     },
+    'ucloud': {
+        'label': '优云智算 H3',
+        'capabilities': {
+            'image2video': {
+                'provider_type': 'image2video',
+                'api_url': 'https://cp.compshare.cn/minimax/v2/video_generation',
+                'executor_class': 'core.ai_client.ucloud_h3_client.UCloudH3Client',
+                'recommended_patterns': ['MiniMax-H3'],
+                'configurable_api_url': False,
+            },
+        },
+    },
     'openai': {
         'label': 'OpenAI',
         'capabilities': {

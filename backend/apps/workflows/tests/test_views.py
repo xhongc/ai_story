@@ -1413,6 +1413,31 @@ class WorkflowImageInputRuntimeTestCase(APITestCase):
         self.assertEqual(captured_kwargs['prompt'], '上游文本节点传来的真实提示词')
         self.assertEqual(result['normalized_output']['prompt'], '上游文本节点传来的真实提示词')
 
+    @patch('apps.workflows.node_executors.execute_video_generation.create_ai_client_for_user')
+    @patch('apps.workflows.node_executors.execute_video_generation._pick_provider')
+    def test_ucloud_video_accepts_text_content_and_reports_delivered_resolution(self, mock_pick_provider, mock_create_client):
+        mock_pick_provider.return_value = SimpleNamespace(
+            id=uuid.uuid4(), name='优云智算 H3', provider_type='image2video',
+            get_provider_type_display=lambda: '图生视频', model_name='MiniMax-H3',
+            executor_class='core.ai_client.ucloud_h3_client.UCloudH3Client',
+        )
+        mock_create_client.return_value._generate_video.return_value = {
+            'success': True,
+            'data': [{'url': 'https://example.com/video.mp4', 'resolution': '768P'}],
+            'metadata': {'task_id': 'task-1'},
+        }
+        content = [{'type': 'text', 'text': '海边日落'}]
+
+        result = execute_video_generation({
+            'model': 'MiniMax-H3', 'content': content, 'resolution': '4K',
+            'use_context_ir': True,
+        })
+
+        kwargs = mock_create_client.return_value._generate_video.call_args.kwargs
+        self.assertEqual(kwargs['content'], content)
+        self.assertIs(kwargs['use_context_ir'], True)
+        self.assertEqual(result['normalized_output']['resolution'], '768P')
+
 
 class WorkflowNodeSchemaRuntimeTestCase(APITestCase):
     def setUp(self):

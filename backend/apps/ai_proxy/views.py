@@ -446,18 +446,17 @@ class VideosGenerationsProxyView(APIView):
         image_base64 = request.data.get('image_base64')
         image_base64s = _ensure_list(request.data.get('image_base64s'))
 
-        if not prompt:
-            return Response(
-                {'error': 'prompt 不能为空'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         provider = _pick_provider('image2video', model)
         if not provider:
             return Response(
                 {'error': '没有可用的视频模型提供商'},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
+        if not prompt and not (
+            provider.executor_class == 'core.ai_client.ucloud_h3_client.UCloudH3Client'
+            and (request.data.get('content') or image_inputs or image_base64 or image_base64s)
+        ):
+            return Response({'error': 'prompt 不能为空'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             client = create_ai_client_for_user(provider, user=request.user)
@@ -481,6 +480,10 @@ class VideosGenerationsProxyView(APIView):
                     or request.data.get('cameraMovementDescription')
                     or ''
                 ),
+                **{key: request.data[key] for key in (
+                    'content', 'callback_url', 'callback_token', 'use_context_ir',
+                    'skill_id', 'mute_audio', 'aigc_watermark', 'idempotency_key',
+                ) if key in request.data},
             )
             result = self._normalize_video_result(raw_result)
             if not result['success']:
