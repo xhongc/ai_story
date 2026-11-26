@@ -34,6 +34,14 @@ AI Story 是一个基于人工智能的故事视频自动化生成平台。只�
   </tr>
   <tr>
     <td width="190" align="center">
+      <a href="https://www.compshare.cn/video-studio?ytag=GPU_YY_YX_git_ai_story" target="_blank" rel="noopener"><img src="docs/images/UCloud.png" width="163" alt="优云智算 by UCloud"></a>
+    </td>
+    <td>
+      <strong>优云智算 H3 视频生成服务</strong> 优云智算提供高性价比 H3 视频生成服务，涵盖文生视频、首尾帧及全能参考。支持最长 30s 视频、4K 画质，<strong>768P 仅 0.08 元/秒</strong>。支持 API 调用、企业高并发、自助开票。通过<a href="https://www.compshare.cn/video-studio?ytag=GPU_YY_YX_git_ai_story" target="_blank" rel="noopener noreferrer">专属链接</a>注册，即可领取免费赠送额度。
+    </td>
+  </tr>
+  <tr>
+    <td width="190" align="center">
       <a href="https://5gtoken.com/login?dist=0494ce61a85d0e25" target="_blank" rel="noopener"><img src="docs/images/5g.png" width="163" alt="AI 超级工厂"></a>
     </td>
     <td>

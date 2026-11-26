@@ -32,6 +32,14 @@ AI Story is an AI-powered platform for automatically creating story videos. Simp
   </tr>
   <tr>
     <td width="190" align="center">
+      <a href="https://www.compshare.cn/video-studio?ytag=GPU_YY_YX_git_ai_story" target="_blank" rel="noopener"><img src="docs/images/UCloud.png" width="163" alt="UCloud Computing"></a>
+    </td>
+    <td>
+      <strong>UCloud Computing H3 Video Generation</strong> UCloud Computing offers cost-effective H3 video generation, including text-to-video, first-and-last-frame generation, and all-purpose reference. It supports videos up to 30 seconds long and 4K resolution, with <strong>768P at just CNY 0.08/second</strong>. API access, high concurrency for businesses, and self-service invoicing are available. Register through the <a href="https://www.compshare.cn/video-studio?ytag=GPU_YY_YX_git_ai_story" target="_blank" rel="noopener noreferrer">exclusive link</a> to receive free bonus credits.
+    </td>
+  </tr>
+  <tr>
+    <td width="190" align="center">
       <a href="https://5gtoken.com/login?dist=0494ce61a85d0e25" target="_blank" rel="noopener"><img src="docs/images/5g.png" width="163" alt="AI Super Factory"></a>
     </td>
     <td>
